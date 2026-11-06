@@ -19,7 +19,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 /**
  * Lit un rapport ESEF au format d'origine : un paquet ZIP contenant une page XHTML dont les
@@ -59,40 +58,82 @@ final class InlineXbrlParser {
 
     /** Ouvre un paquet ESEF (.zip ou .xbri) et lit son rapport XHTML. */
     static ParsedReport parsePackage(InputStream zip) throws IOException {
-        byte[] best = findReport(zip, 0);
-        if (best == null) {
-            throw new IOException("Aucun rapport XHTML dans le paquet ESEF");
+        java.nio.file.Path file = java.nio.file.Files.createTempFile("esef-", ".zip");
+        try {
+            java.nio.file.Files.copy(zip, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            byte[] best = findReport(file, 0);
+            if (best == null) {
+                throw new IOException("Aucun rapport XHTML dans le paquet ESEF");
+            }
+            return parse(new java.io.ByteArrayInputStream(best));
+        } finally {
+            java.nio.file.Files.deleteIfExists(file);
         }
-        return parse(new java.io.ByteArrayInputStream(best));
     }
 
     /**
-     * Le rapport XHTML d'un paquet. Les dépôts varient : dossier {@code reports/} à la racine
-     * ou sous un dossier au nom de la société, et parfois un paquet {@code .xbri} (lui-même un
-     * zip) emballé dans le zip de l'AMF : on l'ouvre alors (un seul niveau d'imbrication).
+     * Le rapport XHTML d'un paquet. Les dépôts varient : dossier {@code reports/} (à la racine ou
+     * sous un dossier au nom de la société), XHTML posé directement à la racine, ou paquet
+     * {@code .xbri} (lui-même un zip) emballé dans le zip de l'AMF, ouvert sur un niveau.
+     * <p>
+     * Lecture par {@link java.util.zip.ZipFile} (répertoire central en fin de fichier) plutôt
+     * qu'en flux : certains paquets ont des entrées non compressées que {@code ZipInputStream}
+     * refuse (« invalid LOC header »).
      */
-    private static byte[] findReport(InputStream zip, int depth) throws IOException {
-        byte[] best = null;
-        try (ZipInputStream in = new ZipInputStream(zip)) {
-            ZipEntry entry;
-            while ((entry = in.getNextEntry()) != null) {
+    private static byte[] findReport(java.nio.file.Path zipPath, int depth) throws IOException {
+        byte[] inReports = null;
+        byte[] elsewhere = null;
+        try (java.util.zip.ZipFile zip = open(zipPath)) {
+            for (ZipEntry entry : java.util.Collections.list(zip.entries())) {
                 String name = entry.getName().toLowerCase();
-                byte[] content = null;
-                if (entry.isDirectory()) {
-                    continue;
+                if (entry.isDirectory() || name.startsWith("__macosx/") || name.contains("/._") || name.startsWith("._")) {
+                    continue; // fichiers parasites ajoutés par macOS
                 }
-                boolean inReports = name.startsWith("reports/") || name.contains("/reports/");
-                if (inReports && (name.endsWith(".xhtml") || name.endsWith(".html"))) {
-                    content = in.readAllBytes();
+                if (name.endsWith(".xhtml") || name.endsWith(".html")) {
+                    boolean reports = name.startsWith("reports/") || name.contains("/reports/");
+                    if (reports ? isBigger(entry, inReports) : isBigger(entry, elsewhere)) {
+                        byte[] content;
+                        try (InputStream in = zip.getInputStream(entry)) {
+                            content = in.readAllBytes();
+                        }
+                        if (reports) inReports = content; else elsewhere = content;
+                    }
                 } else if (depth == 0 && (name.endsWith(".xbri") || name.endsWith(".zip"))) {
-                    content = findReport(new java.io.ByteArrayInputStream(in.readAllBytes()), depth + 1);
-                }
-                if (content != null && (best == null || content.length > best.length)) {
-                    best = content; // un seul rapport en principe ; sinon le plus complet
+                    java.nio.file.Path inner = java.nio.file.Files.createTempFile("esef-inner-", ".zip");
+                    try {
+                        try (InputStream in = zip.getInputStream(entry)) {
+                            java.nio.file.Files.copy(in, inner, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        }
+                        byte[] content = findReport(inner, depth + 1);
+                        if (content != null && (inReports == null || content.length > inReports.length)) {
+                            inReports = content;
+                        }
+                    } catch (java.util.zip.ZipException e) {
+                        // pièce jointe nommée .zip mais illisible : on cherche dans le reste du paquet
+                    } finally {
+                        java.nio.file.Files.deleteIfExists(inner);
+                    }
                 }
             }
         }
-        return best;
+        // un seul rapport en principe ; sinon le plus complet, de préférence sous reports/
+        return inReports != null ? inReports : elsewhere;
+    }
+
+    /** Noms de fichiers en UTF-8 normalement ; certains zips (Windows) les codent en CP437. */
+    private static java.util.zip.ZipFile open(java.nio.file.Path zipPath) throws IOException {
+        try {
+            return new java.util.zip.ZipFile(zipPath.toFile(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.util.zip.ZipException e) {
+            if (!String.valueOf(e.getMessage()).contains("CEN header")) {
+                throw e;
+            }
+            return new java.util.zip.ZipFile(zipPath.toFile(), java.nio.charset.Charset.forName("Cp437"));
+        }
+    }
+
+    private static boolean isBigger(ZipEntry entry, byte[] current) {
+        return current == null || entry.getSize() < 0 || entry.getSize() > current.length;
     }
 
     static ParsedReport parse(InputStream xhtml) throws IOException {

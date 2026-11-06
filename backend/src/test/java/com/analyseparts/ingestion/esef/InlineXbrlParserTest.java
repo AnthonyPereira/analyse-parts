@@ -116,6 +116,35 @@ class InlineXbrlParserTest {
     }
 
     @Test
+    void reportAtTheRootWithoutReportsFolder() throws IOException {
+        // Altamir, Selectirente, TBSO : le XHTML seul (ou à côté d'un PDF) à la racine du zip
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (ZipOutputStream out = new ZipOutputStream(bytes)) {
+            out.putNextEntry(new ZipEntry("TBSO - Rapport Financier Annuel 2025.pdf"));
+            out.write(new byte[100]);
+            out.putNextEntry(new ZipEntry("tbso-2025-12-31-1-fr.xhtml"));
+            out.write(XHTML.getBytes(StandardCharsets.UTF_8));
+        }
+        assertThat(InlineXbrlParser.parsePackage(new ByteArrayInputStream(bytes.toByteArray())).facts()).hasSize(4);
+    }
+
+    @Test
+    void nestedZipNextToMacOsFiles() throws IOException {
+        // JCDecaux 2021, Poxel 2024 : dossier zippé sur Mac, avec des fichiers __MACOSX/._* parasites
+        byte[] inner = zip("jcdecaux-2021-12-31-fr/reports/report.xhtml", XHTML.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (ZipOutputStream out = new ZipOutputStream(bytes)) {
+            out.putNextEntry(new ZipEntry("__MACOSX/JCD/._jcdecaux-2021-12-31-fr.zip"));
+            out.write(new byte[178]);
+            out.putNextEntry(new ZipEntry("JCD/jcdecaux-2021-12-31-fr.zip"));
+            out.write(inner);
+            out.putNextEntry(new ZipEntry("JCD/DEU2021-JCDecaux FR.html"));
+            out.write("<html xmlns=\"http://www.w3.org/1999/xhtml\"><body>sans balises</body></html>".getBytes(StandardCharsets.UTF_8));
+        }
+        assertThat(InlineXbrlParser.parsePackage(new ByteArrayInputStream(bytes.toByteArray())).facts()).hasSize(4);
+    }
+
+    @Test
     void numberFormats() {
         assertThat(InlineXbrlParser.number("1,234.5", "ixt:num-dot-decimal")).isEqualByComparingTo("1234.5");
         assertThat(InlineXbrlParser.number("1.234,5", "ixt:numdotcomma")).isEqualByComparingTo("1234.5");
