@@ -22,8 +22,10 @@ Benchmark, FTSE Russell) sur 4 niveaux : industrie (11), super-secteur (20), sec
 2. **Facteur** = médiane du secteur ÷ médiane de l'univers, borné entre **0,4 et 2,5**.
    Chaque repère du barème général est multiplié par ce facteur :
    la forme du barème ne change pas, seule son échelle s'adapte.
-3. **Niveau utilisé** : le super-secteur s'il compte au moins 8 sociétés ayant le ratio,
-   sinon l'industrie, sinon le barème général.
+3. **Niveau utilisé** : le super-secteur dès qu'au moins **3** de ses sociétés ont le ratio,
+   même s'il est petit (assurance, matières premières, chimie à Paris) : choix explicite de garder
+   la référence la plus proche du métier. En dessous de 3, la « médiane » serait la société
+   elle-même ; on passe alors à l'industrie (au moins 8 sociétés), sinon au barème général.
 4. **Ratios jamais ajustés** : ROE (l'actionnaire attend au moins le coût du capital, quel
    que soit le secteur), conversion en cash, croissance, régularité, distribution et
    rendements (un rendement de 5 % vaut 5 % partout).

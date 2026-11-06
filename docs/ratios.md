@@ -225,8 +225,9 @@ resserré** selon le secteur :
 Exemple, marge nette, distributeurs (médiane 2,4 %) contre univers (6 %) : facteur 0,4,
 le barème `0 % → 0, 5 % → 40, 10 % → 70, 20 % → 100` devient `0 % → 0, 2 % → 40, 4 % → 70, 8 % → 100`.
 
-Le secteur de référence est le super-secteur ICB (20 au total, ex. « Retail ») s'il compte au
-moins 8 sociétés, sinon l'industrie (11, ex. « Consumer Discretionary »). Les médianes sont
+Le secteur de référence est le super-secteur ICB (20 au total, ex. « Retail ») dès que 3 de ses
+sociétés ont le ratio, même s'il est petit ; sinon l'industrie (11, ex. « Consumer Discretionary »)
+s'il en compte au moins 8. Les médianes sont
 **figées** au moment du calibrage : le score d'une société ne change pas parce qu'une autre a
 publié ses comptes. Le ROE, la croissance, la régularité, le taux de distribution et les
 rendements ne sont jamais ajustés. Détails : [ADR 0004](adr/0004-baremes-par-secteur.md).

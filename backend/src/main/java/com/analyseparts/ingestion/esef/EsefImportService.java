@@ -107,11 +107,16 @@ public class EsefImportService {
     }
 
     /**
-     * Deux sources, dans cet ordre :
+     * Deux sources, dans cet ordre (ADR 0005) :
      * <ol>
-     *   <li>filings.xbrl.org : rapports déjà convertis en xBRL-JSON, historique de plusieurs années ;</li>
-     *   <li>l'AMF : complète les exercices plus récents que filings.xbrl.org n'a pas encore.</li>
+     *   <li><b>l'AMF</b>, source officielle : le rapport tel que la société l'a déposé, disponible le
+     *       jour même. Seulement les émetteurs dont l'AMF est l'autorité (sociétés françaises) ;</li>
+     *   <li>filings.xbrl.org, en complément : seulement pour les exercices que l'AMF n'a pas fournis
+     *       (sociétés étrangères cotées à Paris, dépôts anciens), et pas du tout si l'on a déjà
+     *       les {@code filingsPerCompany} derniers exercices.</li>
      * </ol>
+     * Les deux sources publient le même document ESEF : un exercice déjà importé n'est jamais
+     * réimporté depuis l'autre.
      */
     ImportResult importCompany(Company company) {
         return importCompany(company, true);
@@ -121,8 +126,10 @@ public class EsefImportService {
         if (company.getLei() == null) {
             return new ImportResult(1, 0, 0, 0, 0);
         }
-        ImportResult xbrlOrg = useFilingsXbrlOrg ? importFromFilingsXbrlOrg(company) : ImportResult.EMPTY;
         ImportResult amfResult = amf == null ? ImportResult.EMPTY : importFromAmf(company);
+        Set<LocalDate> known = new HashSet<>(financials.periodEnds(company.getId()));
+        ImportResult xbrlOrg = useFilingsXbrlOrg && needsComplement(known, LocalDate.now(), filingsPerCompany)
+                ? importFromFilingsXbrlOrg(company, known) : ImportResult.EMPTY;
         ImportResult total = new ImportResult(1, xbrlOrg.filingsImported() + amfResult.filingsImported(),
                 xbrlOrg.filingsSkipped() + amfResult.filingsSkipped(), xbrlOrg.factCount() + amfResult.factCount(),
                 xbrlOrg.errors() + amfResult.errors());
@@ -167,8 +174,8 @@ public class EsefImportService {
                 }
                 LocalDate periodEnd = parsed.facts().stream().filter(f -> !f.isInstant())
                         .map(ReportedFact::periodEnd).max(LocalDate::compareTo).orElse(null);
-                if (periodEnd == null || known.contains(periodEnd)) {
-                    skipped++; // exercice déjà connu (par filings.xbrl.org, ou autre version du même rapport)
+                if (periodEnd == null || isKnown(known, periodEnd)) {
+                    skipped++; // exercice déjà connu (import précédent, ou autre version du même rapport)
                     continue;
                 }
                 financials.recordFiling(company.getId(),
@@ -185,19 +192,43 @@ public class EsefImportService {
         return new ImportResult(1, imported, skipped, factCount, errors);
     }
 
-    private ImportResult importFromFilingsXbrlOrg(Company company) {
+    /**
+     * Faut-il interroger filings.xbrl.org ? Non si l'on a déjà les {@code wanted} derniers
+     * exercices, dont le plus récent clos il y a moins de 16 mois (le rapport suivant
+     * n'est pas encore publié).
+     */
+    static boolean needsComplement(Set<LocalDate> known, LocalDate today, int wanted) {
+        LocalDate latest = known.stream().max(LocalDate::compareTo).orElse(null);
+        if (latest == null || latest.isBefore(today.minusMonths(16))) {
+            return true;
+        }
+        LocalDate oldestWanted = latest.minusYears(wanted).plusMonths(1);
+        return known.stream().filter(d -> d.isAfter(oldestWanted)).count() < wanted;
+    }
+
+    /** Un exercice déjà connu, à quelques jours près (façons différentes d'écrire la fin de période). */
+    static boolean isKnown(Set<LocalDate> known, LocalDate periodEnd) {
+        return known.stream().anyMatch(d -> Math.abs(ChronoUnit.DAYS.between(d, periodEnd)) <= MAX_PERIOD_END_GAP_DAYS);
+    }
+
+    private ImportResult importFromFilingsXbrlOrg(Company company, Set<LocalDate> known) {
         int imported = 0, skipped = 0, factCount = 0, errors = 0;
         try {
             List<FilingInfo> selected = FilingSelector.select(
                     client.listFilings(company.getLei()), company.getCountry(), filingsPerCompany);
             for (FilingInfo filing : selected) {
-                if (financials.isImported(filing.fxoId())) {
-                    skipped++;
+                if (financials.isImported(filing.fxoId()) || isKnown(known, LocalDate.parse(filing.periodEnd()))) {
+                    skipped++; // déjà importé, ou exercice déjà fourni par l'AMF
                     continue;
                 }
                 try {
                     List<ReportedFact> facts = XbrlJsonParser.totals(client.download(filing.jsonUrl()));
                     LocalDate periodEnd = periodEnd(company, filing, facts);
+                    if (isKnown(known, periodEnd)) {
+                        skipped++;
+                        continue;
+                    }
+                    known.add(periodEnd);
                     financials.recordFiling(company.getId(), new FilingData(filing.fxoId(),
                             periodEnd, filing.country(), filing.jsonUrl(), filing.errorCount()), facts);
                     imported++;

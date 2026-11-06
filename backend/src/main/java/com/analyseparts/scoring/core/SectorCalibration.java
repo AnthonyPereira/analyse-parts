@@ -26,8 +26,11 @@ import java.util.Optional;
  * <p>
  * Garde-fous :
  * <ul>
- *   <li>au moins {@value #MIN_SAMPLE} sociétés pour qu'une médiane de secteur compte ; on essaie
- *       le super-secteur ICB (ex. « Retail »), puis l'industrie (ex. « Consumer Discretionary ») ;</li>
+ *   <li>on prend la médiane du super-secteur ICB (ex. « Retail ») dès qu'au moins
+ *       {@value #MIN_SUPERSECTOR_SAMPLE} de ses sociétés ont le ratio : même un petit super-secteur
+ *       (assurance, 3 sociétés à Paris) garde sa propre référence. En dessous, une « médiane » de 1 ou 2
+ *       sociétés serait la société elle-même : on passe à l'industrie (ex. « Financials ») s'il y en
+ *       a au moins {@value #MIN_SAMPLE}, sinon au barème général ;</li>
  *   <li>facteur borné entre {@value #MIN_FACTOR} et {@value #MAX_FACTOR} : un secteur entier
  *       en difficulté ne doit pas devenir la norme ;</li>
  *   <li>la calibration est calculée à un instant donné puis figée : le score d'une société ne
@@ -36,7 +39,10 @@ import java.util.Optional;
  */
 public final class SectorCalibration {
 
+    /** Minimum pour une médiane d'industrie ou de l'univers. */
     public static final int MIN_SAMPLE = 8;
+    /** Minimum pour une médiane de super-secteur (choix : garder chaque super-secteur, même petit). */
+    public static final int MIN_SUPERSECTOR_SAMPLE = 3;
     public static final double MIN_FACTOR = 0.4;
     public static final double MAX_FACTOR = 2.5;
 
@@ -108,7 +114,7 @@ public final class SectorCalibration {
             }
             result.add(new Median(UNIVERSE, UNIVERSE, "Toutes les sociétés", ratio, median(all), all.size()));
             bySupersector.forEach((code, values) -> {
-                if (values.size() >= MIN_SAMPLE) {
+                if (values.size() >= MIN_SUPERSECTOR_SAMPLE) {
                     result.add(new Median(SUPERSECTOR, code, labels.get(SUPERSECTOR + code), ratio, median(values), values.size()));
                 }
             });
