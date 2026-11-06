@@ -1,5 +1,6 @@
 package com.analyseparts.ingestion;
 
+import com.analyseparts.ingestion.esef.EsefImportService;
 import com.analyseparts.ingestion.euronext.EuronextImportService;
 import com.analyseparts.ingestion.euronext.EuronextImportService.ImportResult;
 import com.analyseparts.ingestion.gleif.LeiEnrichmentService;
@@ -19,10 +20,13 @@ public class IngestionAdminController {
 
     private final EuronextImportService euronextImport;
     private final LeiEnrichmentService leiEnrichment;
+    private final EsefImportService esefImport;
 
-    public IngestionAdminController(EuronextImportService euronextImport, LeiEnrichmentService leiEnrichment) {
+    public IngestionAdminController(EuronextImportService euronextImport, LeiEnrichmentService leiEnrichment,
+                                    EsefImportService esefImport) {
         this.euronextImport = euronextImport;
         this.leiEnrichment = leiEnrichment;
+        this.esefImport = esefImport;
     }
 
     /** Ex. : POST /api/admin/ingestion/euronext?mic=XPAR */
@@ -35,5 +39,16 @@ public class IngestionAdminController {
     @PostMapping("/lei")
     public EnrichmentResult enrichLei() {
         return leiEnrichment.enrichMissingLeis();
+    }
+
+    /**
+     * Rapports annuels ESEF.
+     * Ex. : POST /api/admin/ingestion/esef?isin=FR0000120271 (une société)
+     *       POST /api/admin/ingestion/esef?limit=10 (10 sociétés sans rapport)
+     */
+    @PostMapping("/esef")
+    public EsefImportService.ImportResult importEsef(@RequestParam(required = false) String isin,
+                                                     @RequestParam(defaultValue = "10") int limit) {
+        return isin != null ? esefImport.importCompany(isin) : esefImport.importMissing(limit);
     }
 }

@@ -13,4 +13,7 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     /** Sociétés jamais passées par GLEIF. */
     List<Company> findByLeiCheckedAtIsNullOrderByName();
+
+    /** Sociétés pour lesquelles on peut chercher des rapports ESEF. */
+    List<Company> findByLeiIsNotNullOrderByName();
 }

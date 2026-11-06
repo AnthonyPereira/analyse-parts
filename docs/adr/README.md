@@ -12,3 +12,4 @@ Règles :
 | N° | Décision | Statut |
 |---|---|---|
 | [0001](0001-monolithe-modulaire.md) | Monolithe modulaire (Spring Modulith) + cœur de scoring en Java pur | Acceptée |
+| [0002](0002-stockage-donnees-financieres.md) | Stocker les faits XBRL bruts, calculer les indicateurs à la lecture | Acceptée |
