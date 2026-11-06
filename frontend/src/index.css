@@ -150,3 +150,117 @@ button.link { border: 0; background: none; color: var(--accent); font: inherit; 
   .quote { align-items: flex-start; }
   .bar { width: 50px; }
 }
+
+/* ---------- Graphiques ---------- */
+/* Palette validée (contraste, daltonisme) : bleu, orange, vert d'eau dans cet ordre fixe. */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #6250d6;
+  --grid: #e1e0d9;
+  --axis: #898781;
+  --baseline: #c3c2b7;
+  --dot-muted: #c9c8c1;
+  --delta-up: #006300;
+  --delta-down: #c0392b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --grid: #2c2c2a;
+    --axis: #898781;
+    --baseline: #383835;
+    --dot-muted: #4a4a47;
+    --delta-up: #0ca30c;
+    --delta-down: #f07466;
+  }
+}
+
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 1rem; }
+.chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.9rem 1rem 0.6rem; min-width: 0; }
+.chart-card h3 { margin: 0; font-size: 0.95rem; }
+.chart-card .subtitle { margin: 0.1rem 0 0.5rem; font-size: 0.8rem; color: var(--muted); }
+.chart-empty { height: 120px; display: grid; place-items: center; color: var(--muted); font-size: 0.85rem; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; margin: 0 0 0.4rem; padding: 0; list-style: none; font-size: 0.8rem; color: var(--muted); }
+.legend li { display: flex; align-items: center; gap: 0.35rem; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.swatch-line { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+.tooltip { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.6rem; font-size: 0.8rem; box-shadow: 0 4px 14px rgb(0 0 0 / 0.12); }
+.tooltip p { margin: 0; }
+.tooltip .tooltip-title { font-weight: 600; margin-bottom: 0.2rem; }
+.tooltip li { display: flex; align-items: center; gap: 0.4rem; }
+.tooltip ul { list-style: none; margin: 0; padding: 0; }
+.tooltip .tooltip-value { margin-left: auto; padding-left: 0.8rem; font-variant-numeric: tabular-nums; }
+.recharts-wrapper:focus, .recharts-surface:focus { outline: none; }
+
+.range-tabs { display: flex; gap: 2px; }
+.range-tabs button { border: 0; background: none; color: var(--muted); font: inherit; font-size: 0.85rem; padding: 0.2rem 0.55rem; border-radius: 6px; cursor: pointer; }
+.range-tabs button[aria-pressed="true"] { background: var(--bg); color: var(--text); font-weight: 600; }
+.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+
+/* Cours en direct */
+.delta-up { color: var(--delta-up); }
+.delta-down { color: var(--delta-down); }
+.quote .change { font-weight: 600; font-variant-numeric: tabular-nums; }
+.quote strong { border-radius: 8px; padding: 0 0.3rem; transition: background-color 1.2s ease; }
+.flash-up { animation: flash-up 1.4s ease; }
+.flash-down { animation: flash-down 1.4s ease; }
+@keyframes flash-up { 0% { background: var(--good-bg); } 100% { background: transparent; } }
+@keyframes flash-down { 0% { background: var(--bad-bg); } 100% { background: transparent; } }
+.live { font-size: 0.8rem; color: var(--muted); display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.live-open .live-dot { background: var(--good); box-shadow: 0 0 0 3px var(--good-bg); }
+
+/* Barres de score (familles, profils) */
+.hbars { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.hbars li { display: grid; grid-template-columns: minmax(7rem, 9rem) 1fr 2.2rem; align-items: center; gap: 0.6rem; font-size: 0.85rem; }
+.hbar { height: 8px; border-radius: 4px; background: var(--none-bg); overflow: hidden; }
+.hbar span { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.hbars .num { text-align: right; }
+.hbars a { color: var(--text); }
+
+/* Diagramme en bandes (où se situe la société) */
+.strip { width: 100%; height: 34px; display: block; overflow: visible; }
+.strips { list-style: none; margin: 0; padding: 0; }
+.strips > li { display: grid; grid-template-columns: minmax(9rem, 13rem) 1fr; gap: 0.8rem; align-items: center; padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.strips .strip-label small { display: block; color: var(--muted); }
+.strip-legend { margin-top: 0.4rem; }
+
+/* Mode avancé */
+.weights { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.4rem 1.5rem; }
+.weights fieldset { border: 0; margin: 0; padding: 0; }
+.weights legend { font-weight: 600; font-size: 0.9rem; margin: 0.6rem 0 0.2rem; }
+.weight { display: grid; grid-template-columns: 1fr 6rem 2rem; gap: 0.5rem; align-items: center; font-size: 0.85rem; }
+.weight input { width: 100%; accent-color: var(--accent); }
+.stack { display: flex; gap: 2px; height: 14px; margin: 0.4rem 0; }
+.stack span { border-radius: 4px; min-width: 2px; }
+.layout-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+
+nav.mainnav { display: flex; gap: 0.2rem; flex-wrap: wrap; }
+nav.mainnav a { color: var(--muted); padding: 0.3rem 0.6rem; border-radius: 6px; }
+nav.mainnav a.active { color: var(--text); background: var(--surface); font-weight: 600; }
+
+@media (max-width: 760px) {
+  .layout-2 { grid-template-columns: 1fr; }
+  .strips > li { grid-template-columns: 1fr; gap: 0.1rem; }
+  .chart-grid { grid-template-columns: 1fr; }
+}
+.section-title { margin: 1.6rem 0 0.6rem; font-size: 1.25rem; }
+.small { font-size: 0.82rem; margin: 0.2rem 0 0.4rem; }
+.scale-chart { min-width: 260px; margin-top: 0.5rem; }
+aside > .card:first-child { margin-top: 0; }
+@media (max-width: 760px) {
+  .contributions th, .contributions td { padding: 0.45rem 0.35rem; }
+  .contributions .bar { display: none; }
+  .company-grid > * { min-width: 0; }
+}

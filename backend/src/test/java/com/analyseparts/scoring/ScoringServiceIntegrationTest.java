@@ -8,6 +8,7 @@ import com.analyseparts.financials.FilingData;
 import com.analyseparts.financials.FinancialsService;
 import com.analyseparts.financials.ReportedFact;
 import com.analyseparts.market.MarketDataService;
+import com.analyseparts.market.PricePoint;
 import com.analyseparts.market.Quote;
 import com.analyseparts.scoring.core.Profile;
 import com.analyseparts.scoring.core.Ratio;
@@ -80,6 +81,25 @@ class ScoringServiceIntegrationTest {
         assertThat(result.score().contributions()).anySatisfy(c -> {
             assertThat(c.ratio()).isEqualTo(Ratio.FCF_YIELD);
             assertThat(c.value()).isCloseTo(0.08, within(1e-6));
+        });
+
+        // Historique : à la clôture de l'exercice, le cours était de 40 € = 50 $ → PER 5
+        market.recordCloses(company.getId(), List.of(new PricePoint.Close(end, new BigDecimal("40"), null)));
+        var history = scoring.ratioHistory("FR0000000001").orElseThrow();
+        assertThat(history).hasSize(1);
+        assertThat(history.getFirst().price()).isEqualByComparingTo("40");
+        assertThat(history.getFirst().values().get(Ratio.PER)).isCloseTo(5.0, within(1e-6));
+        assertThat(history.getFirst().values()).containsKey(Ratio.NET_MARGIN);
+
+        // Mode avancé : un seul ratio suffit
+        var custom = scoring.ranking(Map.of(Ratio.PER, 1));
+        assertThat(custom).anySatisfy(e -> assertThat(e.isin()).isEqualTo("FR0000000001"));
+
+        assertThat(scoring.universe()).anySatisfy(u -> {
+            assertThat(u.isin()).isEqualTo("FR0000000001");
+            assertThat(u.supersector()).isEqualTo("Energy");
+            assertThat(u.ratios().get(Ratio.PER)).isCloseTo(10.0, within(1e-6));
+            assertThat(u.scores()).containsKey(Profile.VALUE);
         });
     }
 }

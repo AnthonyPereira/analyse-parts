@@ -40,5 +40,4 @@ apprend React) et se brancher sur l'API Spring Boot existante sans la modifier e
 
 - En production (Phase 6), le front sera servi en fichiers statiques (`npm run build`) derrière
   le même domaine que l'API, ou l'API devra autoriser son origine (CORS).
-- Pas encore de graphiques : ils viendront avec l'historique des cours (une librairie de
-  graphiques est prévue dans le document de conception).
+- Graphiques : Recharts, voir l'ADR 0007.

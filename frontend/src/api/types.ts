@@ -39,6 +39,7 @@ export interface Quote {
   currency: string
   asOf: string // ISO 8601
   source: 'YAHOO' | 'EURONEXT_CLOSE'
+  previousClose?: number | null
 }
 
 export interface RatioDefinition {
@@ -133,4 +134,58 @@ export interface FinancialValue {
 
 export interface FinancialHistory {
   years: { fiscalYearEnd: string; metrics: Record<string, FinancialValue> }[]
+}
+
+export interface QuoteWithChange extends Quote {
+  previousClose: number | null
+}
+
+/** Message reçu en direct par /api/quotes/stream. */
+export interface QuoteEvent extends QuoteWithChange {
+  isin: string
+}
+
+export interface DailyClose {
+  day: string
+  close: number
+  volume: number | null
+}
+
+export interface Intraday {
+  currency: string
+  previousClose: number | null
+  points: { time: string; price: number; volume: number | null }[]
+}
+
+export type PriceRange = 'D1' | 'M1' | 'M6' | 'Y1' | 'Y5' | 'MAX'
+
+export interface YearRatios {
+  fiscalYearEnd: string
+  price: number | null
+  values: Record<string, number>
+}
+
+export interface UniverseEntry {
+  isin: string
+  name: string
+  ticker: string
+  supersectorCode: string | null
+  supersector: string | null
+  freshness: Freshness | null
+  ratios: Record<string, number>
+  scores: Record<ProfileId, number | null>
+}
+
+export interface Median {
+  level: 'ALL' | 'SUPERSECTOR' | 'INDUSTRY'
+  code: string
+  label: string
+  ratio: string
+  median: number
+  sampleSize: number
+}
+
+export interface Calibration {
+  calibratedAt: string | null
+  medians: Median[]
 }

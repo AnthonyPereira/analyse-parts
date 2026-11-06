@@ -10,11 +10,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
@@ -92,5 +94,36 @@ public class ScoringController {
     @GetMapping("/api/scores")
     public List<ScoringService.RankingEntry> ranking(@RequestParam(defaultValue = "QUALITY") Profile profile) {
         return scoring.ranking(profile);
+    }
+
+    /**
+     * Mode avancé : classement avec des poids choisis par l'utilisateur.
+     * Ex. : POST /api/scores/custom {"ROE": 50, "PER": 50}. Les poids sont relatifs (pas besoin
+     * que leur somme fasse 100).
+     */
+    @PostMapping("/api/scores/custom")
+    public ResponseEntity<List<ScoringService.RankingEntry>> customRanking(@RequestBody Map<Ratio, Integer> weights) {
+        Map<Ratio, Integer> positive = new EnumMap<>(Ratio.class);
+        weights.forEach((ratio, weight) -> {
+            if (weight != null && weight > 0) {
+                positive.put(ratio, Math.min(weight, 100));
+            }
+        });
+        if (positive.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(scoring.ranking(positive));
+    }
+
+    /** Toutes les sociétés avec leurs ratios et leurs 4 scores, pour les graphiques de comparaison. */
+    @GetMapping("/api/universe")
+    public List<ScoringService.UniverseEntry> universe() {
+        return scoring.universe();
+    }
+
+    /** Les ratios exercice par exercice, avec la valorisation à chaque date de clôture. */
+    @GetMapping("/api/companies/{isin}/ratios/history")
+    public ResponseEntity<List<ScoringService.YearRatios>> ratioHistory(@PathVariable String isin) {
+        return ResponseEntity.of(scoring.ratioHistory(isin));
     }
 }

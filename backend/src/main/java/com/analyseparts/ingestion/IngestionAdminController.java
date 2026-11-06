@@ -49,6 +49,15 @@ public class IngestionAdminController {
         return prices.refreshQuotes();
     }
 
+    /**
+     * Historique des clôtures (Yahoo) : 5 ans pour les sociétés qui n'en ont pas, sinon les
+     * 5 derniers jours ; {@code full=true} recharge 5 ans pour toutes (≈ 2 min). Aussi lancé chaque soir.
+     */
+    @PostMapping("/price-history")
+    public QuoteRefreshService.HistoryResult refreshPriceHistory(@RequestParam(defaultValue = "false") boolean full) {
+        return prices.refreshHistory(full);
+    }
+
     /** Lit la fiche Euronext (secteur ICB, nombre d'actions) des sociétés jamais lues ou lues il y a plus d'un mois. */
     @PostMapping("/factsheets")
     public FactsheetEnrichmentService.EnrichmentResult enrichFactsheets() {

@@ -17,3 +17,4 @@ Règles :
 | [0004](0004-baremes-par-secteur.md) | Barèmes adaptés au secteur ICB par médianes calibrées puis figées | Acceptée |
 | [0005](0005-sources-marche-et-amf.md) | Sources : AMF en priorité (rapports annuels), fiche Euronext (secteur, actions), Yahoo et BCE (cours, change) | Acceptée |
 | [0006](0006-front-react.md) | Front React + TypeScript (Vite), TanStack Query, React Router, CSS simple | Acceptée |
+| [0007](0007-cours-en-direct-et-historiques.md) | Cours en direct par SSE (Yahoo chaque minute), historiques des cours et des ratios, graphiques Recharts | Acceptée |

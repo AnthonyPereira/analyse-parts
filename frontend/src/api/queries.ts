@@ -8,8 +8,9 @@
 
 import { useQuery } from '@tanstack/react-query'
 import type {
-  Company, CompanyScore, CompanySummary, FinancialHistory, ProfileDefinition, ProfileId,
-  Quote, RankingEntry, RatioDefinition,
+  Calibration, Company, CompanyScore, CompanySummary, DailyClose, FinancialHistory, Intraday, PriceRange,
+  ProfileDefinition, ProfileId, QuoteWithChange, UniverseEntry, YearRatios,
+  RankingEntry, RatioDefinition,
 } from './types'
 
 /** Erreur HTTP, pour distinguer « introuvable » (404) d'une panne. */
@@ -72,6 +73,52 @@ export const useFinancials = (isin: string) =>
 export const useQuote = (isin: string) =>
   useQuery({
     queryKey: ['quote', isin],
-    queryFn: () => getOptional<Quote>(`/api/companies/${isin}/quote`),
+    queryFn: () => getOptional<QuoteWithChange>(`/api/companies/${isin}/quote`),
     refetchInterval: 5 * 60 * 1000,
+  })
+
+// ---- Graphiques ----
+
+export const usePrices = (isin: string, range: Exclude<PriceRange, 'D1'>, enabled = true) =>
+  useQuery({
+    queryKey: ['prices', isin, range],
+    queryFn: () => get<DailyClose[]>(`/api/companies/${isin}/prices?range=${range}`),
+    staleTime: HOUR,
+    enabled,
+  })
+
+// La séance du jour : complétée en direct par useLiveQuotes (live.ts), relue toutes les 5 minutes.
+export const useIntraday = (isin: string, enabled = true) =>
+  useQuery({
+    queryKey: ['intraday', isin],
+    queryFn: () => getOptional<Intraday>(`/api/companies/${isin}/prices/intraday`),
+    refetchInterval: 5 * 60 * 1000,
+    enabled,
+  })
+
+export const useRatioHistory = (isin: string) =>
+  useQuery({ queryKey: ['ratioHistory', isin], queryFn: () => get<YearRatios[]>(`/api/companies/${isin}/ratios/history`) })
+
+// Toutes les sociétés avec leurs ratios et scores (~2 s à calculer côté serveur) : gardé 5 minutes.
+export const useUniverse = () =>
+  useQuery({ queryKey: ['universe'], queryFn: () => get<UniverseEntry[]>('/api/universe'), staleTime: 5 * 60 * 1000 })
+
+export const useCalibration = () =>
+  useQuery({ queryKey: ['calibration'], queryFn: () => get<Calibration>('/api/scoring/calibration'), staleTime: HOUR })
+
+/** Mode avancé : les poids font partie de la clé, donc chaque réglage a son propre cache. */
+export const useCustomRanking = (weights: Record<string, number>) =>
+  useQuery({
+    queryKey: ['customRanking', weights],
+    queryFn: async () => {
+      const response = await fetch('/api/scores/custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(weights),
+      })
+      if (!response.ok) throw new HttpError(response.status, '/api/scores/custom')
+      return response.json() as Promise<RankingEntry[]>
+    },
+    enabled: Object.values(weights).some(w => w > 0),
+    placeholderData: previous => previous, // garde l'ancien classement affiché pendant le calcul
   })

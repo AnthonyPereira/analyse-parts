@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { useRanking } from '../api/queries'
+import { useProfiles, useRanking, useUniverse } from '../api/queries'
+import { ProfileScatter, ScoreHistogram } from '../charts/MarketCharts'
 import { FreshnessBadge, PointsBar, ScoreBadge } from '../components/Badges'
 import { parseProfile, ProfileTabs } from '../components/ProfileTabs'
 import { formatDate, formatPercent } from '../format'
@@ -11,6 +12,8 @@ export function RankingPage() {
   const [params, setParams] = useSearchParams()
   const profile = parseProfile(params.get('profil'))
   const { data: ranking, isPending, error } = useRanking(profile)
+  const { data: universe } = useUniverse()
+  const { data: profiles } = useProfiles()
   const [sector, setSector] = useState('')
   const [showUnscored, setShowUnscored] = useState(false)
 
@@ -37,6 +40,16 @@ export function RankingPage() {
         </label>
         {ranking && <span className="muted">{scored.length} sociétés notées</span>}
       </div>
+
+      {ranking && (
+        <div className="layout-2" style={{ marginBottom: '1rem' }}>
+          <ScoreHistogram title="Répartition des scores" scores={scored.map(r => r.score!)} />
+          {universe ? (
+            <ProfileScatter universe={universe} profiles={profiles} highlightSector={sector || undefined}
+                            y={profile} x={profile === 'VALUE' ? 'QUALITY' : 'VALUE'} />
+          ) : <div className="chart-card"><p className="muted">Chargement du nuage de points…</p></div>}
+        </div>
+      )}
 
       {isPending && <p className="muted">Chargement…</p>}
       {error && <p className="error">Impossible de charger le classement : {error.message}</p>}
