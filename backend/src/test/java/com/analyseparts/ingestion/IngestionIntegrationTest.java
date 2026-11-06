@@ -3,6 +3,7 @@ package com.analyseparts.ingestion;
 import com.analyseparts.TestcontainersConfiguration;
 import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
+import com.analyseparts.ingestion.euronext.EuronextClient;
 import com.analyseparts.ingestion.euronext.EuronextImportService;
 import com.analyseparts.ingestion.euronext.ListedEquity;
 import com.analyseparts.ingestion.gleif.GleifClient;
@@ -22,7 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-@SpringBootTest(properties = "analyse-parts.gleif.pause=0s")
+/** Import et enrichissement appelés directement (déclenchement automatique désactivé). */
+@SpringBootTest(properties = {"analyse-parts.gleif.pause=0s", "analyse-parts.ingestion.auto-lei=false"})
 @Import(TestcontainersConfiguration.class)
 class IngestionIntegrationTest {
 
@@ -38,6 +40,9 @@ class IngestionIntegrationTest {
     @MockitoBean
     GleifClient gleif;
 
+    @MockitoBean
+    EuronextClient euronext;
+
     @BeforeEach
     void clean() {
         companies.deleteAll();
@@ -45,10 +50,10 @@ class IngestionIntegrationTest {
 
     @Test
     void importCreatesThenUpdatesByIsin() {
-        var first = importService.importEquities(List.of(
+        var first = importService.importEquities("XPAR", List.of(
                 new ListedEquity("ACCOR", "FR0000120404", "AC", "Euronext Paris"),
                 new ListedEquity("AIRBUS", "NL0000235190", "AIR", "Euronext Paris")));
-        var second = importService.importEquities(List.of(
+        var second = importService.importEquities("XPAR", List.of(
                 new ListedEquity("ACCOR SA", "FR0000120404", "AC", "Euronext Paris")));
 
         assertThat(first).isEqualTo(new EuronextImportService.ImportResult(2, 2, 0));
@@ -57,9 +62,22 @@ class IngestionIntegrationTest {
         assertThat(companies.findByIsin("NL0000235190")).get().extracting(Company::getCountry).isEqualTo("NL");
     }
 
+    /** Non-régression : en passant par importMarket, les mises à jour étaient perdues (transaction ignorée). */
+    @Test
+    void importMarketPersistsUpdates() {
+        when(euronext.fetchEquities("XPAR"))
+                .thenReturn(List.of(new ListedEquity("ACCOR", "FR0000120404", "AC", "Euronext Paris")))
+                .thenReturn(List.of(new ListedEquity("ACCOR SA", "FR0000120404", "AC", "Euronext Paris")));
+
+        importService.importMarket("XPAR");
+        importService.importMarket("XPAR");
+
+        assertThat(companies.findByIsin("FR0000120404")).get().extracting(Company::getName).isEqualTo("ACCOR SA");
+    }
+
     @Test
     void enrichmentSetsLeiOnceAndSkipsAlreadyChecked() {
-        importService.importEquities(List.of(
+        importService.importEquities("XPAR", List.of(
                 new ListedEquity("TOTALENERGIES", "FR0000120271", "TTE", "Euronext Paris"),
                 new ListedEquity("INCONNUE", "FR0000000001", "XXX", "Euronext Paris")));
         when(gleif.findByIsin(anyString())).thenReturn(Optional.empty());
@@ -78,7 +96,7 @@ class IngestionIntegrationTest {
 
     @Test
     void secondShareClassWithSameLeiIsCountedAsDuplicate() {
-        importService.importEquities(List.of(
+        importService.importEquities("XPAR", List.of(
                 new ListedEquity("ACTION A", "FR0000000011", "AAA", "Euronext Paris"),
                 new ListedEquity("ACTION B", "FR0000000029", "BBB", "Euronext Paris")));
         when(gleif.findByIsin(anyString()))
