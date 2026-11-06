@@ -6,7 +6,10 @@ import com.analyseparts.financials.internal.ReportedFactJdbcRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /** API publique du module : enregistrer un rapport, lire l'historique d'une société. */
 @Service
@@ -34,6 +37,20 @@ public class FinancialsService {
         FilingEntity saved = filings.save(new FilingEntity(companyId, filing.sourceId(), filing.periodEnd(),
                 filing.country(), filing.jsonUrl(), filing.errorCount(), reportedFacts.size()));
         facts.insertAll(saved.getId(), reportedFacts);
+    }
+
+    /** Dates de clôture des rapports déjà enregistrés pour une société. */
+    @Transactional(readOnly = true)
+    public List<LocalDate> periodEnds(long companyId) {
+        return filings.findPeriodEnds(companyId);
+    }
+
+    /** Date de clôture du rapport le plus récent de chaque société qui en a au moins un. */
+    @Transactional(readOnly = true)
+    public Map<Long, LocalDate> latestPeriodEnds() {
+        return filings.findLatestPeriodEnds().stream()
+                .collect(Collectors.toMap(FilingRepository.LatestPeriodEnd::getCompanyId,
+                        FilingRepository.LatestPeriodEnd::getLatest));
     }
 
     @Transactional(readOnly = true)

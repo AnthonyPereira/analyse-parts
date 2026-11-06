@@ -3,6 +3,7 @@ package com.analyseparts.scoring.core;
 import com.analyseparts.scoring.core.RatioCalculator.Input;
 import com.analyseparts.scoring.core.RatioCalculator.RatioSet;
 import com.analyseparts.scoring.core.RatioCalculator.RatioValue;
+import com.analyseparts.scoring.core.SectorCalibration.Adjustment;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -10,6 +11,8 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Calcule le score de 0 à 100 d'une société pour des poids donnés.
@@ -35,9 +38,10 @@ public final class ScoreCalculator {
      * @param weight       poids prévu par le profil
      * @param share        poids réel une fois les ratios indisponibles retirés (0 à 1)
      * @param contribution points × part réelle : la somme des contributions donne le score
+     * @param sectorAdjustment barème adapté au secteur (null : barème général)
      */
     public record Contribution(Ratio ratio, double value, int points, int weight, double share,
-                               double contribution, List<Input> inputs) {
+                               double contribution, Adjustment sectorAdjustment, List<Input> inputs) {
     }
 
     public record Missing(Ratio ratio, int weight, String reason) {
@@ -56,8 +60,17 @@ public final class ScoreCalculator {
     private ScoreCalculator() {
     }
 
-    /** @param asOf date du calcul, pour juger de la fraîcheur des chiffres */
+    /** Barèmes généraux, sans ajustement sectoriel. */
     public static Score score(RatioSet ratios, Map<Ratio, Integer> weights, LocalDate asOf) {
+        return score(ratios, weights, asOf, _ -> Optional.empty());
+    }
+
+    /**
+     * @param asOf        date du calcul, pour juger de la fraîcheur des chiffres
+     * @param adjustments ajustement sectoriel du barème de chaque ratio ({@link SectorCalibration})
+     */
+    public static Score score(RatioSet ratios, Map<Ratio, Integer> weights, LocalDate asOf,
+                              Function<Ratio, Optional<Adjustment>> adjustments) {
         int totalWeight = 0;
         int availableWeight = 0;
         for (var entry : weights.entrySet()) {
@@ -85,11 +98,13 @@ public final class ScoreCalculator {
                 continue;
             }
             RatioValue rv = value.get();
-            double points = ratio.scale().points(rv.value());
+            Adjustment adjustment = adjustments.apply(ratio).orElse(null);
+            Scale scale = adjustment == null ? ratio.scale() : ratio.scale().scaled(adjustment.factor());
+            double points = scale.points(rv.value());
             double share = (double) weight / availableWeight;
             total += points * share;
             contributions.add(new Contribution(ratio, rv.value(), (int) Math.round(points), weight, share,
-                    points * share, rv.inputs()));
+                    points * share, adjustment, rv.inputs()));
             double[] f = families.computeIfAbsent(ratio.family(), _ -> new double[2]);
             f[0] += points * weight;
             f[1] += weight;

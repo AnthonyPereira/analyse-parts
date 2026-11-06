@@ -6,12 +6,15 @@ import com.analyseparts.financials.Metric;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static com.analyseparts.financials.Metric.CAPEX;
 import static com.analyseparts.financials.Metric.CASH;
@@ -32,11 +35,13 @@ import static com.analyseparts.financials.Metric.SHORT_TERM_DEBT;
 import static com.analyseparts.financials.Metric.TOTAL_ASSETS;
 
 /**
- * Calcule les ratios d'une société à partir de son historique d'indicateurs.
+ * Calcule les ratios d'une société à partir de son historique d'indicateurs et, pour les
+ * ratios de valorisation, de son cours de bourse.
  * <p>
  * Java pur : aucune dépendance à Spring ou à la base. Les ratios de l'exercice portent sur le
  * <b>dernier exercice publié</b> ; les ratios de croissance et de régularité utilisent tout
- * l'historique disponible.
+ * l'historique disponible ; les ratios de valorisation comparent le <b>cours actuel</b> aux
+ * chiffres du dernier exercice.
  * <p>
  * Un ratio impossible à calculer n'est jamais remplacé par une valeur inventée : il est déclaré
  * indisponible, avec la raison, et le score se calcule sans lui.
@@ -45,10 +50,19 @@ public final class RatioCalculator {
 
     /** Pour une croissance annuelle moyenne, il faut au moins 3 exercices (2 ans d'écart). */
     static final int MIN_YEARS_FOR_TREND = 3;
+    /** En dessous, le BPA publié (arrondi au centime) ne permet pas de retrouver le nombre d'actions. */
+    static final BigDecimal MIN_EPS_FOR_SHARE_COUNT = new BigDecimal("0.25");
     private static final double DAYS_PER_YEAR = 365.25;
 
-    /** Un chiffre utilisé dans un calcul, avec sa provenance. */
-    public record Input(Metric metric, LocalDate fiscalYearEnd, BigDecimal value, String currency, String concept) {
+    /**
+     * Un chiffre utilisé dans un calcul, avec sa provenance.
+     *
+     * @param item     indicateur ({@link Metric}) ou donnée de marché (PRICE, SHARES, MARKET_CAP)
+     * @param date     date de clôture de l'exercice, ou date du cours
+     * @param currency devise, ou null pour un nombre d'actions
+     * @param source   concept XBRL, ou source de la donnée de marché
+     */
+    public record Input(String item, LocalDate date, BigDecimal value, String currency, String source) {
     }
 
     public record RatioValue(Ratio ratio, double value, List<Input> inputs) {
@@ -74,7 +88,16 @@ public final class RatioCalculator {
     private RatioCalculator() {
     }
 
+    /** Sans données de marché : les ratios de valorisation sont indisponibles. */
     public static RatioSet compute(FinancialHistory history) {
+        return compute(history, null, "Cours de bourse non fourni");
+    }
+
+    /**
+     * @param valuation         cours et nombre d'actions, ou null
+     * @param noValuationReason raison affichée si {@code valuation} est null
+     */
+    public static RatioSet compute(FinancialHistory history, Valuation valuation, String noValuationReason) {
         Map<Ratio, RatioValue> values = new EnumMap<>(Ratio.class);
         Map<Ratio, String> unavailable = new EnumMap<>(Ratio.class);
         if (history.years().isEmpty()) {
@@ -84,7 +107,7 @@ public final class RatioCalculator {
             return new RatioSet(null, values, unavailable);
         }
 
-        Calculation c = new Calculation(history.years());
+        Calculation c = new Calculation(history.years(), valuation, noValuationReason);
         for (Ratio ratio : Ratio.values()) {
             switch (c.compute(ratio)) {
                 case Outcome.Ok ok -> values.put(ratio, new RatioValue(ratio, ok.value(), ok.inputs()));
@@ -101,11 +124,15 @@ public final class RatioCalculator {
         private final Year latest;
         /** Exercice précédent, s'il précède bien le dernier d'environ un an. */
         private final Year previous;
+        private final Valuation valuation;
+        private final String noValuationReason;
 
-        Calculation(List<Year> years) {
+        Calculation(List<Year> years, Valuation valuation, String noValuationReason) {
             this.years = years;
             this.latest = years.getFirst();
             this.previous = years.size() > 1 && isOneYearBefore(years.get(1), latest) ? years.get(1) : null;
+            this.valuation = valuation;
+            this.noValuationReason = noValuationReason;
         }
 
         Outcome compute(Ratio ratio) {
@@ -131,12 +158,28 @@ public final class RatioCalculator {
                 // Flux de trésorerie d'exploitation ÷ résultat net
                 case CASH_CONVERSION -> divide(first(latest, OPERATING_CASH_FLOW), first(latest, NET_INCOME),
                         "le flux de trésorerie d'exploitation", "le résultat net");
-                case FCF_MARGIN -> fcfMargin();
+                case FCF_MARGIN -> freeCashFlow().map(fcf -> divide(Optional.of(fcf), first(latest, REVENUE),
+                        "le cash-flow libre", "le chiffre d'affaires"), Outcome.Missing::new);
                 case REVENUE_GROWTH -> growth(REVENUE, "le chiffre d'affaires");
                 case EPS_GROWTH -> epsGrowth();
                 case PROFITABLE_YEARS -> profitableYears();
                 case PAYOUT_RATIO -> payoutRatio();
                 case DIVIDEND_GROWTH -> growth(DIVIDENDS_PAID, "les dividendes versés");
+                // Dividendes versés ÷ capitalisation boursière
+                case DIVIDEND_YIELD -> withMarketCap(cap -> first(latest, DIVIDENDS_PAID)
+                        .map(d -> divide(Optional.of(abs(d)), Optional.of(cap), "les dividendes versés", "la capitalisation"))
+                        .orElse(new Outcome.Missing("Dividendes versés non publiés sous un concept standard")));
+                case PER -> per();
+                case EV_TO_EBIT -> balanceSheetRatio(this::evToEbit);
+                // Cash-flow libre ÷ capitalisation boursière
+                case FCF_YIELD -> withMarketCap(cap -> freeCashFlow().map(fcf -> divide(Optional.of(fcf),
+                        Optional.of(cap), "le cash-flow libre", "la capitalisation"), Outcome.Missing::new));
+                // Capitalisation ÷ capitaux propres part du groupe
+                case PRICE_TO_BOOK -> withMarketCap(cap -> {
+                    Outcome pb = divide(Optional.of(cap), first(latest, EQUITY_GROUP, EQUITY),
+                            "la capitalisation", "les capitaux propres");
+                    return pb;
+                });
             };
         }
 
@@ -155,50 +198,69 @@ public final class RatioCalculator {
 
         /** (Dette long terme + dette court terme − trésorerie) ÷ capitaux propres. */
         private Outcome netDebtToEquity() {
+            Optional<Input> equity = first(latest, EQUITY);
+            if (equity.isEmpty()) {
+                return new Outcome.Missing("Capitaux propres manquants");
+            }
+            return netDebt().map(nd -> {
+                if (!sameCurrency(List.of(nd, equity.get()))) {
+                    return (Outcome) new Outcome.Missing("Chiffres dans des devises différentes");
+                }
+                if (signum(equity.get()) <= 0) {
+                    return new Outcome.Missing("Capitaux propres négatifs ou nuls : ratio non interprétable");
+                }
+                List<Input> inputs = new ArrayList<>(netDebtInputs());
+                inputs.add(equity.get());
+                return new Outcome.Ok(nd.value().doubleValue() / equity.get().value().doubleValue(), inputs);
+            }, Outcome.Missing::new);
+        }
+
+        /**
+         * Dette nette = dettes financières − trésorerie, renvoyée comme une {@link Input} calculée.
+         * Si seule une des deux dettes (long ou court terme) est publiée, l'autre compte pour zéro.
+         */
+        private Either<Input> netDebt() {
             Optional<Input> longTerm = first(latest, LONG_TERM_DEBT);
             Optional<Input> shortTerm = first(latest, SHORT_TERM_DEBT);
             if (longTerm.isEmpty() && shortTerm.isEmpty()) {
-                return new Outcome.Missing("Dettes financières non publiées sous un concept standard");
+                return Either.missing("Dettes financières non publiées sous un concept standard");
             }
             Optional<Input> cash = first(latest, CASH);
-            Optional<Input> equity = first(latest, EQUITY);
-            if (cash.isEmpty() || equity.isEmpty()) {
-                return new Outcome.Missing("Trésorerie ou capitaux propres manquants");
+            if (cash.isEmpty()) {
+                return Either.missing("Trésorerie manquante");
             }
-            List<Input> inputs = new ArrayList<>();
-            longTerm.ifPresent(inputs::add);
-            shortTerm.ifPresent(inputs::add);
-            inputs.add(cash.get());
-            inputs.add(equity.get());
-            if (!sameCurrency(inputs)) {
-                return new Outcome.Missing("Chiffres dans des devises différentes");
+            List<Input> parts = netDebtInputs();
+            if (!sameCurrency(parts)) {
+                return Either.missing("Chiffres dans des devises différentes");
             }
-            if (signum(equity.get()) <= 0) {
-                return new Outcome.Missing("Capitaux propres négatifs ou nuls : ratio non interprétable");
-            }
-            double netDebt = value(longTerm) + value(shortTerm) - cash.get().value().doubleValue();
-            return new Outcome.Ok(netDebt / equity.get().value().doubleValue(), inputs);
+            double value = value(longTerm) + value(shortTerm) - cash.get().value().doubleValue();
+            return Either.of(new Input("NET_DEBT", latest.fiscalYearEnd(), BigDecimal.valueOf(value),
+                    cash.get().currency(), "dettes financières − trésorerie"));
         }
 
-        /** (Flux de trésorerie d'exploitation − investissements) ÷ chiffre d'affaires. */
-        private Outcome fcfMargin() {
+        private List<Input> netDebtInputs() {
+            List<Input> inputs = new ArrayList<>();
+            first(latest, LONG_TERM_DEBT).ifPresent(inputs::add);
+            first(latest, SHORT_TERM_DEBT).ifPresent(inputs::add);
+            first(latest, CASH).ifPresent(inputs::add);
+            return inputs;
+        }
+
+        /** Cash-flow libre = flux de trésorerie d'exploitation − investissements. */
+        private Either<Input> freeCashFlow() {
             Optional<Input> ocf = first(latest, OPERATING_CASH_FLOW);
             Optional<Input> capex = first(latest, CAPEX);
-            Optional<Input> revenue = first(latest, REVENUE);
-            if (ocf.isEmpty() || capex.isEmpty() || revenue.isEmpty()) {
-                return new Outcome.Missing(missingLabel(ocf, "le flux de trésorerie d'exploitation",
-                        capex, "les investissements", revenue, "le chiffre d'affaires"));
+            if (ocf.isEmpty() || capex.isEmpty()) {
+                return Either.missing(missingLabel(ocf, "le flux de trésorerie d'exploitation", capex, "les investissements"));
             }
-            List<Input> inputs = List.of(ocf.get(), capex.get(), revenue.get());
-            if (!sameCurrency(inputs)) {
-                return new Outcome.Missing("Chiffres dans des devises différentes");
-            }
-            if (signum(revenue.get()) <= 0) {
-                return new Outcome.Missing("Chiffre d'affaires nul ou négatif");
+            if (!sameCurrency(List.of(ocf.get(), capex.get()))) {
+                return Either.missing("Chiffres dans des devises différentes");
             }
             // Les investissements sont publiés en positif (décaissement) ; abs() par précaution.
             double fcf = ocf.get().value().doubleValue() - Math.abs(capex.get().value().doubleValue());
-            return new Outcome.Ok(fcf / revenue.get().value().doubleValue(), inputs);
+            return Either.of(new Input("FREE_CASH_FLOW", latest.fiscalYearEnd(), BigDecimal.valueOf(fcf),
+                    ocf.get().currency(), "flux d'exploitation (" + ocf.get().value() + ") − investissements ("
+                    + capex.get().value().abs() + ")"));
         }
 
         /** Dividendes versés ÷ résultat net part du groupe. */
@@ -250,7 +312,7 @@ public final class RatioCalculator {
             if (signum(newest) <= 0 || signum(oldest) <= 0) {
                 return new Outcome.Missing("Valeur négative ou nulle au début ou à la fin : croissance non calculable");
             }
-            double span = ChronoUnit.DAYS.between(oldest.fiscalYearEnd(), newest.fiscalYearEnd()) / DAYS_PER_YEAR;
+            double span = ChronoUnit.DAYS.between(oldest.date(), newest.date()) / DAYS_PER_YEAR;
             double cagr = Math.pow(newest.value().doubleValue() / oldest.value().doubleValue(), 1 / span) - 1;
             return new Outcome.Ok(cagr, List.of(newest, oldest));
         }
@@ -267,12 +329,98 @@ public final class RatioCalculator {
             return new Outcome.Ok((double) profitable / incomes.size(), incomes);
         }
 
+        // --- Valorisation ---
+
+        /** Cours ÷ bénéfice par action du dernier exercice. */
+        private Outcome per() {
+            if (valuation == null) {
+                return new Outcome.Missing(noValuationReason);
+            }
+            Optional<Input> eps = first(latest, EPS_BASIC, EPS_DILUTED);
+            if (eps.isEmpty()) {
+                return new Outcome.Missing("Bénéfice par action manquant");
+            }
+            Input price = priceInput();
+            if (!sameCurrency(List.of(price, eps.get()))) {
+                return new Outcome.Missing("Cours et bénéfice dans des devises différentes");
+            }
+            if (signum(eps.get()) <= 0) {
+                return new Outcome.Missing("Perte sur l'exercice : PER non significatif");
+            }
+            return new Outcome.Ok(price.value().doubleValue() / eps.get().value().doubleValue(),
+                    List.of(price, eps.get()));
+        }
+
+        /** (Capitalisation + dette nette) ÷ résultat opérationnel. */
+        private Outcome evToEbit() {
+            return withMarketCap(cap -> netDebt().map(nd -> {
+                Optional<Input> ebit = first(latest, OPERATING_INCOME);
+                if (ebit.isEmpty()) {
+                    return (Outcome) new Outcome.Missing("Résultat opérationnel manquant");
+                }
+                if (!sameCurrency(List.of(cap, nd, ebit.get()))) {
+                    return new Outcome.Missing("Chiffres dans des devises différentes");
+                }
+                if (signum(ebit.get()) <= 0) {
+                    return new Outcome.Missing("Résultat opérationnel négatif ou nul : ratio non significatif");
+                }
+                double ev = cap.value().doubleValue() + nd.value().doubleValue();
+                List<Input> inputs = new ArrayList<>(List.of(cap, nd, ebit.get()));
+                return new Outcome.Ok(ev / ebit.get().value().doubleValue(), inputs);
+            }, Outcome.Missing::new));
+        }
+
+        /**
+         * Capitalisation boursière = cours × nombre d'actions. Le nombre d'actions vient de la fiche
+         * Euronext ; à défaut, on le retrouve à partir du BPA : par définition,
+         * BPA = résultat net part du groupe ÷ nombre moyen d'actions.
+         */
+        private Outcome withMarketCap(java.util.function.Function<Input, Outcome> ratio) {
+            if (valuation == null) {
+                return new Outcome.Missing(noValuationReason);
+            }
+            Input price = priceInput();
+            Optional<Input> shares = shares();
+            if (shares.isEmpty()) {
+                return new Outcome.Missing("Nombre d'actions inconnu");
+            }
+            BigDecimal cap = price.value().multiply(shares.get().value());
+            return ratio.apply(new Input("MARKET_CAP", price.date(), cap, price.currency(),
+                    "cours (" + price.value() + ") × actions (" + shares.get().value() + ", "
+                            + shares.get().source() + ")"));
+        }
+
+        private Optional<Input> shares() {
+            LocalDate priceDate = priceInput().date();
+            if (valuation.shares() != null && valuation.shares() > 0) {
+                return Optional.of(new Input("SHARES", priceDate, BigDecimal.valueOf(valuation.shares()), null,
+                        "actions admises (Euronext)"));
+            }
+            Optional<Input> income = first(latest, NET_INCOME_GROUP);
+            Optional<Input> eps = first(latest, EPS_BASIC);
+            if (income.isEmpty() || eps.isEmpty() || eps.get().value().abs().compareTo(MIN_EPS_FOR_SHARE_COUNT) < 0) {
+                return Optional.empty();
+            }
+            BigDecimal count = income.get().value().divide(eps.get().value(), 0, java.math.RoundingMode.HALF_UP);
+            return count.signum() > 0
+                    ? Optional.of(new Input("SHARES", latest.fiscalYearEnd(), count, null, "résultat net ÷ BPA"))
+                    : Optional.empty();
+        }
+
+        private Input priceInput() {
+            String source = valuation.priceSource()
+                    + (valuation.quotedCurrency().equals(valuation.currency()) ? ""
+                    : ", " + valuation.quotedPrice() + " " + valuation.quotedCurrency() + " converti");
+            return new Input("PRICE", LocalDate.ofInstant(valuation.priceAsOf(), ZoneOffset.UTC), valuation.price(),
+                    valuation.currency(), source);
+        }
+
         /**
          * Les banques et assurances présentent leur bilan par ordre de liquidité (norme IAS 1),
          * sans séparer le court et le long terme. Leur dette est leur matière première (dépôts des
          * clients) : les ratios d'endettement d'une entreprise industrielle n'ont pas de sens pour elles.
          */
-        private Outcome balanceSheetRatio(java.util.function.Supplier<Outcome> ratio) {
+        private Outcome balanceSheetRatio(Supplier<Outcome> ratio) {
             if (first(latest, CURRENT_ASSETS).isEmpty() && first(latest, CURRENT_LIABILITIES).isEmpty()) {
                 return new Outcome.Missing("Bilan présenté par ordre de liquidité (banque, assurance…) : "
                         + "ratio non pertinent");
@@ -325,7 +473,7 @@ public final class RatioCalculator {
             for (Metric metric : candidates) {
                 Optional<FinancialHistory.Value> v = year.get(metric);
                 if (v.isPresent()) {
-                    return Optional.of(new Input(metric, year.fiscalYearEnd(), v.get().value(),
+                    return Optional.of(new Input(metric.name(), year.fiscalYearEnd(), v.get().value(),
                             v.get().currency(), v.get().concept()));
                 }
             }
@@ -337,12 +485,17 @@ public final class RatioCalculator {
             return days >= 330 && days <= 400;
         }
 
+        /** Les montants doivent être dans la même devise (un nombre d'actions n'en a pas). */
         private static boolean sameCurrency(List<Input> inputs) {
-            return inputs.stream().map(Input::currency).distinct().count() <= 1;
+            return inputs.stream().map(Input::currency).filter(Objects::nonNull).distinct().count() <= 1;
         }
 
         private static int signum(Input input) {
             return input.value().signum();
+        }
+
+        private static Input abs(Input input) {
+            return new Input(input.item(), input.date(), input.value().abs(), input.currency(), input.source());
         }
 
         private static double value(Optional<Input> input) {
@@ -362,6 +515,22 @@ public final class RatioCalculator {
 
         private static String capitalize(String s) {
             return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+        }
+    }
+
+    /** Une valeur intermédiaire calculée (dette nette, cash-flow libre), ou la raison de son absence. */
+    private record Either<T>(T value, String missingReason) {
+
+        static <T> Either<T> of(T value) {
+            return new Either<>(value, null);
+        }
+
+        static <T> Either<T> missing(String reason) {
+            return new Either<>(null, reason);
+        }
+
+        <R> R map(java.util.function.Function<T, R> ifPresent, java.util.function.Function<String, R> ifMissing) {
+            return value != null ? ifPresent.apply(value) : ifMissing.apply(missingReason);
         }
     }
 }

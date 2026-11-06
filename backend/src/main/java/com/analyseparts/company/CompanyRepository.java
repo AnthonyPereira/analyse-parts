@@ -16,4 +16,9 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     /** Sociétés avec un LEI dont l'index ESEF n'a jamais été consulté avec succès. */
     List<Company> findByLeiIsNotNullAndEsefCheckedAtIsNullOrderByName();
+
+    List<Company> findByLeiIsNotNullOrderByName();
+
+    /** Sociétés dont la fiche Euronext n'a jamais été lue, ou pas depuis {@code before}. */
+    List<Company> findByFactsheetCheckedAtIsNullOrFactsheetCheckedAtBeforeOrderByName(java.time.Instant before);
 }

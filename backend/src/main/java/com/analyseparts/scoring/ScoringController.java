@@ -5,12 +5,15 @@ import com.analyseparts.scoring.core.Ratio;
 import com.analyseparts.scoring.core.RatioCalculator.RatioSet;
 import com.analyseparts.scoring.core.RatioFamily;
 import com.analyseparts.scoring.core.Scale;
+import com.analyseparts.scoring.core.SectorCalibration;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +25,8 @@ import java.util.Map;
  *       poids), pour que le front puisse tout expliquer ;</li>
  *   <li>{@code GET /api/companies/{isin}/ratios} : les ratios d'une société ;</li>
  *   <li>{@code GET /api/companies/{isin}/score?profile=QUALITY} : son score détaillé ;</li>
- *   <li>{@code GET /api/scores?profile=QUALITY} : le classement.</li>
+ *   <li>{@code GET /api/scores?profile=QUALITY} : le classement ;</li>
+ *   <li>{@code GET /api/scoring/calibration} : les médianes par secteur ({@code POST /api/admin/scoring/calibrate} pour recalculer).</li>
  * </ul>
  */
 @RestController
@@ -35,7 +39,8 @@ public class ScoringController {
     }
 
     public record RatioDefinition(Ratio id, RatioFamily family, String familyLabel, String label,
-                                  String description, Ratio.Unit unit, List<Scale.Anchor> scale) {
+                                  String description, Ratio.Unit unit, boolean sectorAdjusted,
+                                  List<Scale.Anchor> scale) {
     }
 
     public record ProfileDefinition(Profile id, String label, String description, Map<Ratio, Integer> weights) {
@@ -45,7 +50,7 @@ public class ScoringController {
     public List<RatioDefinition> ratios() {
         return Arrays.stream(Ratio.values())
                 .map(r -> new RatioDefinition(r, r.family(), r.family().label(), r.label(), r.description(),
-                        r.unit(), r.scale().anchors()))
+                        r.unit(), r.sectorAdjusted(), r.scale().anchors()))
                 .toList();
     }
 
@@ -54,6 +59,23 @@ public class ScoringController {
         return Arrays.stream(Profile.values())
                 .map(p -> new ProfileDefinition(p, p.label(), p.description(), p.weights()))
                 .toList();
+    }
+
+    public record CalibrationView(Instant calibratedAt, List<SectorCalibration.Median> medians) {
+    }
+
+    /** Les médianes par secteur utilisées pour adapter les barèmes. */
+    @GetMapping("/api/scoring/calibration")
+    public CalibrationView calibration() {
+        SectorCalibration c = scoring.calibration();
+        return new CalibrationView(c.calibratedAt().orElse(null), c.medians());
+    }
+
+    /** Recalcule et fige les médianes par secteur (à relancer après un gros import). */
+    @PostMapping("/api/admin/scoring/calibrate")
+    public CalibrationView recalibrate() {
+        SectorCalibration c = scoring.recalibrate();
+        return new CalibrationView(c.calibratedAt().orElse(null), c.medians());
     }
 
     @GetMapping("/api/companies/{isin}/ratios")

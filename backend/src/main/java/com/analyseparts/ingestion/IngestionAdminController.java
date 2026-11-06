@@ -2,7 +2,9 @@ package com.analyseparts.ingestion;
 
 import com.analyseparts.ingestion.esef.EsefImportService;
 import com.analyseparts.ingestion.euronext.EuronextImportService;
+import com.analyseparts.ingestion.euronext.FactsheetEnrichmentService;
 import com.analyseparts.ingestion.euronext.EuronextImportService.ImportResult;
+import com.analyseparts.ingestion.prices.QuoteRefreshService;
 import com.analyseparts.ingestion.gleif.LeiEnrichmentService;
 import com.analyseparts.ingestion.gleif.LeiEnrichmentService.EnrichmentResult;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,9 +23,14 @@ public class IngestionAdminController {
     private final EuronextImportService euronextImport;
     private final LeiEnrichmentService leiEnrichment;
     private final EsefImportService esefImport;
+    private final FactsheetEnrichmentService factsheets;
+    private final QuoteRefreshService prices;
 
     public IngestionAdminController(EuronextImportService euronextImport, LeiEnrichmentService leiEnrichment,
-                                    EsefImportService esefImport) {
+                                    EsefImportService esefImport, FactsheetEnrichmentService factsheets,
+                                    QuoteRefreshService prices) {
+        this.prices = prices;
+        this.factsheets = factsheets;
         this.euronextImport = euronextImport;
         this.leiEnrichment = leiEnrichment;
         this.esefImport = esefImport;
@@ -33,6 +40,19 @@ public class IngestionAdminController {
     @PostMapping("/euronext")
     public ImportResult importEuronext(@RequestParam(defaultValue = "XPAR") String mic) {
         return euronextImport.importMarket(mic);
+    }
+
+    /** Cours (Yahoo) et taux de change (BCE). Aussi lancés automatiquement pendant la séance. */
+    @PostMapping("/prices")
+    public QuoteRefreshService.RefreshResult refreshPrices() {
+        prices.refreshFxRates();
+        return prices.refreshQuotes();
+    }
+
+    /** Lit la fiche Euronext (secteur ICB, nombre d'actions) des sociétés jamais lues ou lues il y a plus d'un mois. */
+    @PostMapping("/factsheets")
+    public FactsheetEnrichmentService.EnrichmentResult enrichFactsheets() {
+        return factsheets.enrichDue();
     }
 
     /** Recherche le LEI des sociétés jamais vérifiées (≈ 1 s par société). */
@@ -50,5 +70,16 @@ public class IngestionAdminController {
     public EsefImportService.ImportResult importEsef(@RequestParam(required = false) String isin,
                                                      @RequestParam(defaultValue = "10") int limit) {
         return isin != null ? esefImport.importCompany(isin) : esefImport.importMissing(limit);
+    }
+
+    /**
+     * Cherche les nouveaux rapports des sociétés dont un rapport plus récent est attendu.
+     * Ex. : POST /api/admin/ingestion/esef/refresh (aussi lancé chaque lundi à 3 h).
+     * {@code source=amf} : n'interroge que l'AMF.
+     */
+    @PostMapping("/esef/refresh")
+    public EsefImportService.ImportResult refreshEsef(@RequestParam(defaultValue = "1000") int limit,
+                                                      @RequestParam(defaultValue = "all") String source) {
+        return esefImport.refresh(limit, true, !"amf".equals(source));
     }
 }

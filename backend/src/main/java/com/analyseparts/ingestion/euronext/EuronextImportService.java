@@ -3,12 +3,17 @@ package com.analyseparts.ingestion.euronext;
 import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.ingestion.CompaniesImported;
+import com.analyseparts.market.MarketDataService;
+import com.analyseparts.market.Quote;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -24,9 +29,16 @@ public class EuronextImportService {
     private final CompanyRepository companies;
     private final ApplicationEventPublisher events;
     private final TransactionTemplate transaction;
+    private final MarketDataService market;
+
+    /** Heure de clôture de la séance à Paris (fixing de clôture à 17 h 35). */
+    private static final LocalTime CLOSE = LocalTime.of(17, 35);
+    private static final ZoneId PARIS = ZoneId.of("Europe/Paris");
 
     public EuronextImportService(EuronextClient client, CompanyRepository companies,
-                                 ApplicationEventPublisher events, TransactionTemplate transaction) {
+                                 ApplicationEventPublisher events, TransactionTemplate transaction,
+                                 MarketDataService market) {
+        this.market = market;
         this.client = client;
         this.companies = companies;
         this.events = events;
@@ -54,18 +66,28 @@ public class EuronextImportService {
         return transaction.execute(_ -> {
             int created = 0;
             int updated = 0;
+            List<Quote> closingPrices = new ArrayList<>();
             for (ListedEquity equity : equities) {
                 var existing = companies.findByIsin(equity.isin());
+                Company company;
                 if (existing.isPresent()) {
-                    existing.get().updateListing(equity.name(), equity.symbol(), equity.market());
+                    company = existing.get();
+                    company.updateListing(equity.name(), equity.symbol(), equity.market());
                     updated++;
                 } else {
                     // Pays provisoire = pays de l'ISIN ; GLEIF donnera ensuite le pays du siège.
-                    companies.save(new Company(equity.isin(), equity.name(), equity.symbol(),
+                    company = companies.save(new Company(equity.isin(), equity.name(), equity.symbol(),
                             equity.isinCountry(), equity.market()));
                     created++;
                 }
+                if (equity.hasClosingPrice()) {
+                    closingPrices.add(new Quote(company.getId(), equity.closingPrice(), equity.currency(),
+                            equity.closingDate().atTime(CLOSE).atZone(PARIS).toInstant(), "EURONEXT_CLOSE"));
+                }
             }
+            // Cours de clôture : solution de repli si Yahoo ne répond pas (un cours plus récent n'est pas écrasé)
+            companies.flush();
+            market.recordQuotes(closingPrices);
             events.publishEvent(new CompaniesImported(mic, created, updated));
             log.info("Import Euronext {} : {} lues, {} créées, {} mises à jour", mic, equities.size(), created, updated);
             return new ImportResult(equities.size(), created, updated);

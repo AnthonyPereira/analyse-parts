@@ -7,6 +7,11 @@ import java.util.Map;
 import static com.analyseparts.scoring.core.Ratio.CASH_CONVERSION;
 import static com.analyseparts.scoring.core.Ratio.CURRENT_RATIO;
 import static com.analyseparts.scoring.core.Ratio.DIVIDEND_GROWTH;
+import static com.analyseparts.scoring.core.Ratio.DIVIDEND_YIELD;
+import static com.analyseparts.scoring.core.Ratio.EV_TO_EBIT;
+import static com.analyseparts.scoring.core.Ratio.FCF_YIELD;
+import static com.analyseparts.scoring.core.Ratio.PER;
+import static com.analyseparts.scoring.core.Ratio.PRICE_TO_BOOK;
 import static com.analyseparts.scoring.core.Ratio.EPS_GROWTH;
 import static com.analyseparts.scoring.core.Ratio.EQUITY_RATIO;
 import static com.analyseparts.scoring.core.Ratio.FCF_MARGIN;
@@ -21,9 +26,7 @@ import static com.analyseparts.scoring.core.Ratio.ROE;
 
 /**
  * Profils d'investisseur : chacun donne un poids à chaque ratio (total 100).
- * <p>
- * Le profil « Value » (acheter des sociétés bon marché) viendra avec les cours de bourse :
- * il compare le prix au bénéfice, ce que les rapports annuels seuls ne permettent pas.
+ * Le profil Value est le seul qui utilise le cours de bourse : il compare le prix au bénéfice.
  */
 public enum Profile {
 
@@ -35,8 +38,12 @@ public enum Profile {
     GROWTH("Croissance", "Des entreprises dont les ventes et les bénéfices augmentent vite, sans s'endetter pour cela.",
             weights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 15, OPERATING_MARGIN, 10, NET_DEBT_TO_EQUITY, 10)),
     DIVIDEND("Dividende", "Des entreprises qui versent un dividende régulier, en hausse, et qu'elles peuvent se permettre.",
-            weights(PAYOUT_RATIO, 25, DIVIDEND_GROWTH, 25, PROFITABLE_YEARS, 15,
-                    NET_DEBT_TO_EQUITY, 15, FCF_MARGIN, 10, CASH_CONVERSION, 10));
+            weights(DIVIDEND_YIELD, 20, PAYOUT_RATIO, 20, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 10,
+                    NET_DEBT_TO_EQUITY, 10, FCF_MARGIN, 10, CASH_CONVERSION, 10)),
+    VALUE("Value", "Des entreprises bon marché par rapport à ce qu'elles gagnent, sans dette excessive "
+            + "(pour éviter les « pièges à value » : pas chères parce qu'en mauvaise santé).",
+            weights(PER, 25, EV_TO_EBIT, 25, FCF_YIELD, 20, PRICE_TO_BOOK, 10, DIVIDEND_YIELD, 10,
+                    NET_DEBT_TO_EQUITY, 10));
 
     private final String label;
     private final String description;

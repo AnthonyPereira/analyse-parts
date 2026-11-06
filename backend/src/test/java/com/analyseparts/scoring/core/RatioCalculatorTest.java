@@ -101,6 +101,41 @@ class RatioCalculatorTest {
     }
 
     @Test
+    void valuationRatiosUseThePriceAndTheShareCount() {
+        // Cours 24,20 € × 50 actions = 1 210 € de capitalisation ; BPA 2,42 €
+        Valuation valuation = new Valuation(new BigDecimal("24.20"), "EUR", new BigDecimal("24.20"), "EUR",
+                java.time.Instant.parse("2026-11-06T10:00:00Z"), "YAHOO", 50L);
+        RatioSet r = RatioCalculator.compute(INDUSTRIAL, valuation, null);
+
+        assertThat(r.get(Ratio.PER).orElseThrow().value()).isCloseTo(10.0, within(1e-9));
+        // (1 210 + dette nette 300) ÷ 181,5
+        assertThat(r.get(Ratio.EV_TO_EBIT).orElseThrow().value()).isCloseTo(1510 / 181.5, within(1e-9));
+        assertThat(r.get(Ratio.FCF_YIELD).orElseThrow().value()).isCloseTo(90.0 / 1210, within(1e-9));
+        assertThat(r.get(Ratio.PRICE_TO_BOOK).orElseThrow().value()).isCloseTo(1.21, within(1e-9));
+        assertThat(r.get(Ratio.DIVIDEND_YIELD).orElseThrow().value()).isCloseTo(60.0 / 1210, within(1e-9));
+    }
+
+    @Test
+    void shareCountIsDerivedFromEpsWhenEuronextHasNone() {
+        // Sans nombre d'actions : 121 ÷ 2,42 = 50 actions
+        Valuation valuation = new Valuation(new BigDecimal("24.20"), "EUR", new BigDecimal("24.20"), "EUR",
+                java.time.Instant.parse("2026-11-06T10:00:00Z"), "YAHOO", null);
+        RatioSet r = RatioCalculator.compute(INDUSTRIAL, valuation, null);
+
+        assertThat(r.get(Ratio.PRICE_TO_BOOK).orElseThrow().value()).isCloseTo(1.21, within(1e-9));
+        assertThat(r.get(Ratio.PRICE_TO_BOOK).orElseThrow().inputs())
+                .anySatisfy(i -> assertThat(i.source()).contains("résultat net ÷ BPA"));
+    }
+
+    @Test
+    void withoutPriceValuationRatiosAreUnavailable() {
+        RatioSet r = RatioCalculator.compute(INDUSTRIAL, null, "Cours de bourse indisponible");
+
+        assertThat(r.unavailable().get(Ratio.PER)).isEqualTo("Cours de bourse indisponible");
+        assertThat(r.unavailable().get(Ratio.FCF_YIELD)).isEqualTo("Cours de bourse indisponible");
+    }
+
+    @Test
     void emptyHistory() {
         RatioSet r = RatioCalculator.compute(new FinancialHistory(List.of()));
 

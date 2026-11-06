@@ -1,6 +1,6 @@
 # ADR 0003 — Score par barèmes absolus, pondérés par profil
 
-- **Statut** : Acceptée
+- **Statut** : Acceptée — complétée par l'ADR 0004 (barèmes par secteur)
 - **Date** : 2026-11-06
 
 ## Contexte

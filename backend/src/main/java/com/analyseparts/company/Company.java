@@ -12,6 +12,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.Optional;
 
 /**
  * Société cotée.
@@ -49,14 +50,28 @@ public class Company {
     private String country;
 
     @Column(length = 100)
-    private String sector;
-
-    @Column(length = 100)
     private String market;
 
     private Instant leiCheckedAt;
 
     private Instant esefCheckedAt;
+
+    /** Code MIC du marché de cotation (XPAR = Euronext Paris). */
+    @Column(nullable = false, length = 4)
+    private String mic = "XPAR";
+
+    /** Classification sectorielle ICB (code du sous-secteur et libellés des 4 niveaux). */
+    @Column(length = 8)
+    private String icbCode;
+    private String icbIndustry;
+    private String icbSupersector;
+    private String icbSector;
+    private String icbSubsector;
+
+    /** Nombre d'actions admises à la cotation (fiche Euronext). */
+    private Long sharesAdmitted;
+
+    private Instant factsheetCheckedAt;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -108,6 +123,21 @@ public class Company {
     }
 
     /** L'index ESEF a été consulté avec succès (rapports importés, ou aucun rapport existant). */
+    /** Enregistre la fiche Euronext (secteur et nombre d'actions ; null si absent de la fiche). */
+    public void applyFactsheet(Icb icb, Long sharesAdmitted, Instant checkedAt) {
+        if (icb != null) {
+            this.icbCode = icb.code();
+            this.icbIndustry = icb.industry();
+            this.icbSupersector = icb.supersector();
+            this.icbSector = icb.sector();
+            this.icbSubsector = icb.subsector();
+        }
+        if (sharesAdmitted != null) {
+            this.sharesAdmitted = sharesAdmitted;
+        }
+        this.factsheetCheckedAt = checkedAt;
+    }
+
     public void markEsefChecked(Instant checkedAt) {
         this.esefCheckedAt = checkedAt;
     }
@@ -119,7 +149,15 @@ public class Company {
     public String getLegalName() { return legalName; }
     public String getTicker() { return ticker; }
     public String getCountry() { return country; }
-    public String getSector() { return sector; }
+    public String getMic() { return mic; }
+    public Long getSharesAdmitted() { return sharesAdmitted; }
+    public Instant getFactsheetCheckedAt() { return factsheetCheckedAt; }
+
+    /** Classification ICB, si la fiche Euronext a été lue. */
+    public Optional<Icb> getIcb() {
+        return icbCode == null ? Optional.empty()
+                : Optional.of(new Icb(icbCode, icbIndustry, icbSupersector, icbSector, icbSubsector));
+    }
     public String getMarket() { return market; }
     public Instant getLeiCheckedAt() { return leiCheckedAt; }
     public Instant getEsefCheckedAt() { return esefCheckedAt; }

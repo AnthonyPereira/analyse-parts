@@ -5,7 +5,7 @@
  * API publique (package racine) : les événements comme {@link com.analyseparts.ingestion.CompaniesImported}.
  * Les sous-packages sont <b>internes</b> : Spring Modulith interdit aux autres modules de les utiliser.
  */
-@ApplicationModule(displayName = "Ingestion", allowedDependencies = {"company", "financials"})
+@ApplicationModule(displayName = "Ingestion", allowedDependencies = {"company", "financials", "market"})
 package com.analyseparts.ingestion;
 
 import org.springframework.modulith.ApplicationModule;

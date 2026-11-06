@@ -7,7 +7,8 @@ public enum RatioFamily {
     CASH("Qualité du cash", "Ses bénéfices se transforment-ils en argent réel ?"),
     GROWTH("Croissance", "Grandit-elle ?"),
     REGULARITY("Régularité", "Ses résultats sont-ils fiables dans le temps ?"),
-    DIVIDEND("Dividende", "Partage-t-elle ses bénéfices de façon soutenable ?");
+    DIVIDEND("Dividende", "Partage-t-elle ses bénéfices de façon soutenable ?"),
+    VALUATION("Valorisation", "Son action est-elle bon marché par rapport à ce qu'elle gagne ?");
 
     private final String label;
     private final String question;

@@ -154,8 +154,82 @@ gagne et puise dans ses réserves ou s'endette, ce qui ne peut pas durer.
 ### Croissance des dividendes versés
 **CAGR du montant total des dividendes versés** `[−5 % → 0, 0 % → 40, 5 % → 75, 10 % → 100]`
 
-*À venir* : le **rendement** (dividende ÷ cours de bourse) et les ratios de valorisation
-(PER, etc.) arriveront avec les cours de bourse.
+### Rendement du dividende
+**Dividendes versés sur le dernier exercice ÷ capitalisation boursière** `[0 % → 0, 2 % → 40, 4 % → 80, 6 % → 100]`
+
+Ce que rapporterait chaque année une action achetée au cours du jour, si le dividende se
+maintient. Un rendement très élevé est parfois un signal d'alerte : le marché ne croit pas que
+le dividende va durer (d'où le taux de distribution et la dette dans le même profil).
+
+---
+
+## Valorisation — l'action est-elle bon marché ?
+
+Ces ratios comparent le **prix** (le cours de bourse) à ce que l'entreprise **gagne** ou
+**possède**. Ils utilisent la **capitalisation boursière** = cours × nombre d'actions : c'est
+le prix de l'entreprise entière pour un acheteur au cours du jour.
+
+- Le cours vient de Yahoo (séance, ~15 min de différé) ou, à défaut, de la clôture Euronext.
+- Le nombre d'actions vient de la fiche Euronext (actions admises) ; à défaut, il est retrouvé
+  par résultat net ÷ BPA (c'est la définition du BPA).
+- Si l'entreprise publie en dollars et cote en euros (TotalEnergies), le cours est converti au
+  taux de la BCE avant toute comparaison.
+
+### PER (Price Earnings Ratio)
+**Cours ÷ bénéfice par action** `[5 → 100, 10 → 85, 15 → 60, 20 → 40, 30 → 15, 40 → 0]`
+
+Le ratio le plus connu. Un PER de 15 : on paie l'action 15 fois le bénéfice annuel qu'elle
+représente, soit « 15 ans de bénéfices ». Plus il est bas, moins c'est cher. Il n'a pas de sens
+en cas de perte (PER négatif).
+
+*Piège* : un PER bas peut signaler une entreprise en déclin (le marché anticipe la baisse des
+bénéfices) : c'est le « piège à value ». D'où l'endettement dans le profil Value.
+
+### VE / EBIT — valeur d'entreprise ÷ résultat opérationnel
+**(Capitalisation + dette nette) ÷ résultat opérationnel** `[4 → 100, 8 → 80, 12 → 55, 18 → 25, 25 → 0]`
+
+La **valeur d'entreprise** (VE) est le prix de toute l'entreprise : racheter toutes ses actions
+**et** reprendre sa dette (moins sa trésorerie). On la compare au résultat du métier.
+Avantage sur le PER : deux entreprises identiques, l'une endettée, l'autre non, ont le même
+VE/EBIT mais des PER différents. C'est le ratio préféré des analystes pour comparer.
+
+### Rendement du cash-flow libre
+**Cash-flow libre ÷ capitalisation** `[0 % → 0, 3 % → 40, 6 % → 75, 10 % → 100]`
+
+Si vous achetiez toute l'entreprise au cours du jour, quel pourcentage de votre mise
+vous rapporterait-elle chaque année en argent réel ? À comparer au taux d'un livret ou d'une
+obligation.
+
+### Cours / valeur comptable (Price to Book)
+**Capitalisation ÷ capitaux propres** `[0,8 → 100, 1,5 → 75, 3 → 40, 6 → 10, 10 → 0]`
+
+Combien le marché paie pour 1 € de capitaux propres comptables. Sous 1, l'entreprise vaut en
+bourse moins que ce que disent ses comptes. Utile surtout pour les banques et l'industrie
+lourde ; une marque de luxe ou un éditeur de logiciels a peu d'actifs comptables et un ratio
+naturellement élevé (d'où l'ajustement par secteur).
+
+---
+
+## Barèmes adaptés au secteur
+
+Une marge nette de 4 % est faible pour un éditeur de logiciels, bonne pour un distributeur.
+Pour les ratios dont le « niveau normal » dépend du métier (marges, ROA, endettement,
+liquidité, cash-flow libre, PER, VE/EBIT, cours/valeur comptable), le barème est **étiré ou
+resserré** selon le secteur :
+
+1. on calcule la **médiane** du ratio dans le secteur ICB de la société (la valeur du milieu :
+   la moitié fait mieux, la moitié moins bien) et dans tout l'univers ;
+2. **facteur = médiane du secteur ÷ médiane de l'univers**, borné entre 0,4 et 2,5 ;
+3. chaque repère du barème est multiplié par ce facteur.
+
+Exemple, marge nette, distributeurs (médiane 2,4 %) contre univers (6 %) : facteur 0,4,
+le barème `0 % → 0, 5 % → 40, 10 % → 70, 20 % → 100` devient `0 % → 0, 2 % → 40, 4 % → 70, 8 % → 100`.
+
+Le secteur de référence est le super-secteur ICB (20 au total, ex. « Retail ») s'il compte au
+moins 8 sociétés, sinon l'industrie (11, ex. « Consumer Discretionary »). Les médianes sont
+**figées** au moment du calibrage : le score d'une société ne change pas parce qu'une autre a
+publié ses comptes. Le ROE, la croissance, la régularité, le taux de distribution et les
+rendements ne sont jamais ajustés. Détails : [ADR 0004](adr/0004-baremes-par-secteur.md).
 
 ---
 
@@ -169,22 +243,27 @@ gagne et puise dans ses réserves ou s'endette, ce qui ne peut pas durer.
 4. Les chiffres doivent être récents : au-delà de 16 mois après la clôture, le score est
    signalé « en retard » ; au-delà de 28 mois, il n'est pas calculé.
 
-| Ratio | Qualité | Croissance | Dividende |
-|---|---:|---:|---:|
-| ROE | 20 | 15 | |
-| Marge opérationnelle | 15 | 10 | |
-| Marge nette | 10 | | |
-| ROA | 5 | | |
-| Conversion en cash | 10 | | 10 |
-| Marge de cash-flow libre | 10 | | 10 |
-| Gearing | 10 | 10 | 15 |
-| Autonomie financière | 5 | | |
-| Liquidité générale | 5 | | |
-| Exercices bénéficiaires | 10 | | 15 |
-| Croissance du CA | | 35 | |
-| Croissance du BPA | | 30 | |
-| Taux de distribution | | | 25 |
-| Croissance des dividendes | | | 25 |
+| Ratio | Qualité | Croissance | Dividende | Value |
+|---|---:|---:|---:|---:|
+| ROE | 20 | 15 | | |
+| Marge opérationnelle | 15 | 10 | | |
+| Marge nette | 10 | | | |
+| ROA | 5 | | | |
+| Conversion en cash | 10 | | 10 | |
+| Marge de cash-flow libre | 10 | | 10 | |
+| Gearing | 10 | 10 | 10 | 10 |
+| Autonomie financière | 5 | | | |
+| Liquidité générale | 5 | | | |
+| Exercices bénéficiaires | 10 | | 10 | |
+| Croissance du CA | | 35 | | |
+| Croissance du BPA | | 30 | | |
+| Taux de distribution | | | 20 | |
+| Croissance des dividendes | | | 20 | |
+| Rendement du dividende | | | 20 | 10 |
+| PER | | | | 25 |
+| VE / EBIT | | | | 25 |
+| Rendement du cash-flow libre | | | | 20 |
+| Cours / valeur comptable | | | | 10 |
 
 Le choix de cette méthode (et des alternatives écartées) est expliqué dans
 [l'ADR 0003](adr/0003-methode-de-score.md).

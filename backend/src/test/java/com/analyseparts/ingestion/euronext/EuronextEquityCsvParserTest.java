@@ -29,7 +29,16 @@ class EuronextEquityCsvParserTest {
         ListedEquity airFrance = EuronextEquityCsvParser.parse(sample()).get(1);
 
         assertThat(airFrance).isEqualTo(new ListedEquity(
-                "AIR FRANCE -KLM", "FR001400J770", "AF", "Euronext Paris, Amsterdam"));
+                "AIR FRANCE -KLM", "FR001400J770", "AF", "Euronext Paris, Amsterdam",
+                "EUR", new java.math.BigDecimal("12.635"), java.time.LocalDate.of(2026, 11, 5)));
+    }
+
+    @Test
+    void closingPriceIsOptional() throws IOException {
+        // "AB SCIENCE BSA" n'a pas de cotation ("-") mais est filtré ; on vérifie un titre coté
+        ListedEquity accor = EuronextEquityCsvParser.parse(sample()).getFirst();
+        assertThat(accor.hasClosingPrice()).isTrue();
+        assertThat(new ListedEquity("X", "FR0000000000", "X", "Euronext Paris").hasClosingPrice()).isFalse();
     }
 
     @Test

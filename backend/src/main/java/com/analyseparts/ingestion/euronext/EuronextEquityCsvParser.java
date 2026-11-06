@@ -1,5 +1,9 @@
 package com.analyseparts.ingestion.euronext;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -25,6 +29,12 @@ public final class EuronextEquityCsvParser {
     private static final Pattern NOT_A_SHARE =
             Pattern.compile("\\b(BSA\\w*|BSAR|WARR|WARRANTS?|DPS|DS)\\b", Pattern.CASE_INSENSITIVE);
 
+    // Colonnes utiles au-delà des 4 premières
+    private static final int CURRENCY = 4;
+    private static final int CLOSING_PRICE = 13;
+    private static final int CLOSING_DATE = 14;
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private EuronextEquityCsvParser() {
     }
 
@@ -40,9 +50,35 @@ public final class EuronextEquityCsvParser {
             if (!ISIN.matcher(isin).matches() || NOT_A_SHARE.matcher(name).find()) {
                 continue;
             }
-            equities.add(new ListedEquity(name, isin, fields.get(2).trim(), fields.get(3).trim()));
+            equities.add(new ListedEquity(name, isin, fields.get(2).trim(), fields.get(3).trim(),
+                    field(fields, CURRENCY), decimal(field(fields, CLOSING_PRICE)), date(field(fields, CLOSING_DATE))));
         }
         return equities;
+    }
+
+    /** Valeur d'une colonne, ou null si absente ou vide ("-" dans le fichier). */
+    private static String field(List<String> fields, int index) {
+        if (index >= fields.size()) {
+            return null;
+        }
+        String v = fields.get(index).trim();
+        return v.isEmpty() || v.equals("-") ? null : v;
+    }
+
+    private static BigDecimal decimal(String v) {
+        try {
+            return v == null ? null : new BigDecimal(v);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static LocalDate date(String v) {
+        try {
+            return v == null ? null : LocalDate.parse(v.substring(0, Math.min(10, v.length())), DAY);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     /** Découpe une ligne sur ';' en respectant les guillemets. */

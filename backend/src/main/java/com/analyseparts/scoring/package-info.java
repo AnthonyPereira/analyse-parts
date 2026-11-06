@@ -6,7 +6,7 @@
  *   <li>package racine : le service Spring et l'API REST autour de ce calcul.</li>
  * </ul>
  */
-@ApplicationModule(displayName = "Score", allowedDependencies = {"company", "financials"})
+@ApplicationModule(displayName = "Score", allowedDependencies = {"company", "financials", "market"})
 package com.analyseparts.scoring;
 
 import org.springframework.modulith.ApplicationModule;

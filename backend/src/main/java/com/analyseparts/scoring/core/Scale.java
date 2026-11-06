@@ -43,6 +43,17 @@ public record Scale(List<Anchor> anchors) {
         return new Scale(anchors);
     }
 
+    /**
+     * Le même barème, étiré ou resserré : chaque repère est multiplié par {@code factor}.
+     * Ex. marge nette {@code 5 % → 40} avec un facteur 0,4 (distribution) devient {@code 2 % → 40}.
+     */
+    public Scale scaled(double factor) {
+        if (factor <= 0) {
+            throw new IllegalArgumentException("Le facteur doit être positif");
+        }
+        return new Scale(anchors.stream().map(a -> new Anchor(a.value() * factor, a.points())).toList());
+    }
+
     public double points(double value) {
         Anchor first = anchors.getFirst();
         Anchor last = anchors.getLast();
