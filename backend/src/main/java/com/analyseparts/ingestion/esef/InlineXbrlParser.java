@@ -59,23 +59,40 @@ final class InlineXbrlParser {
 
     /** Ouvre un paquet ESEF (.zip ou .xbri) et lit son rapport XHTML. */
     static ParsedReport parsePackage(InputStream zip) throws IOException {
+        byte[] best = findReport(zip, 0);
+        if (best == null) {
+            throw new IOException("Aucun rapport XHTML dans le paquet ESEF");
+        }
+        return parse(new java.io.ByteArrayInputStream(best));
+    }
+
+    /**
+     * Le rapport XHTML d'un paquet. Les dépôts varient : dossier {@code reports/} à la racine
+     * ou sous un dossier au nom de la société, et parfois un paquet {@code .xbri} (lui-même un
+     * zip) emballé dans le zip de l'AMF : on l'ouvre alors (un seul niveau d'imbrication).
+     */
+    private static byte[] findReport(InputStream zip, int depth) throws IOException {
         byte[] best = null;
         try (ZipInputStream in = new ZipInputStream(zip)) {
             ZipEntry entry;
             while ((entry = in.getNextEntry()) != null) {
                 String name = entry.getName().toLowerCase();
-                if (!entry.isDirectory() && name.contains("/reports/") && (name.endsWith(".xhtml") || name.endsWith(".html"))) {
-                    byte[] content = in.readAllBytes();
-                    if (best == null || content.length > best.length) {
-                        best = content; // un seul rapport en principe ; sinon le plus complet
-                    }
+                byte[] content = null;
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                boolean inReports = name.startsWith("reports/") || name.contains("/reports/");
+                if (inReports && (name.endsWith(".xhtml") || name.endsWith(".html"))) {
+                    content = in.readAllBytes();
+                } else if (depth == 0 && (name.endsWith(".xbri") || name.endsWith(".zip"))) {
+                    content = findReport(new java.io.ByteArrayInputStream(in.readAllBytes()), depth + 1);
+                }
+                if (content != null && (best == null || content.length > best.length)) {
+                    best = content; // un seul rapport en principe ; sinon le plus complet
                 }
             }
         }
-        if (best == null) {
-            throw new IOException("Aucun rapport XHTML dans le paquet ESEF");
-        }
-        return parse(new java.io.ByteArrayInputStream(best));
+        return best;
     }
 
     static ParsedReport parse(InputStream xhtml) throws IOException {

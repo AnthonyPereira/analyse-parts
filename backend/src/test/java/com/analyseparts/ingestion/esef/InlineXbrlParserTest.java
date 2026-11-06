@@ -91,6 +91,30 @@ class InlineXbrlParserTest {
         assertThat(report.facts()).hasSize(4);
     }
 
+    private static byte[] zip(String entry, byte[] content) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (ZipOutputStream out = new ZipOutputStream(bytes)) {
+            out.putNextEntry(new ZipEntry(entry));
+            out.write(content);
+        }
+        return bytes.toByteArray();
+    }
+
+    @Test
+    void reportsFolderAtTheRootOfThePackage() throws IOException {
+        // Paquet JCDecaux 2025 : reports/ directement à la racine du zip
+        byte[] pkg = zip("reports/jcdecaux-2025-12-31-fr.xhtml", XHTML.getBytes(StandardCharsets.UTF_8));
+        assertThat(InlineXbrlParser.parsePackage(new ByteArrayInputStream(pkg)).facts()).hasSize(4);
+    }
+
+    @Test
+    void packageWrappedInTheAmfZip() throws IOException {
+        // Dépôt Trigano : le zip de l'AMF ne contient qu'un paquet .xbri (lui-même un zip)
+        byte[] xbri = zip("LEI-2024-08-31-0-fr/reports/report.xhtml", XHTML.getBytes(StandardCharsets.UTF_8));
+        byte[] amf = zip("969500KLZPNMO8TUM811-2024-08-31-0-fr.xbri", xbri);
+        assertThat(InlineXbrlParser.parsePackage(new ByteArrayInputStream(amf)).facts()).hasSize(4);
+    }
+
     @Test
     void numberFormats() {
         assertThat(InlineXbrlParser.number("1,234.5", "ixt:num-dot-decimal")).isEqualByComparingTo("1234.5");
