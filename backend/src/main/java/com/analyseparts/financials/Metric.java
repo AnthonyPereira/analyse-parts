@@ -42,10 +42,16 @@ public enum Metric {
 
     /** Total de l'actif (= total du passif). */
     TOTAL_ASSETS(Kind.STOCK, "ifrs-full:Assets"),
-    /** Actifs courants : convertibles en argent sous un an (stocks, créances clients, trésorerie…). */
-    CURRENT_ASSETS(Kind.STOCK, "ifrs-full:CurrentAssets"),
-    /** Passifs courants : dettes à payer sous un an. */
-    CURRENT_LIABILITIES(Kind.STOCK, "ifrs-full:CurrentLiabilities"),
+    /**
+     * Actifs courants : convertibles en argent sous un an (stocks, créances clients, trésorerie…).
+     * Une société qui a des activités en cours de cession publie parfois seulement le sous-total
+     * « hors actifs destinés à être cédés » (Safran, Airbus en 2025) : on le prend en repli.
+     */
+    CURRENT_ASSETS(Kind.STOCK, "ifrs-full:CurrentAssets",
+            "ifrs-full:CurrentAssetsOtherThanAssetsOrDisposalGroupsClassifiedAsHeldForSaleOrAsHeldForDistributionToOwners"),
+    /** Passifs courants : dettes à payer sous un an (même repli que pour les actifs courants). */
+    CURRENT_LIABILITIES(Kind.STOCK, "ifrs-full:CurrentLiabilities",
+            "ifrs-full:CurrentLiabilitiesOtherThanLiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale"),
     /** Capitaux propres totaux : ce qui appartient aux actionnaires (actif − dettes). */
     EQUITY(Kind.STOCK, "ifrs-full:Equity"),
     /** Capitaux propres part du groupe. */
