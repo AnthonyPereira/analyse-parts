@@ -11,4 +11,11 @@ export default defineConfig({
       '/api': 'http://localhost:8080',
     },
   },
+  // « npm run preview » sert la version compilée (dist/), bien plus rapide à charger que le
+  // mode développement : même relais vers l'API.
+  preview: {
+    proxy: {
+      '/api': 'http://localhost:8080',
+    },
+  },
 })

@@ -10,6 +10,7 @@ React 19 + TypeScript, construit avec Vite. Choix expliqués dans
 npm install
 npm run dev        # http://localhost:5173 ; /api est relayé vers le backend
 npm run build      # vérifie les types puis produit dist/
+npm run preview    # sert dist/ sur http://localhost:4173 : chargement bien plus rapide qu'en dev
 ```
 
 ## Organisation

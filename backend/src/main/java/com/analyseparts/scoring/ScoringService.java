@@ -21,6 +21,8 @@ import com.analyseparts.scoring.internal.SectorCalibrationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -34,6 +36,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Couche Spring autour du calcul : va chercher les données, appelle le cœur en Java pur.
@@ -139,8 +142,9 @@ public class ScoringService {
     }
 
     private List<Company> scoredCompanies() {
+        Set<Long> withFilings = financials.companiesWithFilings();
         return companies.findAll().stream()
-                .filter(c -> c.getId() != null && financials.hasFilings(c.getId()))
+                .filter(c -> c.getId() != null && withFilings.contains(c.getId()))
                 .toList();
     }
 
@@ -160,6 +164,19 @@ public class ScoringService {
      */
     public record UniverseEntry(String isin, String name, String ticker, String supersectorCode, String supersector,
                                 Freshness freshness, Map<Ratio, Double> ratios, Map<Profile, Integer> scores) {
+    }
+
+    /**
+     * Au démarrage, calcule une fois l'univers en arrière-plan : les historiques des sociétés
+     * entrent dans le cache, et la première page affichée n'attend pas.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    void warmUp() {
+        Thread.ofVirtual().name("prechauffage-scores").start(() -> {
+            long start = System.nanoTime();
+            int size = universe().size();
+            log.info("Préchauffage : {} sociétés en {} ms", size, (System.nanoTime() - start) / 1_000_000);
+        });
     }
 
     public List<UniverseEntry> universe() {

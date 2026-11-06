@@ -1,11 +1,15 @@
+import { lazy, Suspense } from 'react'
 import { Link, NavLink, Route, Routes } from 'react-router'
 import { useLiveQuotes } from './api/live'
 import { CompanySearch } from './components/CompanySearch'
 import { LiveBadge } from './components/LiveQuote'
-import { AdvancedPage } from './pages/AdvancedPage'
-import { CompanyPage } from './pages/CompanyPage'
-import { RankingPage } from './pages/RankingPage'
-import { SectorPage, SectorsPage } from './pages/SectorsPage'
+// Chaque page est un fichier JavaScript à part, téléchargé seulement quand on l'ouvre
+// (« code splitting ») : la première page s'affiche sans attendre le code des autres.
+const RankingPage = lazy(() => import('./pages/RankingPage').then(m => ({ default: m.RankingPage })))
+const CompanyPage = lazy(() => import('./pages/CompanyPage').then(m => ({ default: m.CompanyPage })))
+const SectorsPage = lazy(() => import('./pages/SectorsPage').then(m => ({ default: m.SectorsPage })))
+const SectorPage = lazy(() => import('./pages/SectorsPage').then(m => ({ default: m.SectorPage })))
+const AdvancedPage = lazy(() => import('./pages/AdvancedPage').then(m => ({ default: m.AdvancedPage })))
 
 /**
  * La mise en page commune (en-tête, pied de page) et les routes : l'URL choisit la page
@@ -28,6 +32,7 @@ export function App() {
         <CompanySearch />
       </header>
       <main>
+        <Suspense fallback={<p className="muted">Chargement…</p>}>
         <Routes>
           <Route path="/" element={<RankingPage />} />
           <Route path="/societe/:isin" element={<CompanyPage />} />
@@ -36,6 +41,7 @@ export function App() {
           <Route path="/avance" element={<AdvancedPage />} />
           <Route path="*" element={<p>Page introuvable. <Link to="/">Retour au classement</Link></p>} />
         </Routes>
+        </Suspense>
       </main>
       <footer className="muted">
         Analyse Parts note les sociétés à partir de leurs rapports annuels officiels (ESEF). Ceci n'est pas
