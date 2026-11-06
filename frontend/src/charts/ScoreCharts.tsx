@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import { CartesianGrid, Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { ProfileDefinition, ProfileId, RatioDefinition, SectorAdjustment, UniverseEntry } from '../api/types'
 import { formatRatio, scoreTone } from '../format'
+import { Term } from '../components/Term'
 import { AXIS, GRID, Legend, SERIES, TooltipBox } from './common'
 import { useWidth } from './useWidth'
 
@@ -68,6 +69,7 @@ export function ScaleChart({ def, value, points, adjustment }: {
   ]
   return (
     <div className="scale-chart">
+      <p className="small muted"><Term id="SCALE_CHART">Comment lire cette courbe</Term> : la valeur de l'indicateur en bas, les points obtenus à gauche.</p>
       <Legend items={series.map((s, i) => ({ label: s.label, color: SERIES[i], kind: 'line' }))} />
       <ResponsiveContainer width="100%" height={150}>
         <LineChart margin={{ top: 10, right: 12, bottom: 0, left: 0 }}>
@@ -156,7 +158,7 @@ export function StripLegend({ withCompany = true }: { withCompany?: boolean }) {
     <Legend items={[
       ...(withCompany ? [{ label: 'La société', color: 'var(--series-2)' }] : []),
       { label: 'Même secteur', color: 'var(--series-1)' },
-      { label: 'Tout le marché (trait : médiane)', color: 'var(--dot-muted)' },
+      { label: 'Tout le marché (trait : médiane)', color: 'var(--dot-muted)', term: 'MEDIAN' },
     ]} />
   )
 }
@@ -190,7 +192,7 @@ export function StripList({ ratioIds, definitions, universe, sectorCode, isin }:
           return (
             <li key={id}>
               <span className="strip-label">
-                {def.label}
+                <Term id={id}>{def.label}</Term>
                 <small>
                   {own !== undefined && <>Société {formatRatio(own, def.unit)} · </>}
                   {sectorMedian !== undefined && <>secteur {formatRatio(sectorMedian, def.unit)} · </>}

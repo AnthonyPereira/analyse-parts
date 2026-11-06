@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuote } from '../api/queries'
+import { Term } from './Term'
 import type { LiveStatus } from '../api/live'
 import { formatDateTime, formatPrice } from '../format'
 
@@ -34,11 +35,11 @@ export function LiveQuote({ isin }: { isin: string }) {
       </strong>
       {change !== null && (
         <span className={`change ${change >= 0 ? 'delta-up' : 'delta-down'}`}>
-          {change >= 0 ? '▲ +' : '▼ '}{(change * 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} % aujourd'hui
+          {change >= 0 ? '▲ +' : '▼ '}{(change * 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} % <Term id="DAILY_CHANGE">aujourd'hui</Term>
         </span>
       )}
       <span className="muted">
-        {quote.source === 'YAHOO' ? 'Cours différé (~15 min)' : 'Dernière clôture'} · {formatDateTime(quote.asOf)}
+        {quote.source === 'YAHOO' ? <Term id="DELAYED">Cours différé (~15 min)</Term> : <Term id="PREVIOUS_CLOSE">Dernière clôture</Term>} · {formatDateTime(quote.asOf)}
       </span>
     </div>
   )
@@ -48,7 +49,7 @@ export function LiveBadge({ status }: { status: LiveStatus }) {
   const label = status === 'open' ? 'Direct' : status === 'connecting' ? 'Connexion…' : 'Hors ligne'
   return (
     <span className={`live live-${status}`} title="Cours poussés par le serveur dès qu'ils changent sur Yahoo">
-      <span className="live-dot" /> {label}
+      <span className="live-dot" /> <Term id="LIVE">{label}</Term>
     </span>
   )
 }

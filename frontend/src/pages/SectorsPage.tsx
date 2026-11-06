@@ -5,6 +5,7 @@ import { ChartCard } from '../charts/common'
 import { ProfileScatter, ScoreHistogram } from '../charts/MarketCharts'
 import { ScoreBars, StripList } from '../charts/ScoreCharts'
 import { parseProfile, ProfileTabs } from '../components/ProfileTabs'
+import { HowToRead, Term } from '../components/Term'
 import { formatRatio } from '../format'
 
 const KEY_RATIOS = ['OPERATING_MARGIN', 'NET_MARGIN', 'ROE', 'NET_DEBT_TO_EQUITY', 'FCF_MARGIN', 'PER', 'DIVIDEND_YIELD']
@@ -55,22 +56,35 @@ export function SectorsPage() {
   return (
     <>
       <h1>Secteurs</h1>
+      <HowToRead title="Comment lire cette page ?">
+        <p>
+          Les sociétés sont regroupées par <Term id="SUPERSECTOR">super-secteur</Term> (classification{' '}
+          <Term id="ICB">ICB</Term>) : des entreprises qui font le même métier. Comparer un secteur à un autre montre
+          où se trouvent, en ce moment, les entreprises qui correspondent le mieux au profil choisi.
+        </p>
+        <ul>
+          <li><strong>Score médian</strong> : la note de la société « du milieu » du secteur (la <Term id="MEDIAN">médiane</Term>). Le nombre entre parenthèses est le nombre de sociétés.</li>
+          <li><strong>Chiffres types</strong> : la médiane de quelques indicateurs clés dans chaque secteur. Utile pour savoir ce qui est « normal » dans un métier avant de juger une société.</li>
+        </ul>
+        <p className="muted">Un secteur sans barre (« — ») n'a aucune société notée dans ce profil : c'est le cas des banques et assurances pour les profils qui demandent des chiffres qu'elles ne publient pas.</p>
+      </HowToRead>
       <ProfileTabs value={profile} onChange={p => setParams({ profil: p })} />
       <div style={{ display: 'grid', gap: '1rem' }}>
-        <ChartCard title="Score médian par secteur"
-                   subtitle="La société « du milieu » de chaque secteur. Cliquer sur un secteur pour le détail.">
+        <ChartCard title="Score médian par secteur" help="MEDIAN"
+                   subtitle="La note de la société « du milieu » de chaque secteur. Cliquer sur un secteur pour voir ses sociétés.">
           <ScoreBars items={sectors.map(s => ({
             label: `${s.label} (${s.companies.length})`, score: s.median === null ? null : Math.round(s.median),
             to: `/secteurs/${s.code}?profil=${profile}`,
           }))} />
         </ChartCard>
-        <ChartCard title="Chiffres types de chaque secteur" subtitle="Médiane des sociétés du secteur">
+        <ChartCard title="Chiffres types de chaque secteur" help="MEDIAN"
+                   subtitle="Médiane des sociétés de chaque secteur. Survolez un en-tête de colonne pour sa définition.">
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Secteur</th>
-                  {KEY_RATIOS.map(id => <th key={id} className="num" title={def(id)?.label}>{SHORT_LABEL[id]}</th>)}
+                  <th><Term id="SUPERSECTOR">Secteur</Term></th>
+                  {KEY_RATIOS.map(id => <th key={id} className="num"><Term id={id}>{SHORT_LABEL[id]}</Term></th>)}
                 </tr>
               </thead>
               <tbody>
@@ -118,7 +132,7 @@ export function SectorPage() {
       <ProfileTabs value={profile} onChange={p => setParams({ profil: p })} />
 
       <div className="layout-2">
-        <ChartCard title="Classement du secteur" subtitle="Cliquer sur une société pour sa fiche">
+        <ChartCard title="Classement du secteur" help="SCORE" subtitle="Le score de chaque société du secteur dans le profil choisi. Cliquer sur une société pour sa fiche.">
           <ScoreBars items={ranked.map(c => ({ label: c.name, score: c.scores[profile], to: `/societe/${c.isin}?profil=${profile}` }))} />
         </ChartCard>
         <div style={{ display: 'grid', gap: '1rem' }}>
@@ -130,7 +144,11 @@ export function SectorPage() {
 
       <section className="card" style={{ marginTop: '1rem' }}>
         <h2>Les indicateurs du secteur face au marché</h2>
-        <p className="muted">En bleu les sociétés du secteur, en gris tout le marché. Les indicateurs du profil viennent en premier.</p>
+        <p className="muted">
+          Une <Term id="STRIP">bande</Term> par indicateur : en bleu les sociétés du secteur, en gris tout le marché, le trait
+          vertical marque la <Term id="MEDIAN">médiane</Term> du marché. Les indicateurs du profil viennent en premier ; survolez
+          un nom pour sa définition.
+        </p>
         {definitions && <StripList ratioIds={ratioIds} definitions={definitions} universe={universe} sectorCode={code} />}
       </section>
     </>

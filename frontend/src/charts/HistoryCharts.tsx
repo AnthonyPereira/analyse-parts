@@ -1,4 +1,5 @@
 import { useFinancials, useRatioHistory, useUniverse } from '../api/queries'
+import { Term } from '../components/Term'
 import { compactAmount } from './common'
 import { YearChart, type YearRow } from './YearChart'
 
@@ -58,7 +59,7 @@ export function HistoryCharts({ isin }: { isin: string }) {
 
   return (
     <div className="chart-grid">
-      <YearChart title="Activité et résultats" subtitle="Grandit-elle, et ses bénéfices suivent-ils ?" kind="column"
+      <YearChart title="Activité et résultats" help="INCOME_STATEMENT" subtitle="Grandit-elle, et ses bénéfices suivent-ils ?" kind="column"
                  data={rows} format={money} tickFormat={compactAmount} zeroLine
                  series={[{ key: 'REVENUE', label: 'Chiffre d\'affaires' },
                    { key: 'OPERATING_INCOME', label: 'Résultat opérationnel' },
@@ -70,14 +71,14 @@ export function HistoryCharts({ isin }: { isin: string }) {
       <YearChart title="Rentabilité du capital" subtitle="Ce que rapportent l'argent des actionnaires (ROE) et l'ensemble de l'actif (ROA)"
                  kind="line" data={rows} format={pct} tickFormat={pctTick} zeroLine
                  series={[{ key: 'ROE', label: 'ROE' }, { key: 'ROA', label: 'ROA' }]} />
-      <YearChart title="Flux de trésorerie" subtitle="Le cash produit par le métier, ce qui est réinvesti, ce qui reste"
+      <YearChart title="Flux de trésorerie" help="CASH_FLOW_STATEMENT" subtitle="Le cash produit par le métier, ce qui est réinvesti, ce qui reste"
                  kind="column" data={rows} format={money} tickFormat={compactAmount} zeroLine
                  series={[{ key: 'OPERATING_CASH_FLOW', label: 'Cash d\'exploitation' },
                    { key: 'CAPEX', label: 'Investissements' }, { key: 'FCF', label: 'Cash-flow libre' }]} />
-      <YearChart title="Endettement" subtitle="Dette nette ÷ capitaux propres : sous 0, plus de trésorerie que de dettes"
+      <YearChart title="Endettement" subtitle={<><Term id="NET_DEBT">Dette nette</Term> ÷ <Term id="EQUITY">capitaux propres</Term> : sous 0, plus de trésorerie que de dettes</>}
                  kind="line" data={rows} format={mult} zeroLine
                  series={[{ key: 'NET_DEBT_TO_EQUITY', label: 'Dette nette / capitaux propres' }]} />
-      <YearChart title="Solidité" subtitle="Part du bilan financée par les actionnaires" kind="line"
+      <YearChart title="Solidité" subtitle={<>Part du <Term id="BALANCE_SHEET">bilan</Term> financée par les actionnaires</>} kind="line"
                  data={rows} format={pct} tickFormat={pctTick}
                  series={[{ key: 'EQUITY_RATIO', label: 'Autonomie financière' }]} />
       <YearChart title="Bénéfice par action" subtitle="Le résultat net rapporté à une action" kind="column"
@@ -89,11 +90,11 @@ export function HistoryCharts({ isin }: { isin: string }) {
       <YearChart title="Taux de distribution" subtitle="Part du bénéfice reversée en dividendes" kind="line"
                  data={rows} format={pct} tickFormat={pctTick}
                  series={[{ key: 'PAYOUT_RATIO', label: 'Taux de distribution' }]} />
-      <YearChart title="Valorisation (multiples)" subtitle="Prix payé pour 1 € de bénéfice, à chaque clôture et aujourd'hui"
+      <YearChart title="Valorisation (multiples)" subtitle={<>Prix payé pour 1 € de bénéfice, à la clôture de chaque exercice et <Term id="TODAY_POINT">aujourd'hui</Term></>}
                  kind="line" data={valuationRows} format={mult}
                  series={[{ key: 'PER', label: 'PER' }, { key: 'EV_TO_EBIT', label: 'VE / résultat opérationnel' },
                    { key: 'PRICE_TO_BOOK', label: 'Cours / valeur comptable' }]} />
-      <YearChart title="Rendements" subtitle="Ce que rapporte l'action chaque année, en % de son prix" kind="line"
+      <YearChart title="Rendements" subtitle={<>Ce que rapporte l'action chaque année, en % de son prix (<Term id="TODAY_POINT">Auj.</Term> : au cours du jour)</>} kind="line"
                  data={valuationRows} format={pct} tickFormat={pctTick}
                  series={[{ key: 'FCF_YIELD', label: 'Rendement du cash-flow libre' },
                    { key: 'DIVIDEND_YIELD', label: 'Rendement du dividende' }]} />

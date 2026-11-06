@@ -36,7 +36,7 @@ export function PriceChart({ isin, currency }: { isin: string; currency: string 
 
   return (
     <ChartCard
-      title="Cours de bourse"
+      title="Cours de bourse" help="PRICE_CHART"
       subtitle={change !== null && (
         <>
           <span className={change >= 0 ? 'delta-up' : 'delta-down'}>

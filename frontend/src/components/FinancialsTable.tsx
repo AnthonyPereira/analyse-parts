@@ -1,11 +1,12 @@
+import { Term } from './Term'
 import { useFinancials } from '../api/queries'
 import { formatAmount, formatDate, METRIC_LABEL } from '../format'
 
 // L'ordre de lecture d'un rapport annuel : compte de résultat, bilan, flux de trésorerie.
-const ROWS: { title: string; metrics: string[] }[] = [
-  { title: 'Compte de résultat', metrics: ['REVENUE', 'OPERATING_INCOME', 'NET_INCOME_GROUP', 'EPS_BASIC'] },
-  { title: 'Bilan', metrics: ['TOTAL_ASSETS', 'EQUITY_GROUP', 'CASH', 'LONG_TERM_DEBT', 'SHORT_TERM_DEBT'] },
-  { title: 'Flux de trésorerie', metrics: ['OPERATING_CASH_FLOW', 'CAPEX', 'DIVIDENDS_PAID'] },
+const ROWS: { title: string; term: string; metrics: string[] }[] = [
+  { title: 'Compte de résultat', term: 'INCOME_STATEMENT', metrics: ['REVENUE', 'OPERATING_INCOME', 'NET_INCOME_GROUP', 'EPS_BASIC'] },
+  { title: 'Bilan', term: 'BALANCE_SHEET', metrics: ['TOTAL_ASSETS', 'EQUITY_GROUP', 'CASH', 'LONG_TERM_DEBT', 'SHORT_TERM_DEBT'] },
+  { title: 'Flux de trésorerie', term: 'CASH_FLOW_STATEMENT', metrics: ['OPERATING_CASH_FLOW', 'CAPEX', 'DIVIDENDS_PAID'] },
 ]
 
 /** Les principaux postes des comptes, un exercice par colonne (le plus récent à gauche). */
@@ -27,10 +28,10 @@ export function FinancialsTable({ isin }: { isin: string }) {
         </thead>
         {ROWS.map(group => (
           <tbody key={group.title}>
-            <tr className="group"><th colSpan={years.length + 1}>{group.title}</th></tr>
+            <tr className="group"><th colSpan={years.length + 1}><Term id={group.term}>{group.title}</Term></th></tr>
             {group.metrics.map(m => (
               <tr key={m}>
-                <td>{METRIC_LABEL[m] ?? m}</td>
+                <td><Term id={m}>{METRIC_LABEL[m] ?? m}</Term></td>
                 {years.map(y => {
                   const v = y.metrics[m]
                   return (

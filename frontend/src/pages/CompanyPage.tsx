@@ -10,6 +10,8 @@ import { FreshnessBadge, PointsBar, ScoreBadge } from '../components/Badges'
 import { FinancialsTable } from '../components/FinancialsTable'
 import { LiveQuote } from '../components/LiveQuote'
 import { parseProfile, ProfileTabs } from '../components/ProfileTabs'
+import { HowToRead, Term } from '../components/Term'
+import { glossary } from '../glossary'
 import { formatDate, formatPercent, formatRatio } from '../format'
 
 /** La fiche d'une société : identité, cours en direct, score expliqué, évolution, comptes. */
@@ -39,24 +41,43 @@ export function CompanyPage() {
     <>
       <header className="company-header">
         <div>
-          <h1>{c.name} <span className="muted ticker">{c.ticker}</span></h1>
+          <h1>{c.name} <span className="muted ticker"><Term id="TICKER">{c.ticker}</Term></span></h1>
           <p className="muted">
+            <Term id="ICB">Secteur</Term> :{' '}
             {c.icb ? (
               <>{c.icb.industry} › <Link to={`/secteurs/${c.icb.code.substring(0, 4)}`}>{c.icb.supersector}</Link> › {c.icb.sector}</>
-            ) : 'Secteur inconnu'}
+            ) : 'inconnu'}
           </p>
           <dl className="identity">
-            <dt>ISIN</dt><dd>{c.isin}</dd>
-            <dt>LEI</dt><dd>{c.lei ?? '—'}</dd>
-            <dt>Cotation</dt><dd>{c.market}</dd>
+            <dt><Term id="ISIN" /></dt><dd>{c.isin}</dd>
+            <dt><Term id="LEI" /></dt><dd>{c.lei ?? '—'}</dd>
+            <dt><Term id="EURONEXT_PARIS">Cotation</Term></dt><dd>{c.market}</dd>
           </dl>
         </div>
         <LiveQuote isin={isin} />
       </header>
 
+      <HowToRead title="Comment lire cette fiche ?">
+        <ol>
+          <li><strong>Le cours</strong> : le prix de l'action, qui bouge en direct pendant la séance (9 h – 17 h 30).</li>
+          <li>
+            <strong>Le score</strong> : une note sur 100 qui dit si la société correspond au <Term id="PROFILE">profil</Term>{' '}
+            choisi dans les onglets. Le tableau montre, indicateur par indicateur, d'où vient la note : cliquez sur un
+            indicateur pour sa définition et son <Term id="SCALE">barème</Term>.
+          </li>
+          <li><strong>Face à son secteur et au marché</strong> : où se place la société parmi toutes celles cotées à Paris.</li>
+          <li><strong>Évolution</strong> : ses chiffres année après année. Une tendance compte plus qu'une seule année.</li>
+          <li><strong>Comptes annuels</strong> : les chiffres bruts de ses rapports officiels, d'où tout le reste est calculé.</li>
+        </ol>
+        <p className="muted">
+          Chaque mot souligné en pointillés suivi d'un <span className="term-mark" aria-hidden>?</span> a sa définition :
+          survolez-le ou touchez-le. Tout est aussi dans le <Link to="/lexique">lexique</Link>.
+        </p>
+      </HowToRead>
+
       <PriceChart isin={isin} currency="EUR" />
 
-      <h2 className="section-title">Score</h2>
+      <h2 className="section-title"><Term id="SCORE">Score</Term></h2>
       <ProfileTabs value={profile} onChange={p => setParams({ profil: p })} />
 
       <div className="company-grid">
@@ -67,7 +88,8 @@ export function CompanyPage() {
 
         <aside>
           <section className="card">
-            <h2>Ses notes dans les 4 profils</h2>
+            <h2>Ses notes dans les 4 <Term id="PROFILE">profils</Term></h2>
+            <p className="muted small">Une même société peut être excellente pour un profil et mauvaise pour un autre : très rentable (Qualité) mais chère (Value), par exemple. Cliquer pour changer de profil.</p>
             {entry ? <ProfileScores entry={entry} profiles={profiles} current={profile} />
               : <p className="muted">{universe ? 'Pas de score.' : 'Chargement…'}</p>}
           </section>
@@ -85,7 +107,9 @@ export function CompanyPage() {
       <section className="card">
         <h2>Face à son secteur et au marché</h2>
         <p className="muted">
-          Les indicateurs du profil, du plus important au moins important. Chaque point est une société cotée à Paris.
+          Une <Term id="STRIP">bande</Term> par indicateur du profil, du plus important au moins important. Chaque point
+          est une société cotée à Paris : on voit d'un coup d'œil si la société fait mieux ou moins bien que ses
+          concurrents (<Term id="SUPERSECTOR">même secteur</Term>) et que l'ensemble du marché.
         </p>
         {universe && definitions ? (
           <StripList ratioIds={profileRatios} definitions={definitions} universe={universe}
@@ -94,10 +118,12 @@ export function CompanyPage() {
       </section>
 
       <h2 className="section-title">Évolution</h2>
+      <p className="muted">Les chiffres de chaque <Term id="FISCAL_YEAR">exercice</Term>, du plus ancien au plus récent. Survolez un graphique pour lire les valeurs.</p>
       <HistoryCharts isin={isin} />
 
       <section className="card" style={{ marginTop: '1rem' }}>
-        <h2>Comptes annuels</h2>
+        <h2><Term id="ANNUAL_REPORT">Comptes annuels</Term></h2>
+        <p className="muted small">Les chiffres tels que publiés dans les rapports officiels, d'où sont calculés tous les indicateurs. Survolez un montant pour voir son étiquette officielle (XBRL).</p>
         <FinancialsTable isin={isin} />
       </section>
     </>
@@ -121,11 +147,11 @@ function ScoreDetail({ score, definitions }: { score: Score; definitions: RatioD
           <p>
             {score.score === null
               ? 'Pas de score : données insuffisantes ou trop anciennes.'
-              : `Note sur 100, calculée avec ${formatPercent(score.coverage)} des indicateurs du profil.`}
+              : <>Note sur 100, calculée avec <Term id="COVERAGE">{formatPercent(score.coverage)} des indicateurs</Term> du profil.</>}
           </p>
           {score.fiscalYearEnd && (
             <p className="muted">
-              Exercice clos le {formatDate(score.fiscalYearEnd)} <FreshnessBadge freshness={score.freshness} />
+              <Term id="FISCAL_YEAR">Exercice</Term> clos le {formatDate(score.fiscalYearEnd)} <FreshnessBadge freshness={score.freshness} explained />
             </p>
           )}
         </div>
@@ -133,7 +159,7 @@ function ScoreDetail({ score, definitions }: { score: Score; definitions: RatioD
 
       {Object.keys(score.familyScore).length > 0 && (
         <>
-          <h3>Par famille d'indicateurs</h3>
+          <h3>Par <Term id="FAMILY">famille d'indicateurs</Term></h3>
           <ScoreBars items={Object.entries(score.familyScore).map(([f, s]) => ({ label: familyLabel(f), score: s }))} />
         </>
       )}
@@ -141,16 +167,18 @@ function ScoreDetail({ score, definitions }: { score: Score; definitions: RatioD
       {sorted.length > 0 && (
         <>
           <h3>Indicateur par indicateur</h3>
-          <p className="muted small">Cliquer sur un indicateur pour voir son barème et où se place la société.</p>
+          <p className="muted small">
+            Cliquer sur le nom d'un indicateur (▶) pour voir sa définition, son calcul, son barème et où se place la société.
+          </p>
           <div className="table-wrap">
           <table className="contributions">
             <thead>
               <tr>
                 <th>Indicateur</th>
                 <th className="num">Valeur</th>
-                <th>Points</th>
-                <th className="num" title="Part de l'indicateur dans le score (poids du profil)">Poids</th>
-                <th className="num" title="Points × poids : ce que l'indicateur apporte au score">Apport</th>
+                <th><Term id="POINTS" /></th>
+                <th className="num"><Term id="WEIGHT" /></th>
+                <th className="num"><Term id="CONTRIBUTION" /></th>
               </tr>
             </thead>
             <tbody>
@@ -169,7 +197,7 @@ function ScoreDetail({ score, definitions }: { score: Score; definitions: RatioD
 
       {score.missing.length > 0 && (
         <div className="missing">
-          <h3>Non pris en compte</h3>
+          <h3><Term id="MISSING" /></h3>
           <p className="muted">Leur poids est réparti sur les autres indicateurs.</p>
           <ul>
             {score.missing.map(m => (
@@ -191,10 +219,10 @@ function ContributionRow({ c, def }: { c: Contribution; def: RatioDefinition | u
         {/* <details> : un bloc dépliable natif du navigateur, sans code JavaScript. */}
         <details>
           <summary>{def?.label ?? c.ratio}</summary>
-          <p className="muted">{def?.description}</p>
+          <IndicatorHelp id={c.ratio} fallback={def?.description} />
           {adj && (
             <p className="adjustment">
-              Barème adapté au secteur « {adj.label} » : médiane {formatRatio(adj.sectorMedian, unit)} sur{' '}
+              <Term id="SECTOR_ADJUSTMENT">Barème adapté au secteur</Term> « {adj.label} » : <Term id="MEDIAN">médiane</Term> {formatRatio(adj.sectorMedian, unit)} sur{' '}
               {adj.sampleSize} sociétés, contre {formatRatio(adj.universeMedian, unit)} pour l'ensemble
               (barème × {adj.factor.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}).
             </p>
@@ -210,3 +238,16 @@ function ContributionRow({ c, def }: { c: Contribution; def: RatioDefinition | u
   )
 }
 
+/** La définition complète d'un indicateur, dépliée sous son nom dans le tableau du score. */
+function IndicatorHelp({ id, fallback }: { id: string; fallback?: string }) {
+  const entry = glossary(id)
+  if (!entry) return <p className="muted">{fallback}</p>
+  return (
+    <div className="indicator-help">
+      <p>{entry.short}</p>
+      {entry.formula && <p className="term-formula"><span>Calcul :</span> {entry.formula}</p>}
+      {entry.read && <p><strong>Comment le lire :</strong> {entry.read}</p>}
+      {entry.watch && <p className="muted"><strong>Attention :</strong> {entry.watch}</p>}
+    </div>
+  )
+}

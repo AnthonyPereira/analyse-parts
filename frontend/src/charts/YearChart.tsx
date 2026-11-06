@@ -1,4 +1,6 @@
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import type { ReactNode } from 'react'
+import { glossary } from '../glossary'
 import { AXIS, ChartCard, EmptyChart, GRID, Legend, SERIES, TooltipBox } from './common'
 
 export interface Series {
@@ -12,9 +14,10 @@ export type YearRow = { year: string } & Record<string, number | string | null>
  * Une ou plusieurs séries par exercice : colonnes pour des montants, lignes pour des taux.
  * Un seul axe vertical : toutes les séries d'un graphique ont la même unité (sinon, deux graphiques).
  */
-export function YearChart({ title, subtitle, kind, series, data, format, tickFormat, zeroLine }: {
+export function YearChart({ title, subtitle, kind, series, data, format, tickFormat, zeroLine, help }: {
   title: string
-  subtitle?: string
+  subtitle?: ReactNode
+  help?: string
   kind: 'column' | 'line'
   series: Series[]
   data: YearRow[]
@@ -47,8 +50,10 @@ export function YearChart({ title, subtitle, kind, series, data, format, tickFor
   )
 
   return (
-    <ChartCard title={title} subtitle={subtitle}>
-      <Legend items={visible.map(s => ({ label: s.label, color: color(s), kind: kind === 'line' ? 'line' : 'box' }))} />
+    // Une seule série : pas de légende, c'est le titre qui porte la définition.
+    <ChartCard title={title} subtitle={subtitle} help={help ?? (series.length === 1 && glossary(series[0].key) ? series[0].key : undefined)}>
+      <Legend items={visible.map(s => ({ label: s.label, color: color(s), kind: kind === 'line' ? 'line' : 'box',
+        term: glossary(s.key) ? s.key : undefined }))} />
       {!hasData ? <EmptyChart>Données indisponibles</EmptyChart> : (
         <ResponsiveContainer width="100%" height={210}>
           {kind === 'column' ? (

@@ -12,7 +12,7 @@ export function ScoreHistogram({ scores, title }: { scores: number[]; title: str
     count: scores.filter(s => (i === 9 ? s >= 90 : s >= i * 10 && s < i * 10 + 10)).length,
   }))
   return (
-    <ChartCard title={title} subtitle={`${scores.length} sociétés notées, par tranche de 10 points`}>
+    <ChartCard title={title} help="HISTOGRAM" subtitle={`${scores.length} sociétés notées, par tranche de 10 points. Plus une barre est haute, plus il y a de sociétés dans cette tranche.`}>
       {scores.length === 0 ? <EmptyChart>Aucune société notée</EmptyChart> : (
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={bins} margin={{ top: 16, right: 4, bottom: 0, left: 0 }} barCategoryGap={2}>
@@ -68,7 +68,7 @@ export function ProfileScatter({ universe, x, y, profiles, highlightSector }: {
   }
 
   return (
-    <ChartCard title={`${label(y)} et ${label(x)}`}
+    <ChartCard title={`${label(y)} et ${label(x)}`} help="SCATTER"
                subtitle={`Chaque point est une société notée dans les deux profils (${points.length}). En haut à droite : bonne note dans les deux profils. Cliquer pour ouvrir la fiche.`}>
       {highlightSector && <Legend items={[
         { label: highlightSector, color: 'var(--series-1)' }, { label: 'Autres secteurs', color: 'var(--dot-muted)' }]} />}

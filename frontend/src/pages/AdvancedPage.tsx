@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router'
 import { useCustomRanking, useProfiles, useRatioDefinitions } from '../api/queries'
 import type { ProfileId, RatioDefinition } from '../api/types'
 import { ChartCard, Legend, SERIES } from '../charts/common'
+import { HowToRead, Term } from '../components/Term'
 import { FreshnessBadge, PointsBar, ScoreBadge } from '../components/Badges'
 
 type Weights = Record<string, number>
@@ -73,10 +74,23 @@ export function AdvancedPage() {
   return (
     <>
       <h1>Mode avancé</h1>
-      <p className="muted">
-        Réglez l'importance de chaque indicateur (0 = ignoré). Seules les proportions comptent : 20 et 10 pèsent
-        comme 2 et 1. Les barèmes, l'ajustement par secteur et les règles de fraîcheur restent ceux des profils.
-      </p>
+      <HowToRead title="Comment utiliser le mode avancé ?">
+        <p>
+          Les 4 profils sont des réglages tout faits. Ici, vous créez le vôtre : chaque curseur règle le{' '}
+          <Term id="WEIGHT">poids</Term> d'un indicateur, c'est-à-dire son importance dans le{' '}
+          <Term id="SCORE">score</Term>. Le classement à droite se recalcule à chaque changement.
+        </p>
+        <ol>
+          <li>Partez d'un profil existant avec les boutons, ou réglez tout vous-même.</li>
+          <li>Montez les curseurs de ce qui compte pour vous, mettez à 0 ce qui ne vous intéresse pas. Seules les proportions comptent : 20 et 10 pèsent comme 2 et 1.</li>
+          <li>La barre de couleur montre la part de chaque <Term id="FAMILY">famille</Term> : un réglage équilibré mélange plusieurs familles.</li>
+          <li>L'adresse de la page garde votre réglage : copiez-la pour le partager ou le retrouver.</li>
+        </ol>
+        <p className="muted">
+          Les <Term id="SCALE">barèmes</Term>, leur <Term id="SECTOR_ADJUSTMENT">adaptation au secteur</Term> et les règles de{' '}
+          <Term id="FRESHNESS">fraîcheur</Term> restent ceux des profils. Survolez le nom d'un indicateur pour sa définition.
+        </p>
+      </HowToRead>
 
       <div className="toolbar">
         <span>Partir du profil :</span>
@@ -105,8 +119,8 @@ export function AdvancedPage() {
               <fieldset key={family}>
                 <legend>{f.label}</legend>
                 {f.ratios.map(r => (
-                  <label key={r.id} className="weight" title={r.description}>
-                    <span>{r.label}</span>
+                  <label key={r.id} className="weight">
+                    <span><Term id={r.id}>{r.label}</Term></span>
                     <input type="range" min={0} max={50} step={5} value={current[r.id] ?? 0}
                            onChange={e => setWeight(r.id, Number(e.target.value))} />
                     <span className="num">{total > 0 ? `${Math.round(100 * (current[r.id] ?? 0) / total)} %` : '—'}</span>

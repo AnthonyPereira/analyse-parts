@@ -1,3 +1,4 @@
+import { Term } from './Term'
 import type { ProfileId } from '../api/types'
 import { useProfiles } from '../api/queries'
 
@@ -20,7 +21,12 @@ export function ProfileTabs({ value, onChange }: { value: ProfileId; onChange: (
           </button>
         ))}
       </div>
-      {current && <p className="muted">{current.description}</p>}
+      {current && (
+        <p className="muted">
+          <Term id={current.id}>{current.label}</Term> : {current.description.charAt(0).toLowerCase() + current.description.slice(1)}{' '}
+          <span className="small">(<Term id="PROFILE">qu'est-ce qu'un profil ?</Term>)</span>
+        </p>
+      )}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { useProfiles, useRanking, useUniverse } from '../api/queries'
 import { ProfileScatter, ScoreHistogram } from '../charts/MarketCharts'
 import { FreshnessBadge, PointsBar, ScoreBadge } from '../components/Badges'
 import { parseProfile, ProfileTabs } from '../components/ProfileTabs'
+import { HowToRead, Term } from '../components/Term'
 import { formatDate, formatPercent } from '../format'
 
 /** Le classement (« screener ») : toutes les sociétés notées selon le profil choisi. */
@@ -28,11 +29,33 @@ export function RankingPage() {
   return (
     <>
       <h1>Classement</h1>
+      <HowToRead title="Comment lire ce classement ?">
+        <p>
+          Toutes les sociétés cotées à Paris dont on a les comptes, de la mieux à la moins bien notée. La note (le{' '}
+          <Term id="SCORE">score</Term>, sur 100) dit à quel point la société correspond au{' '}
+          <Term id="PROFILE">profil</Term> choisi dans les onglets ci-dessous : ce n'est pas une prévision du cours.
+        </p>
+        <ol>
+          <li><strong>Choisissez un profil</strong> : Qualité, Croissance, Dividende ou Value. Le classement change, car chaque profil regarde des chiffres différents.</li>
+          <li>
+            <strong>Lisez le score</strong> : <span className="score score-good score-small">72</span> vert à partir de 60 (correspond bien au profil),{' '}
+            <span className="score score-mid score-small">50</span> orange de 40 à 59,{' '}
+            <span className="score score-bad score-small">25</span> rouge sous 40.
+          </li>
+          <li>
+            <strong>Vérifiez sa fiabilité</strong> : la colonne <Term id="COVERAGE">Données</Term> indique quelle part des indicateurs a pu être{' '}
+            calculée, et la colonne <Term id="FISCAL_YEAR">Exercice</Term> si les comptes sont{' '}
+            <Term id="UP_TO_DATE">à jour</Term> ou <Term id="LATE">en retard</Term>.
+          </li>
+          <li><strong>Cliquez sur une société</strong> pour comprendre d'où vient sa note, indicateur par indicateur.</li>
+        </ol>
+        <p className="muted">Les deux graphiques résument le marché : combien de sociétés par niveau de note, et comment se combinent deux profils.</p>
+      </HowToRead>
       <ProfileTabs value={profile} onChange={p => setParams({ profil: p })} />
 
       <div className="toolbar">
         <label>
-          Secteur{' '}
+          <Term id="SUPERSECTOR">Secteur</Term>{' '}
           <select value={sector} onChange={e => setSector(e.target.value)}>
             <option value="">Tous les secteurs</option>
             {sectors.map(s => <option key={s} value={s}>{s}</option>)}
@@ -61,10 +84,10 @@ export function RankingPage() {
               <tr>
                 <th className="num">#</th>
                 <th>Société</th>
-                <th className="hide-narrow">Secteur</th>
-                <th>Score</th>
-                <th className="hide-narrow" title="Part des indicateurs du profil que l'on a pu calculer">Données</th>
-                <th className="hide-narrow">Exercice</th>
+                <th className="hide-narrow"><Term id="SUPERSECTOR">Secteur</Term></th>
+                <th><Term id="SCORE" /></th>
+                <th className="hide-narrow"><Term id="COVERAGE">Données</Term></th>
+                <th className="hide-narrow"><Term id="FRESHNESS">Exercice</Term></th>
               </tr>
             </thead>
             <tbody>
@@ -91,7 +114,7 @@ export function RankingPage() {
       {unscored.length > 0 && (
         <section className="unscored">
           <button className="link" onClick={() => setShowUnscored(!showUnscored)}>
-            {showUnscored ? '▾' : '▸'} {unscored.length} sociétés non notées (données insuffisantes ou trop anciennes)
+            {showUnscored ? '▾' : '▸'} {unscored.length} sociétés non notées (moins de 60 % des indicateurs calculables, ou comptes de plus de 28 mois)
           </button>
           {showUnscored && (
             <ul className="columns">

@@ -10,6 +10,7 @@ const CompanyPage = lazy(() => import('./pages/CompanyPage').then(m => ({ defaul
 const SectorsPage = lazy(() => import('./pages/SectorsPage').then(m => ({ default: m.SectorsPage })))
 const SectorPage = lazy(() => import('./pages/SectorsPage').then(m => ({ default: m.SectorPage })))
 const AdvancedPage = lazy(() => import('./pages/AdvancedPage').then(m => ({ default: m.AdvancedPage })))
+const GlossaryPage = lazy(() => import('./pages/GlossaryPage').then(m => ({ default: m.GlossaryPage })))
 
 /**
  * La mise en page commune (en-tête, pied de page) et les routes : l'URL choisit la page
@@ -27,6 +28,7 @@ export function App() {
           <NavLink to="/" end>Classement</NavLink>
           <NavLink to="/secteurs">Secteurs</NavLink>
           <NavLink to="/avance">Mode avancé</NavLink>
+          <NavLink to="/lexique">Lexique</NavLink>
         </nav>
         <LiveBadge status={live} />
         <CompanySearch />
@@ -39,6 +41,7 @@ export function App() {
           <Route path="/secteurs" element={<SectorsPage />} />
           <Route path="/secteurs/:code" element={<SectorPage />} />
           <Route path="/avance" element={<AdvancedPage />} />
+          <Route path="/lexique" element={<GlossaryPage />} />
           <Route path="*" element={<p>Page introuvable. <Link to="/">Retour au classement</Link></p>} />
         </Routes>
         </Suspense>

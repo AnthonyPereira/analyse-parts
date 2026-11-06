@@ -1,6 +1,7 @@
 // Petits composants d'affichage. Un composant React est une fonction qui reçoit des
 // « props » (ses paramètres, en lecture seule) et renvoie du JSX (le HTML à afficher).
 
+import { Term } from './Term'
 import type { Freshness } from '../api/types'
 import { FRESHNESS_HELP, FRESHNESS_LABEL, scoreTone } from '../format'
 
@@ -14,13 +15,15 @@ export function ScoreBadge({ score, size = 'small' }: { score: number | null; si
   )
 }
 
-export function FreshnessBadge({ freshness }: { freshness: Freshness | null }) {
+/** Badge de fraîcheur ; {@code explained} : avec sa bulle d'aide (fiche société). */
+export function FreshnessBadge({ freshness, explained = false }: { freshness: Freshness | null; explained?: boolean }) {
   if (freshness === null) return null
-  return (
+  const badge = (
     <span className={`badge badge-${freshness.toLowerCase()}`} title={FRESHNESS_HELP[freshness]}>
       {FRESHNESS_LABEL[freshness]}
     </span>
   )
+  return explained ? <Term id={freshness}>{badge}</Term> : badge
 }
 
 /** Une barre horizontale de 0 à 100. */

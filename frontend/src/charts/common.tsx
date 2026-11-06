@@ -1,5 +1,6 @@
 // Briques communes à tous les graphiques : cadre, légende, infobulle, couleurs, axes.
 import type { ReactNode } from 'react'
+import { Term } from '../components/Term'
 
 /** Couleurs des séries, dans un ordre fixe (jamais recyclé) : la 1re série est toujours bleue. */
 export const SERIES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)',
@@ -14,16 +15,21 @@ export const AXIS = {
 
 export const GRID = { stroke: 'var(--grid)', vertical: false } as const
 
-export function ChartCard({ title, subtitle, children, actions }: {
+/**
+ * Le cadre d'un graphique. {@code help} : identifiant du lexique qui explique comment lire le
+ * graphique (ou ce qu'il mesure) ; le titre devient alors un mot avec sa bulle d'aide.
+ */
+export function ChartCard({ title, subtitle, children, actions, help }: {
   title: string
   subtitle?: ReactNode
   children: ReactNode
   actions?: ReactNode
+  help?: string
 }) {
   return (
     <figure className="chart-card" style={{ margin: 0 }}>
       <div className="chart-head">
-        <h3>{title}</h3>
+        <h3>{help ? <Term id={help}>{title}</Term> : title}</h3>
         {actions}
       </div>
       {subtitle && <p className="subtitle">{subtitle}</p>}
@@ -36,6 +42,8 @@ export interface LegendItem {
   label: string
   color: string
   kind?: 'box' | 'line'
+  /** Identifiant du lexique : le libellé devient un mot avec sa définition. */
+  term?: string
 }
 
 /** Légende en HTML, au-dessus du graphique : obligatoire dès 2 séries (la couleur seule ne suffit pas). */
@@ -46,7 +54,7 @@ export function Legend({ items }: { items: LegendItem[] }) {
       {items.map(i => (
         <li key={i.label}>
           <span className={i.kind === 'line' ? 'swatch-line' : 'swatch'} style={{ background: i.color }} />
-          {i.label}
+          {i.term ? <Term id={i.term}>{i.label}</Term> : i.label}
         </li>
       ))}
     </ul>
