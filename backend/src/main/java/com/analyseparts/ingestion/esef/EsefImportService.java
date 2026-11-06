@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -25,6 +26,7 @@ import java.util.List;
 public class EsefImportService {
 
     private static final Logger log = LoggerFactory.getLogger(EsefImportService.class);
+    private static final int MAX_PERIOD_END_GAP_DAYS = 7;
 
     private final FilingsXbrlClient client;
     private final FinancialsService financials;
@@ -80,9 +82,9 @@ public class EsefImportService {
                 }
                 try {
                     List<ReportedFact> facts = XbrlJsonParser.totals(client.download(filing.jsonUrl()));
+                    LocalDate periodEnd = periodEnd(company, filing, facts);
                     financials.recordFiling(company.getId(), new FilingData(filing.fxoId(),
-                            LocalDate.parse(filing.periodEnd()), filing.country(), filing.jsonUrl(),
-                            filing.errorCount()), facts);
+                            periodEnd, filing.country(), filing.jsonUrl(), filing.errorCount()), facts);
                     imported++;
                     factCount += facts.size();
                     log.info("ESEF {} {} : {} faits", company.getName(), filing.periodEnd(), facts.size());
@@ -102,5 +104,26 @@ public class EsefImportService {
             errors++;
         }
         return new ImportResult(1, imported, skipped, factCount, errors);
+    }
+
+    /**
+     * Date de clôture du rapport, déduite de ses faits : la fin la plus tardive des périodes
+     * de flux. L'index de la source se trompe parfois (rapports 2025 de Carrefour, Hermès et
+     * Rubis déclarés au 31/12/2026) : les faits font foi.
+     */
+    static LocalDate periodEnd(Company company, FilingInfo filing, List<ReportedFact> facts) {
+        LocalDate declared = LocalDate.parse(filing.periodEnd());
+        LocalDate fromFacts = facts.stream()
+                .filter(f -> !f.isInstant())
+                .map(ReportedFact::periodEnd)
+                .max(LocalDate::compareTo)
+                .orElse(declared);
+        // Un écart d'un jour vient d'une façon différente d'écrire la fin de période : on l'ignore.
+        if (Math.abs(ChronoUnit.DAYS.between(declared, fromFacts)) <= MAX_PERIOD_END_GAP_DAYS) {
+            return declared;
+        }
+        log.warn("ESEF {} : rapport {} déclaré au {} mais ses chiffres s'arrêtent au {}, on retient le {}",
+                company.getName(), filing.fxoId(), declared, fromFacts, fromFacts);
+        return fromFacts;
     }
 }
