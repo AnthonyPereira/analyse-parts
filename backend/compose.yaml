@@ -6,7 +6,7 @@ services:
       - 'POSTGRES_USER=analyseparts'
       - 'POSTGRES_PASSWORD=analyseparts'
     ports:
-      - '5432:5432'
+      - '5433:5432'  # 5432 est pris par le PostgreSQL Windows local
     volumes:
       - 'pgdata:/var/lib/postgresql/data'
 
