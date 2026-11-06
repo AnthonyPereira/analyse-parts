@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: 'postgres:17-alpine'
+    environment:
+      - 'POSTGRES_DB=analyseparts'
+      - 'POSTGRES_USER=analyseparts'
+      - 'POSTGRES_PASSWORD=analyseparts'
+    ports:
+      - '5432:5432'
+    volumes:
+      - 'pgdata:/var/lib/postgresql/data'
+
+volumes:
+  pgdata:
