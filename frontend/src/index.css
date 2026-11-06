@@ -1,0 +1,152 @@
+/* Couleurs en variables : un seul endroit à changer, et un thème sombre automatique. */
+:root {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --text: #1d1d1f;
+  --muted: #6b6b70;
+  --border: #e3e3e0;
+  --accent: #2456c7;
+  --good: #1f8a4c;
+  --good-bg: #e3f4ea;
+  --mid: #b86e00;
+  --mid-bg: #fdf0dc;
+  --bad: #c0392b;
+  --bad-bg: #fbe5e2;
+  --none-bg: #ececea;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141416;
+    --surface: #1d1d20;
+    --text: #ececef;
+    --muted: #9a9aa2;
+    --border: #2e2e33;
+    --accent: #7ea2ff;
+    --good: #4cc982;
+    --good-bg: #183826;
+    --mid: #f0a640;
+    --mid-bg: #3a2a12;
+    --bad: #f07466;
+    --bad-bg: #3d1c19;
+    --none-bg: #2a2a2e;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1 { font-size: 1.6rem; margin: 0.2em 0 0.4em; }
+h2 { font-size: 1.15rem; margin: 0 0 0.6em; }
+h3 { font-size: 1rem; margin: 1em 0 0.2em; }
+.muted { color: var(--muted); }
+.error { color: var(--bad); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.app { max-width: 1150px; margin: 0 auto; padding: 0 16px; }
+main { min-height: 70vh; }
+footer { font-size: 0.8rem; border-top: 1px solid var(--border); margin-top: 3rem; padding: 1rem 0 2rem; }
+
+/* En-tête */
+.topbar { display: flex; align-items: center; gap: 1rem; padding: 0.9rem 0; flex-wrap: wrap; }
+.brand { font-weight: 700; font-size: 1.15rem; color: var(--text); }
+.search { position: relative; flex: 1; max-width: 420px; min-width: 200px; margin-left: auto; }
+.search input {
+  width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit;
+}
+.search-results {
+  position: absolute; z-index: 10; left: 0; right: 0; margin: 4px 0 0; padding: 4px; list-style: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+}
+.search-results button {
+  display: flex; justify-content: space-between; gap: 1rem; width: 100%; padding: 0.45rem 0.6rem;
+  border: 0; background: none; color: var(--text); font: inherit; text-align: left; border-radius: 6px; cursor: pointer;
+}
+.search-results button:hover { background: var(--bg); }
+
+/* Profils */
+.profiles { margin-bottom: 1rem; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tab {
+  padding: 0.45rem 0.9rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+  color: var(--text); font: inherit; cursor: pointer;
+}
+.tab-active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.profiles p { margin: 0.5rem 0 0; }
+
+/* Tableaux */
+.toolbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+select { font: inherit; padding: 0.3rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); }
+th, td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+th { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.ranking td { vertical-align: middle; }
+.ticker { margin-left: 0.5em; font-size: 0.85em; }
+.score-cell { white-space: nowrap; }
+.score-cell .bar { margin-left: 0.6rem; }
+tfoot td { font-weight: 600; border-bottom: 0; }
+.group th { padding-top: 1rem; color: var(--text); }
+
+/* Score et barres */
+.score {
+  display: inline-block; min-width: 2.4em; text-align: center; border-radius: 6px; font-weight: 700;
+  font-variant-numeric: tabular-nums; padding: 0.1em 0.35em;
+}
+.score-large { font-size: 2.6rem; min-width: 2.2em; padding: 0.15em 0.3em; border-radius: 12px; }
+.score-good { color: var(--good); background: var(--good-bg); }
+.score-mid { color: var(--mid); background: var(--mid-bg); }
+.score-bad { color: var(--bad); background: var(--bad-bg); }
+.score-none { color: var(--muted); background: var(--none-bg); }
+.bar { display: inline-block; width: 90px; height: 6px; border-radius: 3px; background: var(--none-bg); vertical-align: middle; }
+.bar-fill { display: block; height: 100%; border-radius: 3px; }
+.bar-good { background: var(--good); }
+.bar-mid { background: var(--mid); }
+.bar-bad { background: var(--bad); }
+.bar-none { background: var(--muted); }
+.points { display: inline-block; min-width: 2em; text-align: right; font-variant-numeric: tabular-nums; }
+
+.badge { font-size: 0.75rem; padding: 0.1em 0.5em; border-radius: 999px; white-space: nowrap; }
+.badge-up_to_date { color: var(--good); background: var(--good-bg); }
+.badge-late { color: var(--mid); background: var(--mid-bg); }
+.badge-obsolete { color: var(--bad); background: var(--bad-bg); }
+
+/* Fiche société */
+.company-header { display: flex; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; margin: 0.5rem 0 1rem; }
+.company-header p { margin: 0; }
+.identity { display: grid; grid-template-columns: auto 1fr; gap: 0 0.8rem; margin: 0.6rem 0 0; font-size: 0.9rem; }
+.identity dt { color: var(--muted); }
+.identity dd { margin: 0; font-family: ui-monospace, monospace; word-break: break-all; }
+.quote { display: flex; flex-direction: column; align-items: flex-end; }
+.quote strong { font-size: 1.8rem; }
+.company-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 1rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+.card table { background: none; }
+.score-summary { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+.score-summary p { margin: 0; }
+details summary { cursor: pointer; }
+details p { margin: 0.4rem 0 0; font-size: 0.88rem; max-width: 46ch; }
+.adjustment { color: var(--accent); }
+.missing ul { padding-left: 1.2rem; margin: 0.4rem 0 0; font-size: 0.9rem; }
+.unscored { margin-top: 1.2rem; }
+.columns { columns: 3 220px; padding-left: 1.2rem; }
+button.link { border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; padding: 0; }
+
+@media (max-width: 760px) {
+  .company-grid { grid-template-columns: 1fr; }
+  .hide-narrow { display: none; }
+  .quote { align-items: flex-start; }
+  .bar { width: 50px; }
+}

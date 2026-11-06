@@ -1,0 +1,77 @@
+// Accès à l'API avec TanStack Query (« React Query »).
+//
+// Pourquoi une librairie plutôt qu'un fetch dans un useEffect ?
+//  - mise en cache : revenir sur une page déjà vue est instantané ;
+//  - états chargement / erreur fournis (isPending, error) ;
+//  - pas de requête en double si deux composants demandent la même donnée.
+// Chaque donnée est identifiée par une « clé » (queryKey) : même clé = même cache.
+
+import { useQuery } from '@tanstack/react-query'
+import type {
+  Company, CompanyScore, CompanySummary, FinancialHistory, ProfileDefinition, ProfileId,
+  Quote, RankingEntry, RatioDefinition,
+} from './types'
+
+/** Erreur HTTP, pour distinguer « introuvable » (404) d'une panne. */
+export class HttpError extends Error {
+  readonly status: number
+  constructor(status: number, url: string) {
+    super(`${status} sur ${url}`)
+    this.status = status
+  }
+}
+
+// Les URL sont relatives (/api/...) : en développement, Vite les relaie vers Spring Boot
+// (voir « proxy » dans vite.config.ts), donc pas besoin de configurer CORS.
+async function get<T>(url: string): Promise<T> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new HttpError(response.status, url)
+  }
+  return response.json() as Promise<T>
+}
+
+/** Une donnée absente (404) n'est pas une erreur : la fiche affiche simplement « pas de cours ». */
+async function getOptional<T>(url: string): Promise<T | null> {
+  try {
+    return await get<T>(url)
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 404) return null
+    throw e
+  }
+}
+
+const HOUR = 60 * 60 * 1000
+
+// Les définitions (ratios, profils) ne changent qu'avec le code : on les garde une heure.
+export const useRatioDefinitions = () =>
+  useQuery({ queryKey: ['ratios'], queryFn: () => get<RatioDefinition[]>('/api/scoring/ratios'), staleTime: HOUR })
+
+export const useProfiles = () =>
+  useQuery({ queryKey: ['profiles'], queryFn: () => get<ProfileDefinition[]>('/api/scoring/profiles'), staleTime: HOUR })
+
+export const useCompanies = () =>
+  useQuery({ queryKey: ['companies'], queryFn: () => get<CompanySummary[]>('/api/companies'), staleTime: HOUR })
+
+export const useRanking = (profile: ProfileId) =>
+  useQuery({ queryKey: ['ranking', profile], queryFn: () => get<RankingEntry[]>(`/api/scores?profile=${profile}`) })
+
+export const useCompany = (isin: string) =>
+  useQuery({ queryKey: ['company', isin], queryFn: () => get<Company>(`/api/companies/${isin}`) })
+
+export const useCompanyScore = (isin: string, profile: ProfileId) =>
+  useQuery({
+    queryKey: ['score', isin, profile],
+    queryFn: () => get<CompanyScore>(`/api/companies/${isin}/score?profile=${profile}`),
+  })
+
+export const useFinancials = (isin: string) =>
+  useQuery({ queryKey: ['financials', isin], queryFn: () => get<FinancialHistory>(`/api/companies/${isin}/financials`) })
+
+// Le cours change toutes les 15 minutes en séance : on le relit toutes les 5 minutes.
+export const useQuote = (isin: string) =>
+  useQuery({
+    queryKey: ['quote', isin],
+    queryFn: () => getOptional<Quote>(`/api/companies/${isin}/quote`),
+    refetchInterval: 5 * 60 * 1000,
+  })

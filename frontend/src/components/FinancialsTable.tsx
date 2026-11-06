@@ -1,0 +1,50 @@
+import { useFinancials } from '../api/queries'
+import { formatAmount, formatDate, METRIC_LABEL } from '../format'
+
+// L'ordre de lecture d'un rapport annuel : compte de résultat, bilan, flux de trésorerie.
+const ROWS: { title: string; metrics: string[] }[] = [
+  { title: 'Compte de résultat', metrics: ['REVENUE', 'OPERATING_INCOME', 'NET_INCOME_GROUP', 'EPS_BASIC'] },
+  { title: 'Bilan', metrics: ['TOTAL_ASSETS', 'EQUITY_GROUP', 'CASH', 'LONG_TERM_DEBT', 'SHORT_TERM_DEBT'] },
+  { title: 'Flux de trésorerie', metrics: ['OPERATING_CASH_FLOW', 'CAPEX', 'DIVIDENDS_PAID'] },
+]
+
+/** Les principaux postes des comptes, un exercice par colonne (le plus récent à gauche). */
+export function FinancialsTable({ isin }: { isin: string }) {
+  const { data, isPending, error } = useFinancials(isin)
+  if (isPending) return <p className="muted">Chargement…</p>
+  if (error || !data || data.years.length === 0) return <p className="muted">Aucun rapport annuel importé.</p>
+
+  const years = [...data.years].sort((a, b) => b.fiscalYearEnd.localeCompare(a.fiscalYearEnd))
+
+  return (
+    <div className="table-wrap">
+      <table className="financials">
+        <thead>
+          <tr>
+            <th />
+            {years.map(y => <th key={y.fiscalYearEnd} className="num">{formatDate(y.fiscalYearEnd)}</th>)}
+          </tr>
+        </thead>
+        {ROWS.map(group => (
+          <tbody key={group.title}>
+            <tr className="group"><th colSpan={years.length + 1}>{group.title}</th></tr>
+            {group.metrics.map(m => (
+              <tr key={m}>
+                <td>{METRIC_LABEL[m] ?? m}</td>
+                {years.map(y => {
+                  const v = y.metrics[m]
+                  return (
+                    <td key={y.fiscalYearEnd} className="num" title={v?.concept}>
+                      {v ? (m === 'EPS_BASIC' ? `${v.value.toLocaleString('fr-FR')} ${v.currency === 'EUR' ? '€' : v.currency ?? ''}`
+                        : formatAmount(v.value, v.currency)) : '—'}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        ))}
+      </table>
+    </div>
+  )
+}
