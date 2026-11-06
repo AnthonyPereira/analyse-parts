@@ -13,11 +13,14 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 
-import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Importe les rapports annuels ESEF des sociétés qui ont un LEI. */
+/**
+ * Importe les rapports annuels ESEF des sociétés qui ont un LEI.
+ * Le rythme des requêtes est géré par {@link FilingsXbrlClient}.
+ */
 @Service
 public class EsefImportService {
 
@@ -27,19 +30,18 @@ public class EsefImportService {
     private final FinancialsService financials;
     private final CompanyRepository companies;
     private final int filingsPerCompany;
-    private final Duration pause;
 
     public EsefImportService(FilingsXbrlClient client, FinancialsService financials, CompanyRepository companies,
-                             @Value("${analyse-parts.esef.filings-per-company:3}") int filingsPerCompany,
-                             @Value("${analyse-parts.esef.pause:500ms}") Duration pause) {
+                             @Value("${analyse-parts.esef.filings-per-company:3}") int filingsPerCompany) {
         this.client = client;
         this.financials = financials;
         this.companies = companies;
         this.filingsPerCompany = filingsPerCompany;
-        this.pause = pause;
     }
 
     public record ImportResult(int companies, int filingsImported, int filingsSkipped, int factCount, int errors) {
+
+        static final ImportResult EMPTY = new ImportResult(0, 0, 0, 0, 0);
 
         ImportResult plus(ImportResult o) {
             return new ImportResult(companies + o.companies, filingsImported + o.filingsImported,
@@ -53,19 +55,11 @@ public class EsefImportService {
                 .orElseThrow(() -> new IllegalArgumentException("ISIN inconnu : " + isin));
     }
 
-    /** Les sociétés qui ont un LEI mais aucun rapport importé, au plus {@code limit}. */
+    /** Les sociétés avec un LEI dont l'index ESEF n'a pas encore été consulté avec succès, au plus {@code limit}. */
     public ImportResult importMissing(int limit) {
-        ImportResult total = new ImportResult(0, 0, 0, 0, 0);
-        int done = 0;
-        for (Company company : companies.findByLeiIsNotNullOrderByName()) {
-            if (done >= limit) {
-                break;
-            }
-            if (financials.hasFilings(company.getId())) {
-                continue;
-            }
+        ImportResult total = ImportResult.EMPTY;
+        for (Company company : companies.findByLeiIsNotNullAndEsefCheckedAtIsNullOrderByName().stream().limit(limit).toList()) {
             total = total.plus(importCompany(company));
-            done++;
         }
         log.info("Import ESEF : {}", total);
         return total;
@@ -97,23 +91,16 @@ public class EsefImportService {
                     log.warn("ESEF {} : échec pour {} : {}", company.getName(), filing.jsonUrl(), e.getMessage());
                     errors++;
                 }
-                sleep();
+            }
+            if (errors == 0) {
+                // Tout s'est bien passé (y compris "aucun rapport") : on ne la redemandera pas
+                company.markEsefChecked(Instant.now());
+                companies.save(company);
             }
         } catch (RestClientException e) {
             log.warn("ESEF {} : index indisponible : {}", company.getName(), e.getMessage());
             errors++;
         }
         return new ImportResult(1, imported, skipped, factCount, errors);
-    }
-
-    private void sleep() {
-        if (pause.isZero()) {
-            return;
-        }
-        try {
-            Thread.sleep(pause);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 }

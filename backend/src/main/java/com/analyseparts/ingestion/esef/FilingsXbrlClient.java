@@ -2,12 +2,17 @@ package com.analyseparts.ingestion.esef;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Client de filings.xbrl.org (XBRL International) : index des rapports ESEF déposés en Europe,
@@ -16,17 +21,29 @@ import java.util.Map;
  * ESEF (European Single Electronic Format) : depuis 2021, les sociétés cotées de l'UE publient
  * leur rapport annuel en XHTML avec des balises XBRL. Chaque chiffre des états financiers y est
  * étiqueté avec un concept de la taxonomie IFRS, ce qui le rend lisible par une machine.
+ * <p>
+ * Service gratuit et limité en débit (réponse 429 sans indication de délai) : on espace les
+ * requêtes et on réessaie après une attente croissante en cas de refus.
  */
 @Component
 public class FilingsXbrlClient {
 
+    private static final Logger log = LoggerFactory.getLogger(FilingsXbrlClient.class);
+
     private final RestClient restClient;
+    private final Duration minInterval;
+    private final List<Duration> backoff;
+    private long lastRequestAt;
 
     public FilingsXbrlClient(RestClient.Builder builder,
-                             @Value("${analyse-parts.esef.base-url:https://filings.xbrl.org}") String baseUrl) {
+                             @Value("${analyse-parts.esef.base-url:https://filings.xbrl.org}") String baseUrl,
+                             @Value("${analyse-parts.esef.min-interval:2s}") Duration minInterval,
+                             @Value("${analyse-parts.esef.backoff:30s,60s,120s}") List<Duration> backoff) {
         this.restClient = builder.baseUrl(baseUrl)
                 .defaultHeader("User-Agent", "analyse-parts/0.1")
                 .build();
+        this.minInterval = minInterval;
+        this.backoff = backoff;
     }
 
     /** Une entrée de l'index. */
@@ -43,13 +60,13 @@ public class FilingsXbrlClient {
     /** Tous les rapports d'une entité, identifiée par son LEI. */
     public List<FilingInfo> listFilings(String lei) {
         String filter = "[{\"name\":\"entity.identifier\",\"op\":\"eq\",\"val\":\"" + lei + "\"}]";
-        IndexResponse response = restClient.get()
+        IndexResponse response = call(() -> restClient.get()
                 .uri(b -> b.path("/api/filings")
                         .queryParam("filter", "{filter}")
                         .queryParam("page[size]", "100")
                         .build(filter))
                 .retrieve()
-                .body(IndexResponse.class);
+                .body(IndexResponse.class));
         if (response == null || response.data() == null) {
             return List.of();
         }
@@ -58,7 +75,45 @@ public class FilingsXbrlClient {
 
     /** Télécharge un rapport au format xBRL-JSON (souvent 5 à 25 Mo, à cause des annexes en texte). */
     public XbrlJson download(String jsonUrl) {
-        return restClient.get().uri(jsonUrl).retrieve().body(XbrlJson.class);
+        return call(() -> restClient.get().uri(jsonUrl).retrieve().body(XbrlJson.class));
+    }
+
+    /** Espace les requêtes et réessaie sur "429 Too Many Requests". */
+    private synchronized <T> T call(Supplier<T> request) {
+        for (int attempt = 0; ; attempt++) {
+            waitForSlot();
+            try {
+                return request.get();
+            } catch (HttpClientErrorException.TooManyRequests e) {
+                if (attempt >= backoff.size()) {
+                    throw e;
+                }
+                Duration wait = backoff.get(attempt);
+                log.warn("filings.xbrl.org : trop de requêtes, nouvel essai dans {} s", wait.toSeconds());
+                sleep(wait);
+            }
+        }
+    }
+
+    private void waitForSlot() {
+        long elapsed = System.nanoTime() - lastRequestAt;
+        long remaining = minInterval.toNanos() - elapsed;
+        if (lastRequestAt != 0 && remaining > 0) {
+            sleep(Duration.ofNanos(remaining));
+        }
+        lastRequestAt = System.nanoTime();
+    }
+
+    private static void sleep(Duration d) {
+        if (d.isZero() || d.isNegative()) {
+            return;
+        }
+        try {
+            Thread.sleep(d);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrompu pendant l'attente", e);
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

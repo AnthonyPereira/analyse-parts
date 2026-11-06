@@ -56,6 +56,8 @@ public class Company {
 
     private Instant leiCheckedAt;
 
+    private Instant esefCheckedAt;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -105,6 +107,11 @@ public class Company {
         this.leiCheckedAt = checkedAt;
     }
 
+    /** L'index ESEF a été consulté avec succès (rapports importés, ou aucun rapport existant). */
+    public void markEsefChecked(Instant checkedAt) {
+        this.esefCheckedAt = checkedAt;
+    }
+
     public Long getId() { return id; }
     public String getIsin() { return isin; }
     public String getLei() { return lei; }
@@ -115,4 +122,5 @@ public class Company {
     public String getSector() { return sector; }
     public String getMarket() { return market; }
     public Instant getLeiCheckedAt() { return leiCheckedAt; }
+    public Instant getEsefCheckedAt() { return esefCheckedAt; }
 }
