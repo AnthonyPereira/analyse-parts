@@ -68,6 +68,11 @@
 			<artifactId>spring-modulith-starter-jdbc</artifactId>
 		</dependency>
 		<dependency>
+			<!-- Outbox vers Kafka : les événements @Externalized sont publiés dans un topic -->
+			<groupId>org.springframework.modulith</groupId>
+			<artifactId>spring-modulith-events-kafka</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>

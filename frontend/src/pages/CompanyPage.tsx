@@ -5,6 +5,7 @@ import {
 import type { Contribution, RatioDefinition, Score } from '../api/types'
 import { HistoryCharts } from '../charts/HistoryCharts'
 import { PriceChart } from '../charts/PriceChart'
+import { ScoreHistoryChart } from '../charts/ScoreHistoryChart'
 import { ProfileScores, ScaleChart, ScoreBars, StripList } from '../charts/ScoreCharts'
 import { FreshnessBadge, PointsBar, ScoreBadge } from '../components/Badges'
 import { FinancialsTable } from '../components/FinancialsTable'
@@ -71,7 +72,10 @@ export function CompanyPage() {
             indicateur pour sa définition et son <Term id="SCALE">barème</Term>.
           </li>
           <li><strong>Face à son secteur et au marché</strong> : où se place la société parmi toutes celles cotées à Paris.</li>
-          <li><strong>Évolution</strong> : ses chiffres année après année. Une tendance compte plus qu'une seule année.</li>
+          <li>
+            <strong>Évolution</strong> : l'<Term id="SCORE_HISTORY">historique de ses notes</Term>, puis ses chiffres année
+            après année. Une tendance compte plus qu'une seule année.
+          </li>
           <li><strong>Comptes annuels</strong> : les chiffres bruts de ses rapports officiels, d'où tout le reste est calculé.</li>
         </ol>
         <p className="muted">
@@ -137,6 +141,9 @@ export function CompanyPage() {
 
       <h2 className="section-title">Évolution</h2>
       <p className="muted">Les chiffres de chaque <Term id="FISCAL_YEAR">exercice</Term>, du plus ancien au plus récent. Survolez un graphique pour lire les valeurs.</p>
+      <div style={{ marginBottom: '1rem' }}>
+        <ScoreHistoryChart isin={isin} profiles={profiles} current={profile} />
+      </div>
       <HistoryCharts isin={isin} />
 
       <section className="card" style={{ marginTop: '1rem' }}>

@@ -191,3 +191,15 @@ export interface Calibration {
   calibratedAt: string | null
   medians: Median[]
 }
+
+/** D'où vient une note enregistrée (voir le lexique : SCORE_ORIGIN). */
+export type ScoreOrigin = 'FILING' | 'DAILY' | 'BACKFILL'
+
+/** Un point de l'historique des notes : les notes des 4 profils un jour donné. */
+export interface ScorePoint {
+  day: string
+  origin: ScoreOrigin
+  fiscalYearEnd: string | null
+  sourceId: string | null
+  scores: Partial<Record<ProfileId, number>>
+}

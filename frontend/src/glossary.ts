@@ -169,6 +169,20 @@ export const GLOSSARY: Record<string, Entry> = {
     term: 'Obsolète', category: 'Le score',
     short: 'Les derniers comptes ont plus de 28 mois : trop anciens pour noter la société.',
   },
+  SCORE_HISTORY: {
+    term: 'Historique des notes', category: 'Le score',
+    short: 'Les notes de la société dans les 4 profils, jour après jour et exercice après exercice : on voit si elle s\'améliore ou se dégrade.',
+    what: 'L\'application garde une photo des 4 notes à trois moments : chaque soir de bourse, à l\'arrivée de chaque nouveau rapport annuel, et, pour le passé, à la clôture de chaque exercice (notes reconstituées avec les chiffres et le cours de l\'époque).',
+    read: 'Une courbe par profil, de 0 à 100. Celle du profil choisi dans les onglets est mise en avant. Les gros points sont les notes reconstituées à la clôture d\'un exercice ; les traits verticaux en pointillés, l\'arrivée d\'un rapport. Entre deux rapports, c\'est surtout la note Value qui bouge : elle suit le cours.',
+    watch: 'Les notes reconstituées utilisent les médianes sectorielles d\'aujourd\'hui : une petite différence avec la note réellement affichée à l\'époque est normale.',
+    see: ['SCORE_ORIGIN', 'SCORE', 'FISCAL_YEAR'],
+  },
+  SCORE_ORIGIN: {
+    term: 'Origine d\'une note', category: 'Le score',
+    short: 'Pourquoi une note a été enregistrée ce jour-là : un nouveau rapport, la photo du soir, ou une reconstitution du passé.',
+    what: '« Nouveau rapport » : la note recalculée dès l\'enregistrement d\'un rapport annuel. « Photo du soir » : la note de chaque soir de bourse, après la clôture. « Clôture d\'exercice » : la note qu\'aurait eue la société le dernier jour d\'un exercice passé, avec ses comptes et son cours de ce jour-là.',
+    see: ['SCORE_HISTORY'],
+  },
   FISCAL_YEAR: {
     term: 'Exercice', category: 'Le score',
     short: 'La période de 12 mois couverte par un rapport annuel. La date affichée est sa date de clôture (souvent le 31 décembre).',
@@ -329,7 +343,7 @@ export const GLOSSARY: Record<string, Entry> = {
     formula: 'Dividendes versés sur le dernier exercice ÷ capitalisation boursière. Si ce versement est plus de 2 fois supérieur à la médiane des exercices précédents (dividende exceptionnel après une cession, par exemple), on retient cette médiane : le dividende habituel.',
     read: 'Entre 3 et 5 % : rendement confortable. Au-delà de 7-8 % : méfiance, le marché anticipe souvent une baisse du dividende.',
     example: 'Une action à 100 € qui verse 4 € par an rend 4 %.',
-    watch: 'Le rendement monte quand le cours baisse : un rendement élevé peut cacher une entreprise en difficulté. Le calcul regarde le dividende déjà versé : si l\x27entreprise vient de faire une perte, il risque de baisser (regardez alors le taux de distribution).',
+    watch: 'Le rendement monte quand le cours baisse : un rendement élevé peut cacher une entreprise en difficulté. Le calcul regarde le dividende déjà versé : si l\'entreprise vient de faire une perte, il risque de baisser (regardez alors le taux de distribution).',
     see: ['MARKET_CAP', 'PAYOUT_RATIO'],
   },
 

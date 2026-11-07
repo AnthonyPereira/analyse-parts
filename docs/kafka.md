@@ -107,6 +107,69 @@ Le navigateur affiche aussitôt 399,99 € pour L'Oréal (le cours n'est pas enr
 il disparaît au rechargement de la page). Dans Kafka UI, l'onglet **Consumers** montre le
 groupe `quote-stream`, sa position et son retard sur chaque partition.
 
+## Dans l'application : le topic `filings` et l'outbox
+
+```
+Import ESEF ─► FinancialsService.recordFiling()      UNE transaction PostgreSQL
+                 ├─ INSERT filing + faits
+                 └─ publishEvent(FilingRecorded) ─► INSERT event_publication  (l'outbox)
+                                                     │
+               après le commit, Spring Modulith ─────┘ ─► topic « filings » (clé = ISIN, rétention illimitée)
+                                                                    │
+   module scoring : FilingListener, groupe « score-history » ◄──────┘
+        └─ recalcule les 4 notes ─► INSERT … ON CONFLICT DO UPDATE  score_history
+                                                                    │
+   fiche société : graphique « Historique des notes » ◄─────────────┘
+```
+
+**Le problème de la double écriture.** Écrire le rapport en base *puis* dans Kafka, ce sont deux
+systèmes : si l'application s'arrête entre les deux, la base a le rapport et Kafka n'en saura
+jamais rien. On ne peut pas les mettre dans une même transaction.
+
+**L'outbox.** On écrit l'événement *dans la base*, dans la même transaction que le rapport (table
+`event_publication`, tenue par Spring Modulith) : les deux existent, ou aucun. Ensuite seulement,
+Spring Modulith l'envoie à Kafka et note la date de fin (`completion_date`). Si l'envoi échoue,
+la ligne reste sans date de fin et l'événement est renvoyé :
+
+- au redémarrage (`spring.modulith.events.republish-outstanding-events-on-restart=true`) ;
+- toutes les 5 minutes par `FilingOutboxRetry`, pour ceux qui ont plus de 2 minutes.
+
+**Au moins une fois, donc idempotent.** Un message peut arriver deux fois (envoyé, mais Kafka a
+répondu trop tard). Le consommateur l'accepte : la clé primaire de `score_history` (société,
+profil, jour, origine) et `ON CONFLICT DO UPDATE` font qu'un doublon réécrit la même ligne. Le
+jour vient du message (`recordedAt`), pas de l'heure de lecture : rejoué un mois plus tard, il
+retombe sur la même ligne.
+
+**Rejouer le passé.** Le topic garde tout (`retention.ms=-1`, quelques milliers de messages). Un
+nouveau groupe avec `auto.offset.reset=earliest` traite tous les rapports déjà publiés : c'est ce
+que fera l'analyse par le LLM local (phase 5), sans toucher à l'import.
+
+Les deux autres sources de l'historique ne passent pas par Kafka : la **photo du soir**
+(18 h 45 en semaine, `POST /api/admin/scoring/history/snapshot` pour la prendre tout de suite)
+et la **reconstitution des exercices passés**, une fois au démarrage.
+
+### Vérifier que tout fonctionne
+
+| Où regarder | Ce qui est normal |
+|---|---|
+| Kafka UI → Topics → `filings` → Messages | un message par rapport importé, clé = ISIN, valeur = JSON de `FilingRecorded` |
+| Kafka UI → Consumers → `score-history` | état STABLE, 1 membre, lag 0 |
+| Table `event_publication` | les lignes `FilingRecorded` ont une `completion_date` |
+| Logs du backend | `Historique des notes : rapport … → {QUALITY=…}` |
+
+Les publications restées en attente (Kafka arrêté au moment de l'import) :
+
+```sql
+SELECT publication_date, completion_attempts, status
+  FROM event_publication
+ WHERE event_type = 'com.analyseparts.financials.FilingRecorded' AND completion_date IS NULL;
+```
+
+**L'expérience à faire** : arrêter Kafka (`docker compose stop kafka`), importer un rapport
+(`POST /api/admin/ingestion/esef?isin=…`), constater la ligne sans `completion_date`, redémarrer
+Kafka, attendre au plus 5 minutes : la ligne est terminée et le message est dans le topic.
+
+
 ## Choix de configuration (`compose.yaml`)
 
 - **Trois listeners** (portes d'entrée) : `EXTERNAL` (9092) pour Windows et l'application,

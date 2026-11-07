@@ -1,13 +1,18 @@
 package com.analyseparts.financials;
 
+import com.analyseparts.company.Company;
+import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.financials.internal.FilingEntity;
 import com.analyseparts.financials.internal.FilingRepository;
 import com.analyseparts.financials.internal.ReportedFactJdbcRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -28,9 +33,16 @@ public class FinancialsService {
      */
     private final Map<Long, FinancialHistory> historyCache = new ConcurrentHashMap<>();
 
-    public FinancialsService(FilingRepository filings, ReportedFactJdbcRepository facts) {
+    private final CompanyRepository companies;
+    private final ApplicationEventPublisher events;
+    private final Clock clock = Clock.systemUTC();
+
+    public FinancialsService(FilingRepository filings, ReportedFactJdbcRepository facts, CompanyRepository companies,
+                             ApplicationEventPublisher events) {
         this.filings = filings;
         this.facts = facts;
+        this.companies = companies;
+        this.events = events;
     }
 
     public boolean isImported(String sourceId) {
@@ -41,12 +53,21 @@ public class FinancialsService {
         return filings.existsByCompanyId(companyId);
     }
 
-    /** Enregistre un rapport et ses faits en une seule transaction. */
+    /**
+     * Enregistre un rapport et ses faits en une seule transaction, et annonce {@link FilingRecorded}.
+     * <p>
+     * L'événement est publié <em>dans</em> la transaction : Spring Modulith l'écrit dans la table
+     * {@code event_publication} avec le rapport. Si la transaction échoue, il n'existe pas ; si
+     * elle réussit, il partira vers Kafka, même si l'application s'arrête juste après.
+     */
     @Transactional
     public void recordFiling(long companyId, FilingData filing, List<ReportedFact> reportedFacts) {
         FilingEntity saved = filings.save(new FilingEntity(companyId, filing.sourceId(), filing.periodEnd(),
                 filing.country(), filing.jsonUrl(), filing.errorCount(), reportedFacts.size()));
         facts.insertAll(saved.getId(), reportedFacts);
+        String isin = companies.findById(companyId).map(Company::getIsin).orElseThrow();
+        events.publishEvent(new FilingRecorded(isin, companyId, filing.sourceId(), filing.periodEnd(),
+                reportedFacts.size(), Instant.now(clock)));
         historyCache.remove(companyId);
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             // et encore après la validation : une lecture concurrente a pu remettre l'ancien historique

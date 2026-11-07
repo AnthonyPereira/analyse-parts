@@ -42,8 +42,9 @@ import java.util.Set;
  * Couche Spring autour du calcul : va chercher les données, appelle le cœur en Java pur.
  * <p>
  * Le score est recalculé à chaque demande (quelques millisecondes par société) : pas de
- * score stocké à tenir à jour quand un rapport ou un cours arrive. Seule la calibration
- * sectorielle est enregistrée, pour rester stable entre deux calibrages.
+ * score courant stocké à tenir à jour quand un rapport ou un cours arrive. On enregistre la
+ * calibration sectorielle, pour rester stable entre deux calibrages, et des photos des notes
+ * pour leur historique ({@link ScoreHistoryService}).
  */
 @Service
 public class ScoringService {
@@ -160,6 +161,11 @@ public class ScoringService {
         return profile.weights(isBank(company));
     }
 
+    /** Les ISIN des sociétés notées (celles qui ont au moins un rapport). */
+    public List<String> scoredIsins() {
+        return scoredCompanies().stream().map(Company::getIsin).toList();
+    }
+
     private List<Company> scoredCompanies() {
         Set<Long> withFilings = financials.companiesWithFilings();
         return companies.findAll().stream()
@@ -232,26 +238,81 @@ public class ScoringService {
      * celui de l'époque (résultat net ÷ BPA), pas celui d'aujourd'hui.
      */
     public Optional<List<YearRatios>> ratioHistory(String isin) {
+        return companies.findByIsin(isin).map(company -> yearRatioSets(company).stream()
+                .map(y -> {
+                    Map<Ratio, Double> values = new EnumMap<>(Ratio.class);
+                    y.ratios().values().forEach((r, v) -> values.put(r, v.value()));
+                    return new YearRatios(y.fiscalYearEnd(), y.valuation() == null ? null : y.valuation().quotedPrice(),
+                            values);
+                })
+                .toList());
+    }
+
+    /** Les 4 notes d'une société (null : pas assez de données pour ce profil). */
+    public record ProfileScores(long companyId, String isin, LocalDate fiscalYearEnd, Map<Profile, Integer> scores) {
+    }
+
+    /** Les notes d'aujourd'hui, avec le dernier cours : ce que montre la fiche. */
+    public Optional<ProfileScores> currentScores(String isin) {
         return companies.findByIsin(isin).map(company -> {
-            FinancialHistory history = financials.history(company.getId());
-            String quoted = market.latestQuote(company.getId()).map(Quote::currency).orElse("EUR");
-            String reporting = reportingCurrency(history).orElse(quoted);
-            List<YearRatios> result = new ArrayList<>();
-            for (int i = history.years().size() - 1; i >= 0; i--) { // du plus ancien au plus récent
-                FinancialHistory upToYear = new FinancialHistory(history.years().subList(i, history.years().size()));
-                LocalDate end = history.years().get(i).fiscalYearEnd();
-                Valuation valuation = company.isCooperativeCertificate() ? null : market.closeOn(company.getId(), end)
-                        .flatMap(close -> market.convert(close.close(), quoted, reporting)
-                                .map(price -> new Valuation(price, reporting, close.close(), quoted,
-                                        close.day().atStartOfDay(clock.getZone()).toInstant(), "CLOSE", null)))
-                        .orElse(null);
-                RatioSet ratios = RatioCalculator.compute(upToYear, valuation, "Pas de cours à cette date");
-                Map<Ratio, Double> values = new EnumMap<>(Ratio.class);
-                ratios.values().forEach((r, v) -> values.put(r, v.value()));
-                result.add(new YearRatios(end, valuation == null ? null : valuation.quotedPrice(), values));
-            }
-            return result;
+            RatioSet ratios = ratios(company);
+            return profileScores(company, ratios, LocalDate.now(clock));
         });
+    }
+
+    /** Les notes d'aujourd'hui de toutes les sociétés notées (photo quotidienne). */
+    public List<ProfileScores> allCurrentScores() {
+        return scoredCompanies().stream().map(c -> profileScores(c, ratios(c), LocalDate.now(clock))).toList();
+    }
+
+    /**
+     * Les notes qu'aurait eues la société à la clôture de chaque exercice passé, du plus ancien au
+     * plus récent : mêmes calculs que {@link #ratioHistory}, puis les poids de chaque profil.
+     * <p>
+     * Approximation assumée : la calibration sectorielle est celle d'aujourd'hui.
+     */
+    public List<ProfileScores> pastScores(String isin) {
+        return companies.findByIsin(isin)
+                .map(company -> yearRatioSets(company).stream()
+                        .map(y -> profileScores(company, y.ratios(), y.fiscalYearEnd()))
+                        .toList())
+                .orElse(List.of());
+    }
+
+    private ProfileScores profileScores(Company company, RatioSet ratios, LocalDate asOf) {
+        SectorCalibration cal = calibration();
+        Icb icb = company.getIcb().orElse(null);
+        Map<Profile, Integer> scores = new EnumMap<>(Profile.class);
+        LocalDate fiscalYearEnd = null;
+        for (Profile p : Profile.values()) {
+            Score s = ScoreCalculator.score(ratios, weightsFor(company, p), asOf, ratio -> cal.adjustment(ratio, icb));
+            scores.put(p, s.score());
+            fiscalYearEnd = s.fiscalYearEnd();
+        }
+        return new ProfileScores(company.getId(), company.getIsin(), fiscalYearEnd, scores);
+    }
+
+    /** Un exercice vu depuis sa clôture : ses ratios, et le cours de ce jour-là. */
+    private record YearRatioSet(LocalDate fiscalYearEnd, Valuation valuation, RatioSet ratios) {
+    }
+
+    private List<YearRatioSet> yearRatioSets(Company company) {
+        FinancialHistory history = financials.history(company.getId());
+        String quoted = market.latestQuote(company.getId()).map(Quote::currency).orElse("EUR");
+        String reporting = reportingCurrency(history).orElse(quoted);
+        List<YearRatioSet> result = new ArrayList<>();
+        for (int i = history.years().size() - 1; i >= 0; i--) { // du plus ancien au plus récent
+            FinancialHistory upToYear = new FinancialHistory(history.years().subList(i, history.years().size()));
+            LocalDate end = history.years().get(i).fiscalYearEnd();
+            Valuation valuation = company.isCooperativeCertificate() ? null : market.closeOn(company.getId(), end)
+                    .flatMap(close -> market.convert(close.close(), quoted, reporting)
+                            .map(price -> new Valuation(price, reporting, close.close(), quoted,
+                                    close.day().atStartOfDay(clock.getZone()).toInstant(), "CLOSE", null)))
+                    .orElse(null);
+            String noValuation = company.isCooperativeCertificate() ? COOPERATIVE_CERTIFICATE : "Pas de cours à cette date";
+            result.add(new YearRatioSet(end, valuation, RatioCalculator.compute(upToYear, valuation, noValuation)));
+        }
+        return result;
     }
 
     private RatioSet ratios(Company company) {

@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query'
 import type {
   Calibration, Company, CompanyScore, CompanySummary, DailyClose, FinancialHistory, Intraday, PriceRange,
   ProfileDefinition, ProfileId, QuoteWithChange, UniverseEntry, YearRatios,
-  RankingEntry, RatioDefinition,
+  RankingEntry, RatioDefinition, ScorePoint,
 } from './types'
 
 /** Erreur HTTP, pour distinguer « introuvable » (404) d'une panne. */
@@ -95,6 +95,10 @@ export const useIntraday = (isin: string, enabled = true) =>
     refetchInterval: 5 * 60 * 1000,
     enabled,
   })
+
+// Historique des notes, alimenté par le topic Kafka « filings » et la photo du soir.
+export const useScoreHistory = (isin: string) =>
+  useQuery({ queryKey: ['scoreHistory', isin], queryFn: () => get<ScorePoint[]>(`/api/companies/${isin}/score-history`) })
 
 export const useRatioHistory = (isin: string) =>
   useQuery({ queryKey: ['ratioHistory', isin], queryFn: () => get<YearRatios[]>(`/api/companies/${isin}/ratios/history`) })

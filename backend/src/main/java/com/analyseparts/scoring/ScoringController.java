@@ -28,6 +28,7 @@ import java.util.Map;
  *   <li>{@code GET /api/companies/{isin}/ratios} : les ratios d'une société ;</li>
  *   <li>{@code GET /api/companies/{isin}/score?profile=QUALITY} : son score détaillé ;</li>
  *   <li>{@code GET /api/scores?profile=QUALITY} : le classement ;</li>
+ *   <li>{@code GET /api/companies/{isin}/score-history} : l'historique des 4 notes ;</li>
  *   <li>{@code GET /api/scoring/calibration} : les médianes par secteur ({@code POST /api/admin/scoring/calibrate} pour recalculer).</li>
  * </ul>
  */
@@ -35,9 +36,11 @@ import java.util.Map;
 public class ScoringController {
 
     private final ScoringService scoring;
+    private final ScoreHistoryService scoreHistory;
 
-    public ScoringController(ScoringService scoring) {
+    public ScoringController(ScoringService scoring, ScoreHistoryService scoreHistory) {
         this.scoring = scoring;
+        this.scoreHistory = scoreHistory;
     }
 
     public record RatioDefinition(Ratio id, RatioFamily family, String familyLabel, String label,
@@ -126,5 +129,17 @@ public class ScoringController {
     @GetMapping("/api/companies/{isin}/ratios/history")
     public ResponseEntity<List<ScoringService.YearRatios>> ratioHistory(@PathVariable String isin) {
         return ResponseEntity.of(scoring.ratioHistory(isin));
+    }
+
+    /** L'historique des 4 notes d'une société, un point par jour. */
+    @GetMapping("/api/companies/{isin}/score-history")
+    public ResponseEntity<List<ScoreHistoryService.Point>> scoreHistory(@PathVariable String isin) {
+        return ResponseEntity.of(scoreHistory.history(isin));
+    }
+
+    /** Prend tout de suite la photo quotidienne des notes (sans attendre 18 h 45). */
+    @PostMapping("/api/admin/scoring/history/snapshot")
+    public Map<String, Integer> snapshot() {
+        return Map.of("companies", scoreHistory.recordDaily());
     }
 }
