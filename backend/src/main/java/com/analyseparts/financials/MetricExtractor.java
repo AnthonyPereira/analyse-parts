@@ -68,17 +68,26 @@ public final class MetricExtractor {
     static Optional<FinancialHistory.Value> find(List<SourcedFact> facts, Metric metric, LocalDate yearEnd) {
         for (String concept : metric.concepts()) {
             Optional<SourcedFact> best = facts.stream()
-                    .filter(f -> f.fact().concept().equals(concept))
+                    .filter(f -> matchesConcept(f.fact().concept(), concept))
                     .filter(f -> f.fact().periodEnd().equals(yearEnd))
                     .filter(f -> matchesKind(f.fact(), metric.kind()))
                     .max(Comparator.comparing(SourcedFact::filingPeriodEnd));
             if (best.isPresent()) {
                 SourcedFact f = best.get();
                 return Optional.of(new FinancialHistory.Value(
-                        f.fact().value(), currencyOf(f.fact().unit()), concept, f.filing()));
+                        f.fact().value(), currencyOf(f.fact().unit()), f.fact().concept(), f.filing()));
             }
         }
         return Optional.empty();
+    }
+
+    /** {@code *:NomLocal} : ce nom local quel que soit le préfixe (extension propre à la société). */
+    static boolean matchesConcept(String concept, String candidate) {
+        if (candidate.startsWith("*:")) {
+            int colon = concept.indexOf(':');
+            return colon >= 0 && concept.substring(colon + 1).equals(candidate.substring(2));
+        }
+        return concept.equals(candidate);
     }
 
     private static boolean matchesKind(ReportedFact fact, Metric.Kind kind) {

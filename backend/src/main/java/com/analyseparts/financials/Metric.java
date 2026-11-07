@@ -9,6 +9,10 @@ import java.util.List;
  * les sociétés n'utilisent pas toutes le même concept pour la même notion (ex. le chiffre
  * d'affaires est {@code Revenue} chez LVMH mais {@code RevenueFromContractsWithCustomers}
  * chez Air Liquide). Le premier concept trouvé l'emporte.
+ * <p>
+ * Un candidat de la forme {@code *:NomLocal} accepte ce nom quel que soit le préfixe : les banques
+ * publient leur produit net bancaire dans leur propre extension de la taxonomie
+ * ({@code SocGen:NetBankingIncome}, {@code CASAP3_2025_FR:NetBankingIncome}…), faute de concept IFRS.
  */
 public enum Metric {
 
@@ -25,6 +29,19 @@ public enum Metric {
     GROSS_PROFIT(Kind.FLOW, "ifrs-full:GrossProfit"),
     /** Résultat opérationnel : ce que rapporte le métier, avant frais financiers et impôts. */
     OPERATING_INCOME(Kind.FLOW, "ifrs-full:ProfitLossFromOperatingActivities"),
+
+    // --- Banques : leur compte de résultat a ses propres lignes (pas de « chiffre d'affaires ») ---
+
+    /**
+     * Produit net bancaire (PNB) : le « chiffre d'affaires » d'une banque. Intérêts reçus moins
+     * intérêts versés, plus les commissions et les gains de marché. BNP Paribas le publie sous le
+     * nom « Revenues ».
+     */
+    NET_BANKING_INCOME(Kind.FLOW, "*:NetBankingIncome", "*:RevenuesFromContinuingActivities"),
+    /** Résultat brut d'exploitation (RBE) : PNB moins les frais de fonctionnement. */
+    GROSS_OPERATING_INCOME(Kind.FLOW, "*:GrossOperatingIncome", "*:GrossOperatingIncomeFromContinuingActivities"),
+    /** Coût du risque : les pertes attendues sur les prêts (clients qui ne rembourseront pas). */
+    COST_OF_RISK(Kind.FLOW, "*:CostOfRisk"),
     /** Résultat avant impôt. */
     PROFIT_BEFORE_TAX(Kind.FLOW, "ifrs-full:ProfitLossBeforeTax"),
     /** Impôt sur les bénéfices de l'exercice. */
@@ -78,7 +95,12 @@ public enum Metric {
             "ifrs-full:PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"),
     /** Dividendes versés aux actionnaires de la société. */
     DIVIDENDS_PAID(Kind.FLOW, "ifrs-full:DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities",
-            "ifrs-full:DividendsPaidClassifiedAsFinancingActivities");
+            "ifrs-full:DividendsPaidClassifiedAsFinancingActivities", "ifrs-full:DividendsPaid"),
+    /**
+     * Dividende par action versé pendant l'exercice. Sert de repli quand le montant total n'est
+     * publié sous aucun concept standard (BNP Paribas) : total = dividende par action × nombre d'actions.
+     */
+    DIVIDENDS_PER_SHARE(Kind.PER_SHARE, "ifrs-full:DividendsRecognisedAsDistributionsToOwnersPerShare");
 
     /** Nature de la valeur, qui détermine la période et l'unité attendues. */
     public enum Kind {

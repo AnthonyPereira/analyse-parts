@@ -142,4 +142,54 @@ class RatioCalculatorTest {
         assertThat(r.values()).isEmpty();
         assertThat(r.unavailable()).hasSize(Ratio.values().length);
     }
+
+    /** Une banque (chiffres de Société Générale 2025, en millions) : PNB, RBE, résultat d'exploitation. */
+    private static final FinancialHistory BANK = new FinancialHistory(List.of(
+            year(2025, NET_BANKING_INCOME, 27254, GROSS_OPERATING_INCOME, 9916, OPERATING_INCOME, 8439,
+                    NET_INCOME, 6000, NET_INCOME_GROUP, 5450, EQUITY_GROUP, 70000, TOTAL_ASSETS, 1500000,
+                    EPS_BASIC, 6.81, DIVIDENDS_PER_SHARE, 1.09),
+            year(2024, NET_BANKING_INCOME, 26788, NET_INCOME_GROUP, 4200, EPS_BASIC, 4.94, DIVIDENDS_PER_SHARE, 0.90),
+            year(2023, NET_BANKING_INCOME, 25104, NET_INCOME_GROUP, 2493, EPS_BASIC, 2.17, DIVIDENDS_PER_SHARE, 0.90)));
+
+    @Test
+    void bankRatios() {
+        RatioSet r = RatioCalculator.compute(BANK);
+
+        // Coefficient d'exploitation : 1 − 9 916 ÷ 27 254
+        assertThat(r.get(Ratio.COST_INCOME_RATIO).orElseThrow().value()).isCloseTo(1 - 9916.0 / 27254, within(1e-9));
+        // Coût du risque déduit : (9 916 − 8 439) ÷ 27 254
+        assertThat(r.get(Ratio.COST_OF_RISK_RATIO).orElseThrow().value()).isCloseTo(1477.0 / 27254, within(1e-9));
+        // Le PNB tient lieu de chiffre d'affaires : marge nette et croissance
+        assertThat(r.get(Ratio.NET_MARGIN).orElseThrow().value()).isCloseTo(5450.0 / 27254, within(1e-9));
+        assertThat(r.get(Ratio.REVENUE_GROWTH)).isPresent();
+        // Dividendes = dividende par action × actions (5 450 ÷ 6,81 = 800,3 millions d'actions)
+        assertThat(r.get(Ratio.PAYOUT_RATIO).orElseThrow().value()).isCloseTo(1.09 / 6.81, within(1e-3));
+        assertThat(r.get(Ratio.DIVIDEND_GROWTH)).isPresent();
+    }
+
+    @Test
+    void publishedCostOfRiskWinsOverTheDerivedOne() {
+        RatioSet r = RatioCalculator.compute(new FinancialHistory(List.of(
+                year(2025, NET_BANKING_INCOME, 28079, GROSS_OPERATING_INCOME, 12451, OPERATING_INCOME, 10000,
+                        COST_OF_RISK, -1973))));
+
+        assertThat(r.get(Ratio.COST_OF_RISK_RATIO).orElseThrow().value()).isCloseTo(1973.0 / 28079, within(1e-9));
+    }
+
+    @Test
+    void bankRatiosAreUnavailableForOtherCompanies() {
+        RatioSet r = RatioCalculator.compute(INDUSTRIAL);
+
+        assertThat(r.unavailable().get(Ratio.COST_INCOME_RATIO)).contains("propre aux banques");
+        assertThat(r.unavailable().get(Ratio.COST_OF_RISK_RATIO)).contains("propre aux banques");
+    }
+
+    @Test
+    void everyProfileHasBankWeightsWithoutIndustrialRatios() {
+        for (Profile p : Profile.values()) {
+            assertThat(p.bankWeights().values().stream().mapToInt(Integer::intValue).sum()).isEqualTo(100);
+            assertThat(p.bankWeights()).doesNotContainKeys(Ratio.NET_DEBT_TO_EQUITY, Ratio.EV_TO_EBIT,
+                    Ratio.CURRENT_RATIO, Ratio.EQUITY_RATIO, Ratio.FCF_MARGIN, Ratio.FCF_YIELD);
+        }
+    }
 }

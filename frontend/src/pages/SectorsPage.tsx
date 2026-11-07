@@ -6,7 +6,7 @@ import { ProfileScatter, ScoreHistogram } from '../charts/MarketCharts'
 import { ScoreBars, StripList } from '../charts/ScoreCharts'
 import { parseProfile, ProfileTabs } from '../components/ProfileTabs'
 import { HowToRead, Term } from '../components/Term'
-import { formatRatio } from '../format'
+import { formatRatio, weightsFor } from '../format'
 
 const KEY_RATIOS = ['OPERATING_MARGIN', 'NET_MARGIN', 'ROE', 'NET_DEBT_TO_EQUITY', 'FCF_MARGIN', 'PER', 'DIVIDEND_YIELD']
 const SHORT_LABEL: Record<string, string> = {
@@ -120,7 +120,7 @@ export function SectorPage() {
   if (!sector) return <p>Secteur inconnu. <Link to="/secteurs">Tous les secteurs</Link></p>
 
   const ranked = [...sector.companies].sort((a, b) => (b.scores[profile] ?? -1) - (a.scores[profile] ?? -1))
-  const weights = profiles?.find(p => p.id === profile)?.weights ?? {}
+  const weights = weightsFor(profiles?.find(p => p.id === profile), code)
   // D'abord les indicateurs du profil (par poids), puis tous les autres.
   const ratioIds = (definitions ?? []).map(d => d.id)
     .sort((a, b) => (weights[b] ?? 0) - (weights[a] ?? 0))

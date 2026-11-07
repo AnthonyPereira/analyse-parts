@@ -73,4 +73,28 @@ class MetricExtractorTest {
                 .extracting(FinancialHistory.Value::currency).isEqualTo("USD"); // devise du BPA
         assertThat(year.get(Metric.NET_INCOME)).isEmpty();
     }
+
+    @Test
+    void bankLinesAreFoundInTheBankOwnExtension() {
+        // Société Générale : PNB et RBE dans son extension « SocGen: », pas dans la taxonomie IFRS
+        var history = MetricExtractor.extract(List.of(
+                flow("SocGen:NetBankingIncome", 2025, "27254", "iso4217:EUR", "R", END_2025),
+                flow("SocGen:GrossOperatingIncome", 2025, "9916", "iso4217:EUR", "R", END_2025),
+                flow("SocGen:NetBankingIncomeOfFrenchRetail", 2025, "1", "iso4217:EUR", "R", END_2025),
+                flow("ifrs-full:DividendsPaid", 2025, "2035", "iso4217:EUR", "R", END_2025)));
+
+        var year = history.years().getFirst();
+        assertThat(year.get(Metric.NET_BANKING_INCOME)).get()
+                .extracting(FinancialHistory.Value::value, FinancialHistory.Value::concept)
+                .containsExactly(new BigDecimal("27254"), "SocGen:NetBankingIncome"); // le vrai concept, pas « *: »
+        assertThat(year.get(Metric.GROSS_OPERATING_INCOME)).isPresent();
+        assertThat(year.get(Metric.DIVIDENDS_PAID)).isPresent();
+    }
+
+    @Test
+    void wildcardMatchesTheLocalNameOnly() {
+        assertThat(MetricExtractor.matchesConcept("CASAP3_2025_FR:NetBankingIncome", "*:NetBankingIncome")).isTrue();
+        assertThat(MetricExtractor.matchesConcept("SocGen:NetBankingIncomeOfFrenchRetail", "*:NetBankingIncome")).isFalse();
+        assertThat(MetricExtractor.matchesConcept("ifrs-full:Revenue", "ifrs-full:Revenue")).isTrue();
+    }
 }

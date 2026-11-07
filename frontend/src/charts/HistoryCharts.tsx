@@ -39,13 +39,16 @@ export function HistoryCharts({ isin }: { isin: string }) {
     const r = ratios.data?.find(x => x.fiscalYearEnd === y.fiscalYearEnd)?.values ?? {}
     return {
       year: label(y.fiscalYearEnd),
-      REVENUE: m('REVENUE'), OPERATING_INCOME: m('OPERATING_INCOME'), NET_INCOME_GROUP: m('NET_INCOME_GROUP'),
+      REVENUE: m('REVENUE'), NET_BANKING_INCOME: m('NET_BANKING_INCOME'), OPERATING_INCOME: m('OPERATING_INCOME'), NET_INCOME_GROUP: m('NET_INCOME_GROUP'),
       EPS_BASIC: m('EPS_BASIC'), DIVIDENDS_PAID: m('DIVIDENDS_PAID'),
       OPERATING_CASH_FLOW: ocf, CAPEX: capex, FCF: ocf !== null && capex !== null ? ocf - Math.abs(capex) : null,
       EQUITY_GROUP: m('EQUITY_GROUP'), CASH: m('CASH'),
       ...Object.fromEntries(Object.entries(r)),
     }
   })
+
+  // Une banque publie un produit net bancaire et pas de chiffre d'affaires.
+  const isBank = rows.some(r => typeof r.COST_INCOME_RATIO === 'number')
 
   // Pour la valorisation, on ajoute « aujourd'hui » (cours du jour, derniers comptes).
   const now = universe.data?.find(u => u.isin === isin)?.ratios
@@ -62,6 +65,7 @@ export function HistoryCharts({ isin }: { isin: string }) {
       <YearChart title="Activité et résultats" help="INCOME_STATEMENT" subtitle="Grandit-elle, et ses bénéfices suivent-ils ?" kind="column"
                  data={rows} format={money} tickFormat={compactAmount} zeroLine
                  series={[{ key: 'REVENUE', label: 'Chiffre d\'affaires' },
+                   { key: 'NET_BANKING_INCOME', label: 'Produit net bancaire' },
                    { key: 'OPERATING_INCOME', label: 'Résultat opérationnel' },
                    { key: 'NET_INCOME_GROUP', label: 'Résultat net' }]} />
       <YearChart title="Marges" subtitle="Sur 100 € de ventes, combien reste-t-il ?" kind="line"
@@ -71,16 +75,27 @@ export function HistoryCharts({ isin }: { isin: string }) {
       <YearChart title="Rentabilité du capital" subtitle="Ce que rapportent l'argent des actionnaires (ROE) et l'ensemble de l'actif (ROA)"
                  kind="line" data={rows} format={pct} tickFormat={pctTick} zeroLine
                  series={[{ key: 'ROE', label: 'ROE' }, { key: 'ROA', label: 'ROA' }]} />
-      <YearChart title="Flux de trésorerie" help="CASH_FLOW_STATEMENT" subtitle="Le cash produit par le métier, ce qui est réinvesti, ce qui reste"
-                 kind="column" data={rows} format={money} tickFormat={compactAmount} zeroLine
-                 series={[{ key: 'OPERATING_CASH_FLOW', label: 'Cash d\'exploitation' },
-                   { key: 'CAPEX', label: 'Investissements' }, { key: 'FCF', label: 'Cash-flow libre' }]} />
-      <YearChart title="Endettement" subtitle={<><Term id="NET_DEBT">Dette nette</Term> ÷ <Term id="EQUITY">capitaux propres</Term> : sous 0, plus de trésorerie que de dettes</>}
-                 kind="line" data={rows} format={mult} zeroLine
-                 series={[{ key: 'NET_DEBT_TO_EQUITY', label: 'Dette nette / capitaux propres' }]} />
-      <YearChart title="Solidité" subtitle={<>Part du <Term id="BALANCE_SHEET">bilan</Term> financée par les actionnaires</>} kind="line"
-                 data={rows} format={pct} tickFormat={pctTick}
-                 series={[{ key: 'EQUITY_RATIO', label: 'Autonomie financière' }]} />
+      {isBank ? (
+        // Une banque : son efficacité et son risque remplacent flux de trésorerie, dette et solidité.
+        <YearChart title="Efficacité et risque" help="BANK"
+                   subtitle="Part du produit net bancaire qui part en frais de fonctionnement, et en pertes sur les prêts"
+                   kind="line" data={rows} format={pct} tickFormat={pctTick}
+                   series={[{ key: 'COST_INCOME_RATIO', label: 'Coefficient d\'exploitation' },
+                     { key: 'COST_OF_RISK_RATIO', label: 'Coût du risque' }]} />
+      ) : (
+        <>
+          <YearChart title="Flux de trésorerie" help="CASH_FLOW_STATEMENT" subtitle="Le cash produit par le métier, ce qui est réinvesti, ce qui reste"
+                     kind="column" data={rows} format={money} tickFormat={compactAmount} zeroLine
+                     series={[{ key: 'OPERATING_CASH_FLOW', label: 'Cash d\'exploitation' },
+                       { key: 'CAPEX', label: 'Investissements' }, { key: 'FCF', label: 'Cash-flow libre' }]} />
+          <YearChart title="Endettement" subtitle={<><Term id="NET_DEBT">Dette nette</Term> ÷ <Term id="EQUITY">capitaux propres</Term> : sous 0, plus de trésorerie que de dettes</>}
+                     kind="line" data={rows} format={mult} zeroLine
+                     series={[{ key: 'NET_DEBT_TO_EQUITY', label: 'Dette nette / capitaux propres' }]} />
+          <YearChart title="Solidité" subtitle={<>Part du <Term id="BALANCE_SHEET">bilan</Term> financée par les actionnaires</>} kind="line"
+                     data={rows} format={pct} tickFormat={pctTick}
+                     series={[{ key: 'EQUITY_RATIO', label: 'Autonomie financière' }]} />
+        </>
+      )}
       <YearChart title="Bénéfice par action" subtitle="Le résultat net rapporté à une action" kind="column"
                  data={rows} format={v => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} ${symbol}`} zeroLine
                  series={[{ key: 'EPS_BASIC', label: 'Bénéfice par action' }]} />

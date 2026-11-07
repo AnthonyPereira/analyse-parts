@@ -52,6 +52,9 @@ export const METRIC_LABEL: Record<string, string> = {
   REVENUE: 'Chiffre d\'affaires',
   GROSS_PROFIT: 'Marge brute',
   OPERATING_INCOME: 'Résultat opérationnel',
+  NET_BANKING_INCOME: 'Produit net bancaire',
+  GROSS_OPERATING_INCOME: 'Résultat brut d\'exploitation',
+  COST_OF_RISK: 'Coût du risque',
   PROFIT_BEFORE_TAX: 'Résultat avant impôt',
   INCOME_TAX: 'Impôt sur les bénéfices',
   NET_INCOME: 'Résultat net',
@@ -71,6 +74,17 @@ export const METRIC_LABEL: Record<string, string> = {
   OPERATING_CASH_FLOW: 'Flux de trésorerie d\'exploitation',
   CAPEX: 'Investissements',
   DIVIDENDS_PAID: 'Dividendes versés',
+  DIVIDENDS_PER_SHARE: 'Dividende par action versé',
+}
+
+/** Code ICB du super-secteur des banques : elles sont notées avec leurs propres indicateurs. */
+export const BANKS_SUPERSECTOR = '3010'
+
+/** Les poids d'un profil pour une société : ceux des banques si c'en est une. */
+export function weightsFor(profile: { weights: Record<string, number>; bankWeights: Record<string, number> } | undefined,
+                           supersectorCode: string | null | undefined): Record<string, number> {
+  if (!profile) return {}
+  return supersectorCode === BANKS_SUPERSECTOR ? profile.bankWeights : profile.weights
 }
 
 /** Couleur d'un score : rouge sous 40, orange jusqu'à 60, vert au-delà. */

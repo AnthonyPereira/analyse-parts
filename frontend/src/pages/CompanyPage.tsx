@@ -12,7 +12,10 @@ import { LiveQuote } from '../components/LiveQuote'
 import { parseProfile, ProfileTabs } from '../components/ProfileTabs'
 import { HowToRead, Term } from '../components/Term'
 import { glossary } from '../glossary'
-import { formatDate, formatPercent, formatRatio } from '../format'
+import { BANKS_SUPERSECTOR, formatDate, formatPercent, formatRatio, weightsFor } from '../format'
+
+// Caisses régionales du Crédit Agricole (même règle que Company.isCooperativeCertificate côté Java)
+const COOPERATIVE = /^CRCAM |CCI$/
 
 /** La fiche d'une société : identité, cours en direct, score expliqué, évolution, comptes. */
 export function CompanyPage() {
@@ -34,7 +37,9 @@ export function CompanyPage() {
   }
   const c = company.data
   const entry = universe?.find(u => u.isin === isin)
-  const profileRatios = Object.entries(profiles?.find(p => p.id === profile)?.weights ?? {})
+  const supersectorCode = c.icb?.code.substring(0, 4) ?? null
+  const isBank = supersectorCode === BANKS_SUPERSECTOR
+  const profileRatios = Object.entries(weightsFor(profiles?.find(p => p.id === profile), supersectorCode))
     .sort((a, b) => b[1] - a[1]).map(([id]) => id)
 
   return (
@@ -78,6 +83,19 @@ export function CompanyPage() {
       <PriceChart isin={isin} currency="EUR" />
 
       <h2 className="section-title"><Term id="SCORE">Score</Term></h2>
+      {isBank && (
+        <p className="notice">
+          <strong>Une banque se note à part.</strong> Sa dette est sa matière première et elle n'a pas de chiffre
+          d'affaires : l'endettement ou la marge d'une entreprise classique n'ont pas de sens pour elle. Chaque profil
+          la juge donc sur les indicateurs de son métier, comme le{' '}
+          <Term id="COST_INCOME_RATIO">coefficient d'exploitation</Term> et le <Term id="COST_OF_RISK_RATIO">coût du risque</Term>.{' '}
+          <Term id="BANK">En savoir plus</Term>
+          {c.name && COOPERATIVE.test(c.name) && (
+            <> Cette caisse régionale n'est cotée qu'à travers ses <Term id="CCI">certificats coopératifs</Term> :
+              ses ratios de valorisation ne sont pas calculés.</>
+          )}
+        </p>
+      )}
       <ProfileTabs value={profile} onChange={p => setParams({ profil: p })} />
 
       <div className="company-grid">

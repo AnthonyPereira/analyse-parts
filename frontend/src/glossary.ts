@@ -68,7 +68,7 @@ export const GLOSSARY: Record<string, Entry> = {
     term: 'Profil', category: 'Le score',
     short: 'Une façon de choisir ses actions. Chaque profil donne plus ou moins d\'importance à chaque indicateur.',
     what: 'Il n\'existe pas de « meilleure action » dans l\'absolu : tout dépend de ce que l\'on cherche. Un investisseur qui veut un revenu régulier ne regarde pas les mêmes chiffres que celui qui cherche une entreprise en forte croissance. L\'application propose 4 profils classiques, et le mode avancé permet de créer le sien.',
-    see: ['QUALITY', 'GROWTH', 'DIVIDEND', 'VALUE', 'WEIGHT'],
+    see: ['QUALITY', 'GROWTH', 'DIVIDEND', 'VALUE', 'WEIGHT', 'BANK'],
   },
   QUALITY: {
     term: 'Qualité', category: 'Le score',
@@ -216,7 +216,25 @@ export const GLOSSARY: Record<string, Entry> = {
     see: ['TOTAL_ASSETS', 'ROE'],
   },
 
+  COST_INCOME_RATIO: {
+    term: 'Coefficient d\'exploitation (banques)', category: 'Rentabilité',
+    short: 'Banques : sur 100 € de produit net bancaire, combien partent en frais de fonctionnement (salaires, agences, informatique).',
+    formula: 'Frais de fonctionnement ÷ produit net bancaire, soit 1 − résultat brut d\'exploitation ÷ produit net bancaire.',
+    read: 'Plus il est bas, plus la banque est efficace. Sous 55 % : très efficace. 60-65 % : dans la moyenne des grandes banques françaises. Au-delà de 70 % : la banque coûte cher à faire tourner.',
+    example: 'Crédit Agricole SA : 56 %. Sur 100 € gagnés grâce à son métier, 56 € paient son fonctionnement et 44 € restent pour couvrir les prêts non remboursés, l\'impôt et les actionnaires.',
+    what: 'C\'est l\'équivalent bancaire de la marge, lu à l\'envers : une banque n\'a pas de « chiffre d\'affaires » au sens habituel, mais un produit net bancaire.',
+    see: ['NET_BANKING_INCOME', 'GROSS_OPERATING_INCOME', 'BANK'],
+  },
+
   // ---------------------------------------------------------------- Solidité
+  COST_OF_RISK_RATIO: {
+    term: 'Coût du risque (banques)', category: 'Solidité financière',
+    short: 'Banques : sur 100 € de produit net bancaire, combien sont mis de côté pour les prêts qui ne seront pas remboursés.',
+    formula: 'Coût du risque ÷ produit net bancaire. Si la banque ne publie pas son coût du risque, il se déduit : résultat brut d\'exploitation − résultat d\'exploitation.',
+    read: 'Plus il est bas, plus les emprunteurs de la banque sont solides. Sous 8 % : sain. Au-delà de 15-20 % : beaucoup de clients n\'arrivent plus à rembourser, souvent en période de crise.',
+    what: 'Pour une banque, la dette n\'est pas un danger en soi : c\'est sa matière première. Son vrai risque, ce sont les prêts qu\'elle a accordés et qui ne seront pas remboursés. C\'est ce que mesure cet indicateur, et c\'est pourquoi il remplace l\'endettement dans les profils des banques.',
+    see: ['COST_OF_RISK', 'NET_BANKING_INCOME', 'BANK'],
+  },
   NET_DEBT_TO_EQUITY: {
     term: 'Dette nette / capitaux propres (gearing)', category: 'Solidité financière',
     short: 'Ce que l\'entreprise doit vraiment (dettes moins trésorerie), comparé à ce qui appartient aux actionnaires.',
@@ -373,6 +391,26 @@ export const GLOSSARY: Record<string, Entry> = {
     term: 'Chiffre d\'affaires', category: 'Comptes annuels',
     short: 'Le total des ventes de l\'année. C\'est la première ligne du compte de résultat.',
   },
+  NET_BANKING_INCOME: {
+    term: 'Produit net bancaire (PNB)', category: 'Comptes annuels',
+    short: 'Le « chiffre d\'affaires » d\'une banque : ce qu\'elle gagne avec son métier, avant ses frais de fonctionnement.',
+    formula: 'Intérêts reçus sur les prêts − intérêts versés sur les dépôts et emprunts + commissions + gains sur les marchés.',
+    what: 'Une banque ne vend pas de produits : elle prête de l\'argent plus cher qu\'elle ne l\'emprunte, et facture des services. Le PNB additionne ces marges. Pour les banques, l\'application l\'utilise à la place du chiffre d\'affaires (marge nette, croissance).',
+    see: ['BANK', 'COST_INCOME_RATIO'],
+  },
+  GROSS_OPERATING_INCOME: {
+    term: 'Résultat brut d\'exploitation (banques)', category: 'Comptes annuels',
+    short: 'Banques : le produit net bancaire moins les frais de fonctionnement, avant les pertes sur les prêts.',
+  },
+  COST_OF_RISK: {
+    term: 'Coût du risque', category: 'Comptes annuels',
+    short: 'Banques : l\'argent mis de côté sur l\'année pour les prêts que des clients ne rembourseront pas.',
+    see: ['COST_OF_RISK_RATIO'],
+  },
+  DIVIDENDS_PER_SHARE: {
+    term: 'Dividende par action versé', category: 'Comptes annuels',
+    short: 'Le dividende payé pour une action pendant l\'exercice. Quand le montant total n\'est pas publié, l\'application le retrouve en multipliant ce dividende par le nombre d\'actions.',
+  },
   GROSS_PROFIT: { term: 'Marge brute', category: 'Comptes annuels',
     short: 'Le chiffre d\'affaires moins le coût direct des produits vendus.' },
   OPERATING_INCOME: {
@@ -506,6 +544,18 @@ export const GLOSSARY: Record<string, Entry> = {
     short: 'Le classement international des entreprises par métier, utilisé par Euronext. Il a 4 niveaux, du plus large au plus précis.',
     what: 'Industrie (11, ex. « Consumer Discretionary ») › super-secteur (20, ex. « Consumer Products and Services ») › secteur › sous-secteur. L\'application compare les sociétés au sein de leur super-secteur. Les noms restent en anglais, comme dans la classification officielle.',
     see: ['SUPERSECTOR'],
+  },
+  BANK: {
+    term: 'Banques : une notation à part', category: 'La société',
+    short: 'Les banques ne se lisent pas comme les autres entreprises. Chaque profil les note avec des indicateurs propres à leur métier.',
+    what: 'Une banque prête l\'argent de ses déposants : plus de 90 % de son bilan est financé par des dettes, et c\'est normal. L\'endettement, la liquidité, la valeur d\'entreprise et le cash-flow libre n\'ont donc pas de sens pour elle. Elle n\'a pas non plus de chiffre d\'affaires, mais un produit net bancaire. Pour une banque, chaque profil pose les mêmes questions (est-elle rentable ? solide ? bon marché ?) avec les indicateurs que regardent les analystes du secteur : ROE, coefficient d\'exploitation, coût du risque, PER et cours / valeur comptable.',
+    watch: 'Les ratios de solvabilité réglementaires (CET1) ne figurent pas dans les rapports numériques standard : ils ne sont pas encore pris en compte. Les assurances sont pour l\'instant notées comme les autres entreprises.',
+    see: ['COST_INCOME_RATIO', 'COST_OF_RISK_RATIO', 'NET_BANKING_INCOME', 'CCI'],
+  },
+  CCI: {
+    term: 'Certificats coopératifs (CCI)', category: 'La société',
+    short: 'Les caisses régionales du Crédit Agricole ne sont cotées qu\'à travers leurs certificats coopératifs d\'investissement, une petite partie de leur capital.',
+    what: 'Le reste du capital appartient aux sociétaires (les clients) et à Crédit Agricole SA. Le cours multiplié par le nombre de certificats ne vaut donc pas la caisse entière : le comparer à son bénéfice total donnerait un PER ou un rendement absurdes (jusqu\'à 24 % de rendement). L\'application ne calcule pas leurs ratios de valorisation : elles n\'ont pas de note Value.',
   },
   SUPERSECTOR: {
     term: 'Super-secteur', category: 'La société',

@@ -331,3 +331,8 @@ aside > .card:first-child { margin-top: 0; }
   .glossary-entry dl { grid-template-columns: 1fr; }
   .glossary-entry dt { padding-top: 0.4rem; }
 }
+
+.notice {
+  background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--mid);
+  border-radius: 10px; padding: 0.6rem 0.9rem; margin: 0.5rem 0 1rem;
+}

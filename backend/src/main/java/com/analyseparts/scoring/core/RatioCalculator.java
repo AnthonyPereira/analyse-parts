@@ -17,6 +17,10 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import static com.analyseparts.financials.Metric.CAPEX;
+import static com.analyseparts.financials.Metric.COST_OF_RISK;
+import static com.analyseparts.financials.Metric.DIVIDENDS_PER_SHARE;
+import static com.analyseparts.financials.Metric.GROSS_OPERATING_INCOME;
+import static com.analyseparts.financials.Metric.NET_BANKING_INCOME;
 import static com.analyseparts.financials.Metric.CASH;
 import static com.analyseparts.financials.Metric.CURRENT_ASSETS;
 import static com.analyseparts.financials.Metric.CURRENT_LIABILITIES;
@@ -137,12 +141,14 @@ public final class RatioCalculator {
 
         Outcome compute(Ratio ratio) {
             return switch (ratio) {
-                // Résultat net part du groupe ÷ chiffre d'affaires
-                case NET_MARGIN -> divide(first(latest, NET_INCOME_GROUP, NET_INCOME), first(latest, REVENUE),
+                // Résultat net part du groupe ÷ chiffre d'affaires (produit net bancaire pour une banque)
+                case NET_MARGIN -> divide(first(latest, NET_INCOME_GROUP, NET_INCOME), revenue(latest),
                         "le résultat net", "le chiffre d'affaires");
                 // Résultat opérationnel ÷ chiffre d'affaires
-                case OPERATING_MARGIN -> divide(first(latest, OPERATING_INCOME), first(latest, REVENUE),
+                case OPERATING_MARGIN -> divide(first(latest, OPERATING_INCOME), revenue(latest),
                         "le résultat opérationnel", "le chiffre d'affaires");
+                case COST_INCOME_RATIO -> costIncome();
+                case COST_OF_RISK_RATIO -> costOfRisk();
                 // Résultat net part du groupe ÷ capitaux propres part du groupe moyens
                 case ROE -> roe();
                 // Résultat net ÷ total de l'actif moyen
@@ -158,16 +164,16 @@ public final class RatioCalculator {
                 // Flux de trésorerie d'exploitation ÷ résultat net
                 case CASH_CONVERSION -> divide(first(latest, OPERATING_CASH_FLOW), first(latest, NET_INCOME),
                         "le flux de trésorerie d'exploitation", "le résultat net");
-                case FCF_MARGIN -> freeCashFlow().map(fcf -> divide(Optional.of(fcf), first(latest, REVENUE),
+                case FCF_MARGIN -> freeCashFlow().map(fcf -> divide(Optional.of(fcf), revenue(latest),
                         "le cash-flow libre", "le chiffre d'affaires"), Outcome.Missing::new);
-                case REVENUE_GROWTH -> growth(REVENUE, "le chiffre d'affaires");
+                case REVENUE_GROWTH -> growth(Calculation::revenue, "le chiffre d'affaires");
                 case EPS_GROWTH -> epsGrowth();
                 case PROFITABLE_YEARS -> profitableYears();
                 case PAYOUT_RATIO -> payoutRatio();
-                case DIVIDEND_GROWTH -> growth(DIVIDENDS_PAID, "les dividendes versés");
+                case DIVIDEND_GROWTH -> growth(Calculation::dividendsPaid, "les dividendes versés");
                 // Dividendes versés ÷ capitalisation boursière
-                case DIVIDEND_YIELD -> withMarketCap(cap -> first(latest, DIVIDENDS_PAID)
-                        .map(d -> divide(Optional.of(abs(d)), Optional.of(cap), "les dividendes versés", "la capitalisation"))
+                case DIVIDEND_YIELD -> withMarketCap(cap -> dividendsPaid(latest)
+                        .map(d -> divide(Optional.of(d), Optional.of(cap), "les dividendes versés", "la capitalisation"))
                         .orElse(new Outcome.Missing("Dividendes versés non publiés sous un concept standard")));
                 case PER -> per();
                 case EV_TO_EBIT -> balanceSheetRatio(this::evToEbit);
@@ -263,9 +269,77 @@ public final class RatioCalculator {
                     + capex.get().value().abs() + ")"));
         }
 
+        // --- Banques ---
+
+        /**
+         * Coefficient d'exploitation = frais de fonctionnement ÷ produit net bancaire. Les banques
+         * publient le résultat brut d'exploitation (PNB − frais) : coefficient = 1 − RBE ÷ PNB.
+         */
+        private Outcome costIncome() {
+            Optional<Input> nbi = first(latest, NET_BANKING_INCOME);
+            if (nbi.isEmpty()) {
+                return new Outcome.Missing("Ratio propre aux banques : produit net bancaire non publié");
+            }
+            Outcome share = divide(first(latest, GROSS_OPERATING_INCOME), nbi,
+                    "le résultat brut d'exploitation", "le produit net bancaire");
+            return share instanceof Outcome.Ok ok ? new Outcome.Ok(1 - ok.value(), ok.inputs()) : share;
+        }
+
+        /**
+         * Coût du risque ÷ produit net bancaire. Le coût du risque est publié par certaines banques ;
+         * sinon il se déduit du compte de résultat : résultat brut d'exploitation − résultat
+         * d'exploitation (c'est la seule ligne qui les sépare).
+         */
+        private Outcome costOfRisk() {
+            Optional<Input> nbi = first(latest, NET_BANKING_INCOME);
+            if (nbi.isEmpty()) {
+                return new Outcome.Missing("Ratio propre aux banques : produit net bancaire non publié");
+            }
+            Optional<Input> cost = first(latest, COST_OF_RISK).map(Calculation::abs);
+            if (cost.isEmpty()) {
+                Optional<Input> gross = first(latest, GROSS_OPERATING_INCOME);
+                Optional<Input> operating = first(latest, OPERATING_INCOME);
+                if (gross.isPresent() && operating.isPresent() && sameCurrency(List.of(gross.get(), operating.get()))) {
+                    BigDecimal derived = gross.get().value().subtract(operating.get().value());
+                    cost = Optional.of(new Input("COST_OF_RISK", latest.fiscalYearEnd(), derived, gross.get().currency(),
+                            "résultat brut d'exploitation (" + gross.get().value() + ") − résultat d'exploitation ("
+                                    + operating.get().value() + ")"));
+                }
+            }
+            return divide(cost, nbi, "le coût du risque", "le produit net bancaire");
+        }
+
+        /** Le chiffre d'affaires, ou pour une banque son équivalent : le produit net bancaire. */
+        private static Optional<Input> revenue(Year year) {
+            return first(year, REVENUE, NET_BANKING_INCOME);
+        }
+
+        /**
+         * Les dividendes versés sur l'exercice (en positif). À défaut du montant total, dividende
+         * par action × nombre d'actions, ce nombre étant retrouvé par résultat net ÷ BPA.
+         */
+        private static Optional<Input> dividendsPaid(Year year) {
+            Optional<Input> total = first(year, DIVIDENDS_PAID);
+            if (total.isPresent()) {
+                return total.map(Calculation::abs);
+            }
+            Optional<Input> perShare = first(year, DIVIDENDS_PER_SHARE);
+            Optional<Input> income = first(year, NET_INCOME_GROUP);
+            Optional<Input> eps = first(year, EPS_BASIC);
+            if (perShare.isEmpty() || income.isEmpty() || eps.isEmpty() || signum(eps.get()) <= 0
+                    || signum(income.get()) <= 0 || !sameCurrency(List.of(perShare.get(), income.get(), eps.get()))) {
+                return Optional.empty();
+            }
+            double shares = income.get().value().doubleValue() / eps.get().value().doubleValue();
+            double amount = perShare.get().value().doubleValue() * shares;
+            return Optional.of(new Input("DIVIDENDS_PAID", year.fiscalYearEnd(), BigDecimal.valueOf(Math.round(amount)),
+                    perShare.get().currency(), "dividende par action (" + perShare.get().value()
+                    + ") × nombre d'actions (résultat net ÷ BPA)"));
+        }
+
         /** Dividendes versés ÷ résultat net part du groupe. */
         private Outcome payoutRatio() {
-            Optional<Input> dividends = first(latest, DIVIDENDS_PAID);
+            Optional<Input> dividends = dividendsPaid(latest);
             Optional<Input> income = first(latest, NET_INCOME_GROUP, NET_INCOME);
             if (dividends.isEmpty()) {
                 return new Outcome.Missing("Dividendes versés non publiés sous un concept standard");
@@ -299,7 +373,11 @@ public final class RatioCalculator {
          * Exemple : 100 → 121 en 2 ans = +10 % par an (et non +10,5 % : 1,1 × 1,1 = 1,21).
          */
         private Outcome growth(Metric metric, String what) {
-            List<Input> series = years.stream().map(y -> first(y, metric)).flatMap(Optional::stream).toList();
+            return growth(y -> first(y, metric), what);
+        }
+
+        private Outcome growth(java.util.function.Function<Year, Optional<Input>> valueOf, String what) {
+            List<Input> series = years.stream().map(valueOf).flatMap(Optional::stream).toList();
             if (series.size() < MIN_YEARS_FOR_TREND) {
                 return new Outcome.Missing("Il faut au moins " + MIN_YEARS_FOR_TREND + " exercices pour "
                         + what + " (disponibles : " + series.size() + ")");

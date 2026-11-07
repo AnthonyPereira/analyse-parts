@@ -36,6 +36,14 @@ public enum Ratio {
     ROA(PROFITABILITY, Unit.PERCENT, true, "Rentabilité de l'actif (ROA)",
             "Ce que rapporte chaque euro d'actif, qu'il soit financé par les actionnaires ou par la dette.",
             Scale.of(0, 0, 0.02, 30, 0.05, 60, 0.10, 100)),
+    /**
+     * Banques : la part du produit net bancaire absorbée par les frais de fonctionnement
+     * (salaires, agences, informatique). L'équivalent bancaire de la marge, lu à l'envers.
+     */
+    COST_INCOME_RATIO(PROFITABILITY, Unit.PERCENT, false, "Coefficient d'exploitation (banques)",
+            "Banques : sur 100 € de produit net bancaire, combien partent en frais de fonctionnement. "
+                    + "Plus il est bas, plus la banque est efficace.",
+            Scale.of(0.45, 100, 0.55, 75, 0.65, 40, 0.75, 0)),
 
     // --- Solidité financière ---
 
@@ -49,6 +57,14 @@ public enum Ratio {
     CURRENT_RATIO(SOLIDITY, Unit.MULTIPLE, true, "Liquidité générale",
             "Ce qui rentre en argent sous un an, comparé à ce qu'il faut payer sous un an.",
             Scale.of(0.8, 0, 1.0, 40, 1.5, 80, 2.0, 100)),
+    /**
+     * Banques : les pertes attendues sur les prêts, rapportées au produit net bancaire. C'est
+     * le vrai risque d'une banque, que les ratios d'endettement ne savent pas mesurer pour elle.
+     */
+    COST_OF_RISK_RATIO(SOLIDITY, Unit.PERCENT, false, "Coût du risque (banques)",
+            "Banques : sur 100 € de produit net bancaire, combien sont mis de côté pour les prêts qui ne "
+                    + "seront pas remboursés. Plus il est bas, plus les emprunteurs sont solides.",
+            Scale.of(0.05, 100, 0.10, 75, 0.20, 35, 0.30, 0)),
 
     // --- Qualité du cash ---
 

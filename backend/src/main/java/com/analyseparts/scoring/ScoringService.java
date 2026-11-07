@@ -94,14 +94,18 @@ public class ScoringService {
 
     /** Les sociétés notées, de la meilleure à la moins bonne ; celles sans score sont à la fin. */
     public List<RankingEntry> ranking(Profile profile) {
-        return ranking(profile.weights());
+        return ranking(c -> weightsFor(c, profile));
     }
 
-    /** Classement avec des poids choisis librement (mode avancé). */
+    /** Classement avec des poids choisis librement (mode avancé), les mêmes pour toutes les sociétés. */
     public List<RankingEntry> ranking(Map<Ratio, Integer> weights) {
+        return ranking(_ -> weights);
+    }
+
+    private List<RankingEntry> ranking(java.util.function.Function<Company, Map<Ratio, Integer>> weightsOf) {
         return scoredCompanies().stream()
                 .map(c -> {
-                    Score s = score(c, ratios(c), weights);
+                    Score s = score(c, ratios(c), weightsOf.apply(c));
                     return new RankingEntry(c.getIsin(), c.getName(), c.getTicker(),
                             c.getIcb().map(Icb::supersector).orElse(null), s.score(), s.coverage(),
                             s.fiscalYearEnd(), s.freshness(), s.familyScore());
@@ -141,6 +145,21 @@ public class ScoringService {
         return computed;
     }
 
+    static final String COOPERATIVE_CERTIFICATE = "Certificats coopératifs (CCI) : la bourse ne cote qu'une petite "
+            + "partie du capital de la caisse régionale, son cours ne se compare pas à son bénéfice total";
+
+    /** Code ICB du super-secteur des banques. */
+    public static final String BANKS_SUPERSECTOR = "3010";
+
+    /** Une banque est notée avec les poids bancaires de chaque profil (voir {@link Profile}). */
+    static boolean isBank(Company company) {
+        return company.getIcb().map(icb -> BANKS_SUPERSECTOR.equals(icb.supersectorCode())).orElse(false);
+    }
+
+    private static Map<Ratio, Integer> weightsFor(Company company, Profile profile) {
+        return profile.weights(isBank(company));
+    }
+
     private List<Company> scoredCompanies() {
         Set<Long> withFilings = financials.companiesWithFilings();
         return companies.findAll().stream()
@@ -149,7 +168,7 @@ public class ScoringService {
     }
 
     private Score score(Company company, Profile profile) {
-        return score(company, ratios(company), profile.weights());
+        return score(company, ratios(company), weightsFor(company, profile));
     }
 
     private Score score(Company company, RatioSet ratios, Map<Ratio, Integer> weights) {
@@ -187,7 +206,7 @@ public class ScoringService {
                     ratios.values().forEach((r, v) -> values.put(r, v.value()));
                     Map<Profile, Integer> scores = new EnumMap<>(Profile.class);
                     for (Profile p : Profile.values()) {
-                        scores.put(p, score(c, ratios, p.weights()).score());
+                        scores.put(p, score(c, ratios, weightsFor(c, p)).score());
                     }
                     Icb icb = c.getIcb().orElse(null);
                     return new UniverseEntry(c.getIsin(), c.getName(), c.getTicker(),
@@ -221,7 +240,7 @@ public class ScoringService {
             for (int i = history.years().size() - 1; i >= 0; i--) { // du plus ancien au plus récent
                 FinancialHistory upToYear = new FinancialHistory(history.years().subList(i, history.years().size()));
                 LocalDate end = history.years().get(i).fiscalYearEnd();
-                Valuation valuation = market.closeOn(company.getId(), end)
+                Valuation valuation = company.isCooperativeCertificate() ? null : market.closeOn(company.getId(), end)
                         .flatMap(close -> market.convert(close.close(), quoted, reporting)
                                 .map(price -> new Valuation(price, reporting, close.close(), quoted,
                                         close.day().atStartOfDay(clock.getZone()).toInstant(), "CLOSE", null)))
@@ -237,6 +256,9 @@ public class ScoringService {
 
     private RatioSet ratios(Company company) {
         FinancialHistory history = financials.history(company.getId());
+        if (company.isCooperativeCertificate()) {
+            return RatioCalculator.compute(history, null, COOPERATIVE_CERTIFICATE);
+        }
         Optional<Quote> quote = market.latestQuote(company.getId());
         if (quote.isEmpty()) {
             return RatioCalculator.compute(history, null, "Cours de bourse indisponible");

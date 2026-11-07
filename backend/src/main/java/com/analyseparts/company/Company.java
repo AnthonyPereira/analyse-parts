@@ -154,6 +154,17 @@ public class Company {
     public Instant getFactsheetCheckedAt() { return factsheetCheckedAt; }
 
     /** Classification ICB, si la fiche Euronext a été lue. */
+    /**
+     * Caisse régionale de Crédit Agricole : la bourse ne cote que ses certificats coopératifs
+     * d'investissement (CCI), une petite partie de son capital ; le reste appartient aux
+     * sociétaires et à Crédit Agricole SA. Cours × nombre de CCI ne vaut donc pas la caisse
+     * entière : on ne peut pas le comparer à son bénéfice ou à ses capitaux propres.
+     * Euronext les nomme « CRCAM … » ou « … CCI ».
+     */
+    public boolean isCooperativeCertificate() {
+        return name != null && (name.startsWith("CRCAM ") || name.endsWith(" CCI") || name.endsWith("CCI"));
+    }
+
     public Optional<Icb> getIcb() {
         return icbCode == null ? Optional.empty()
                 : Optional.of(new Icb(icbCode, icbIndustry, icbSupersector, icbSector, icbSubsector));

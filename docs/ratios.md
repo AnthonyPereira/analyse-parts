@@ -210,6 +210,48 @@ naturellement élevé (d'où l'ajustement par secteur).
 
 ---
 
+## Banques — une notation à part
+
+Une banque prête l'argent de ses déposants : plus de 90 % de son bilan est financé par des
+dettes, et c'est son métier. Le gearing, l'autonomie financière, la liquidité générale, la VE / EBIT
+et le cash-flow libre n'ont donc pas de sens pour elle. Elle n'a pas non plus de chiffre
+d'affaires mais un **produit net bancaire (PNB)** : marge d'intérêts + commissions + gains de
+marché.
+
+Les sociétés du super-secteur ICB **3010 (Banques)** sont notées avec les **poids bancaires** de
+chaque profil (`Profile.bankWeights`). Le PNB tient lieu de chiffre d'affaires (marge nette,
+croissance). Les grandes banques publient PNB et résultat brut d'exploitation dans leur propre
+extension XBRL (`SocGen:NetBankingIncome`, `bnpp:RevenuesFromContinuingActivities`…) : les
+concepts candidats `*:NomLocal` les trouvent quel que soit le préfixe.
+
+### Coefficient d'exploitation
+
+`1 − résultat brut d'exploitation ÷ PNB` (frais de fonctionnement ÷ PNB). Plus bas = plus
+efficace. Barème : 45 % → 100 pts, 55 % → 75, 65 % → 40, 75 % → 0.
+
+### Coût du risque ÷ PNB
+
+Coût du risque publié, sinon déduit : `résultat brut d'exploitation − résultat d'exploitation`.
+Plus bas = emprunteurs plus solides. Barème : 5 % → 100, 10 % → 75, 20 % → 35, 30 % → 0.
+
+| Profil | Poids bancaires |
+|---|---|
+| Qualité | ROE 25, coefficient d'exploitation 20, coût du risque 15, ROA 10, marge nette 10, exercices bénéficiaires 20 |
+| Croissance | croissance du PNB 35, croissance du BPA 30, ROE 20, coefficient d'exploitation 15 |
+| Dividende | rendement 25, taux de distribution 20, croissance du dividende 20, exercices bénéficiaires 15, coût du risque 10, ROE 10 |
+| Value | PER 35, cours / valeur comptable 30, rendement 20, coût du risque 15 |
+
+**Caisses régionales du Crédit Agricole (CCI).** La bourse ne cote que leurs certificats
+coopératifs d'investissement, une petite partie du capital. Cours × nombre de titres ne vaut pas
+la caisse entière : PER, rendement et cours / valeur comptable sont donc laissés indisponibles
+(pas de note Value). Elles sont repérées par leur nom Euronext (`CRCAM …` ou `… CCI`).
+
+**Dividendes : repli.** Quand le montant total versé n'est pas publié (BNP Paribas), il est
+reconstitué : dividende par action × nombre d'actions (résultat net ÷ BPA).
+
+Limites : les ratios réglementaires (CET1) ne sont pas dans les rapports ESEF standard. Les
+assurances (ICB 3030) restent notées avec les poids généraux.
+
 ## Barèmes adaptés au secteur
 
 Une marge nette de 4 % est faible pour un éditeur de logiciels, bonne pour un distributeur.

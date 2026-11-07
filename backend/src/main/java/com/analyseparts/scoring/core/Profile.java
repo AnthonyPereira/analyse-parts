@@ -5,6 +5,8 @@ import java.util.EnumMap;
 import java.util.Map;
 
 import static com.analyseparts.scoring.core.Ratio.CASH_CONVERSION;
+import static com.analyseparts.scoring.core.Ratio.COST_INCOME_RATIO;
+import static com.analyseparts.scoring.core.Ratio.COST_OF_RISK_RATIO;
 import static com.analyseparts.scoring.core.Ratio.CURRENT_RATIO;
 import static com.analyseparts.scoring.core.Ratio.DIVIDEND_GROWTH;
 import static com.analyseparts.scoring.core.Ratio.DIVIDEND_YIELD;
@@ -26,6 +28,12 @@ import static com.analyseparts.scoring.core.Ratio.ROE;
 
 /**
  * Profils d'investisseur : chacun donne un poids à chaque ratio (total 100).
+ * <p>
+ * Chaque profil a aussi des <b>poids pour les banques</b> : leur dette est leur matière première
+ * et elles n'ont pas de chiffre d'affaires, donc l'endettement, la liquidité, la valeur
+ * d'entreprise et le cash-flow libre n'ont pas de sens pour elles. Ces poids posent les mêmes
+ * questions (rentable ? solide ? bon marché ?) avec les indicateurs du métier bancaire :
+ * coefficient d'exploitation et coût du risque.
  * Le profil Value est le seul qui utilise le cours de bourse : il compare le prix au bénéfice.
  */
 public enum Profile {
@@ -34,25 +42,33 @@ public enum Profile {
             weights(ROE, 20, OPERATING_MARGIN, 15, NET_MARGIN, 10, ROA, 5,
                     CASH_CONVERSION, 10, FCF_MARGIN, 10,
                     NET_DEBT_TO_EQUITY, 10, EQUITY_RATIO, 5, CURRENT_RATIO, 5,
-                    PROFITABLE_YEARS, 10)),
+                    PROFITABLE_YEARS, 10),
+            weights(ROE, 25, COST_INCOME_RATIO, 20, COST_OF_RISK_RATIO, 15, ROA, 10, NET_MARGIN, 10,
+                    PROFITABLE_YEARS, 20)),
     GROWTH("Croissance", "Des entreprises dont les ventes et les bénéfices augmentent vite, sans s'endetter pour cela.",
-            weights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 15, OPERATING_MARGIN, 10, NET_DEBT_TO_EQUITY, 10)),
+            weights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 15, OPERATING_MARGIN, 10, NET_DEBT_TO_EQUITY, 10),
+            weights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 20, COST_INCOME_RATIO, 15)),
     DIVIDEND("Dividende", "Des entreprises qui versent un dividende régulier, en hausse, et qu'elles peuvent se permettre.",
             weights(DIVIDEND_YIELD, 20, PAYOUT_RATIO, 20, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 10,
-                    NET_DEBT_TO_EQUITY, 10, FCF_MARGIN, 10, CASH_CONVERSION, 10)),
+                    NET_DEBT_TO_EQUITY, 10, FCF_MARGIN, 10, CASH_CONVERSION, 10),
+            weights(DIVIDEND_YIELD, 25, PAYOUT_RATIO, 20, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 15,
+                    COST_OF_RISK_RATIO, 10, ROE, 10)),
     VALUE("Value", "Des entreprises bon marché par rapport à ce qu'elles gagnent, sans dette excessive "
             + "(pour éviter les « pièges à value » : pas chères parce qu'en mauvaise santé).",
             weights(PER, 25, EV_TO_EBIT, 25, FCF_YIELD, 20, PRICE_TO_BOOK, 10, DIVIDEND_YIELD, 10,
-                    NET_DEBT_TO_EQUITY, 10));
+                    NET_DEBT_TO_EQUITY, 10),
+            weights(PER, 35, PRICE_TO_BOOK, 30, DIVIDEND_YIELD, 20, COST_OF_RISK_RATIO, 15));
 
     private final String label;
     private final String description;
     private final Map<Ratio, Integer> weights;
+    private final Map<Ratio, Integer> bankWeights;
 
-    Profile(String label, String description, Map<Ratio, Integer> weights) {
+    Profile(String label, String description, Map<Ratio, Integer> weights, Map<Ratio, Integer> bankWeights) {
         this.label = label;
         this.description = description;
         this.weights = weights;
+        this.bankWeights = bankWeights;
     }
 
     public String label() {
@@ -65,6 +81,15 @@ public enum Profile {
 
     public Map<Ratio, Integer> weights() {
         return weights;
+    }
+
+    /** Les poids appliqués aux banques. */
+    public Map<Ratio, Integer> bankWeights() {
+        return bankWeights;
+    }
+
+    public Map<Ratio, Integer> weights(boolean bank) {
+        return bank ? bankWeights : weights;
     }
 
     private static Map<Ratio, Integer> weights(Object... ratioWeightPairs) {

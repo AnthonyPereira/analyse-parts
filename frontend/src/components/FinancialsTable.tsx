@@ -3,8 +3,12 @@ import { useFinancials } from '../api/queries'
 import { formatAmount, formatDate, METRIC_LABEL } from '../format'
 
 // L'ordre de lecture d'un rapport annuel : compte de résultat, bilan, flux de trésorerie.
+// Lignes propres à certains métiers (banques) : affichées seulement si la société les publie.
+const OPTIONAL = new Set(['NET_BANKING_INCOME', 'GROSS_OPERATING_INCOME', 'COST_OF_RISK'])
+
 const ROWS: { title: string; term: string; metrics: string[] }[] = [
-  { title: 'Compte de résultat', term: 'INCOME_STATEMENT', metrics: ['REVENUE', 'OPERATING_INCOME', 'NET_INCOME_GROUP', 'EPS_BASIC'] },
+  { title: 'Compte de résultat', term: 'INCOME_STATEMENT',
+    metrics: ['REVENUE', 'NET_BANKING_INCOME', 'GROSS_OPERATING_INCOME', 'COST_OF_RISK', 'OPERATING_INCOME', 'NET_INCOME_GROUP', 'EPS_BASIC'] },
   { title: 'Bilan', term: 'BALANCE_SHEET', metrics: ['TOTAL_ASSETS', 'EQUITY_GROUP', 'CASH', 'LONG_TERM_DEBT', 'SHORT_TERM_DEBT'] },
   { title: 'Flux de trésorerie', term: 'CASH_FLOW_STATEMENT', metrics: ['OPERATING_CASH_FLOW', 'CAPEX', 'DIVIDENDS_PAID'] },
 ]
@@ -29,7 +33,7 @@ export function FinancialsTable({ isin }: { isin: string }) {
         {ROWS.map(group => (
           <tbody key={group.title}>
             <tr className="group"><th colSpan={years.length + 1}><Term id={group.term}>{group.title}</Term></th></tr>
-            {group.metrics.map(m => (
+            {group.metrics.filter(m => !OPTIONAL.has(m) || years.some(y => y.metrics[m])).map(m => (
               <tr key={m}>
                 <td><Term id={m}>{METRIC_LABEL[m] ?? m}</Term></td>
                 {years.map(y => {

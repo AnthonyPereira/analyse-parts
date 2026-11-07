@@ -45,7 +45,8 @@ public class ScoringController {
                                   List<Scale.Anchor> scale) {
     }
 
-    public record ProfileDefinition(Profile id, String label, String description, Map<Ratio, Integer> weights) {
+    public record ProfileDefinition(Profile id, String label, String description, Map<Ratio, Integer> weights,
+                                    Map<Ratio, Integer> bankWeights) {
     }
 
     @GetMapping("/api/scoring/ratios")
@@ -59,7 +60,7 @@ public class ScoringController {
     @GetMapping("/api/scoring/profiles")
     public List<ProfileDefinition> profiles() {
         return Arrays.stream(Profile.values())
-                .map(p -> new ProfileDefinition(p, p.label(), p.description(), p.weights()))
+                .map(p -> new ProfileDefinition(p, p.label(), p.description(), p.weights(), p.bankWeights()))
                 .toList();
     }
 
