@@ -314,7 +314,7 @@ export const GLOSSARY: Record<string, Entry> = {
     short: 'La part du bénéfice reversée aux actionnaires en dividendes.',
     formula: 'Dividendes versés ÷ résultat net part du groupe.',
     read: 'Idéal entre 40 et 60 % : un vrai revenu pour l\'actionnaire, et de quoi investir pour l\'avenir. Au-delà de 100 %, l\'entreprise distribue plus qu\'elle ne gagne : elle puise dans ses réserves ou s\'endette, ce qui ne peut pas durer.',
-    watch: 'C\'est le seul barème « en cloche » : trop bas comme trop haut font perdre des points.',
+    watch: 'C\'est le seul barème « en cloche » : trop bas comme trop haut font perdre des points. Si l\'exercice est en perte et qu\'un dividende est quand même versé, le taux devient négatif (dividende ÷ perte) : 0 point, car ce dividende n\'est couvert par aucun bénéfice.',
     see: ['DIVIDENDS_PAID'],
   },
   DIVIDEND_GROWTH: {
@@ -326,10 +326,10 @@ export const GLOSSARY: Record<string, Entry> = {
   DIVIDEND_YIELD: {
     term: 'Rendement du dividende', category: 'Dividende',
     short: 'Ce que rapporterait chaque année une action achetée au cours du jour, si le dividende se maintient.',
-    formula: 'Dividendes versés sur le dernier exercice ÷ capitalisation boursière.',
+    formula: 'Dividendes versés sur le dernier exercice ÷ capitalisation boursière. Si ce versement est plus de 2 fois supérieur à la médiane des exercices précédents (dividende exceptionnel après une cession, par exemple), on retient cette médiane : le dividende habituel.',
     read: 'Entre 3 et 5 % : rendement confortable. Au-delà de 7-8 % : méfiance, le marché anticipe souvent une baisse du dividende.',
     example: 'Une action à 100 € qui verse 4 € par an rend 4 %.',
-    watch: 'Le rendement monte quand le cours baisse : un rendement élevé peut cacher une entreprise en difficulté.',
+    watch: 'Le rendement monte quand le cours baisse : un rendement élevé peut cacher une entreprise en difficulté. Le calcul regarde le dividende déjà versé : si l\x27entreprise vient de faire une perte, il risque de baisser (regardez alors le taux de distribution).',
     see: ['MARKET_CAP', 'PAYOUT_RATIO'],
   },
 

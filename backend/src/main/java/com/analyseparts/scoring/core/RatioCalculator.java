@@ -54,6 +54,9 @@ public final class RatioCalculator {
 
     /** Pour une croissance annuelle moyenne, il faut au moins 3 exercices (2 ans d'écart). */
     static final int MIN_YEARS_FOR_TREND = 3;
+    /** Un dividende plus de 2 fois supérieur à la médiane des exercices précédents est exceptionnel. */
+    static final double EXCEPTIONAL_FACTOR = 2.0;
+    static final int EXCEPTIONAL_LOOKBACK = 3;
     /** En dessous, le BPA publié (arrondi au centime) ne permet pas de retrouver le nombre d'actions. */
     static final BigDecimal MIN_EPS_FOR_SHARE_COUNT = new BigDecimal("0.25");
     private static final double DAYS_PER_YEAR = 365.25;
@@ -170,9 +173,9 @@ public final class RatioCalculator {
                 case EPS_GROWTH -> epsGrowth();
                 case PROFITABLE_YEARS -> profitableYears();
                 case PAYOUT_RATIO -> payoutRatio();
-                case DIVIDEND_GROWTH -> growth(Calculation::dividendsPaid, "les dividendes versés");
+                case DIVIDEND_GROWTH -> growth(y -> y == latest ? recurringDividends() : dividendsPaid(y), "les dividendes versés");
                 // Dividendes versés ÷ capitalisation boursière
-                case DIVIDEND_YIELD -> withMarketCap(cap -> dividendsPaid(latest)
+                case DIVIDEND_YIELD -> withMarketCap(cap -> recurringDividends()
                         .map(d -> divide(Optional.of(d), Optional.of(cap), "les dividendes versés", "la capitalisation"))
                         .orElse(new Outcome.Missing("Dividendes versés non publiés sous un concept standard")));
                 case PER -> per();
@@ -337,9 +340,38 @@ public final class RatioCalculator {
                     + ") × nombre d'actions (résultat net ÷ BPA)"));
         }
 
+        /**
+         * Les dividendes du dernier exercice, sans la part exceptionnelle. Un versement plus de deux fois
+         * supérieur à la médiane des exercices précédents (cession, trésorerie redistribuée) ne se
+         * répétera pas : on retient alors cette médiane, le dividende « habituel ».
+         */
+        private Optional<Input> recurringDividends() {
+            Optional<Input> last = dividendsPaid(latest);
+            List<Input> previous = years.stream().skip(1).limit(EXCEPTIONAL_LOOKBACK).map(Calculation::dividendsPaid)
+                    .flatMap(Optional::stream).filter(p -> last.isPresent() && p.currency().equals(last.get().currency()))
+                    .toList();
+            if (last.isEmpty() || previous.size() < 2) {
+                return last;
+            }
+            double usual = median(previous.stream().mapToDouble(p -> p.value().doubleValue()).toArray());
+            if (last.get().value().doubleValue() <= EXCEPTIONAL_FACTOR * usual) {
+                return last;
+            }
+            return Optional.of(new Input("DIVIDENDS_PAID", latest.fiscalYearEnd(), BigDecimal.valueOf(Math.round(usual)),
+                    last.get().currency(), "dividende habituel : médiane des " + previous.size()
+                    + " exercices précédents (versement exceptionnel de " + last.get().value() + " écarté)"));
+        }
+
+        private static double median(double[] values) {
+            double[] sorted = values.clone();
+            java.util.Arrays.sort(sorted);
+            int n = sorted.length;
+            return n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+        }
+
         /** Dividendes versés ÷ résultat net part du groupe. */
         private Outcome payoutRatio() {
-            Optional<Input> dividends = dividendsPaid(latest);
+            Optional<Input> dividends = recurringDividends();
             Optional<Input> income = first(latest, NET_INCOME_GROUP, NET_INCOME);
             if (dividends.isEmpty()) {
                 return new Outcome.Missing("Dividendes versés non publiés sous un concept standard");
@@ -351,7 +383,12 @@ public final class RatioCalculator {
                 return new Outcome.Missing("Chiffres dans des devises différentes");
             }
             if (signum(income.get()) <= 0) {
-                return new Outcome.Missing("Perte sur l'exercice : le dividende est payé sur les réserves");
+                // Un dividende versé malgré une perte n'est pas couvert par le bénéfice : taux négatif (dividende ÷ perte), donc 0 point, plutôt
+                // qu'un « indisponible » qui reporterait son poids sur le rendement et récompenserait la société.
+                if (signum(dividends.get()) > 0) {
+                    return new Outcome.Ok(dividends.get().value().doubleValue() / income.get().value().doubleValue(), List.of(dividends.get(), income.get()));
+                }
+                return new Outcome.Missing("Perte sur l'exercice et aucun dividende versé");
             }
             return new Outcome.Ok(Math.abs(dividends.get().value().doubleValue())
                     / income.get().value().doubleValue(), List.of(dividends.get(), income.get()));

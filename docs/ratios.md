@@ -151,6 +151,10 @@ La part du bénéfice reversée aux actionnaires. C'est le seul barème « en cl
 bas, l'actionnaire touche peu ; au-delà de 100 %, l'entreprise distribue plus qu'elle ne
 gagne et puise dans ses réserves ou s'endette, ce qui ne peut pas durer.
 
+Exercice en perte avec un dividende versé : le taux est négatif (dividende ÷ perte) et vaut
+**0 point**. On ne le laisse pas « indisponible » : son poids passerait au rendement et
+récompenserait une société qui distribue sans bénéfice.
+
 ### Croissance des dividendes versés
 **CAGR du montant total des dividendes versés** `[−5 % → 0, 0 % → 40, 5 % → 75, 10 % → 100]`
 
@@ -160,6 +164,12 @@ gagne et puise dans ses réserves ou s'endette, ce qui ne peut pas durer.
 Ce que rapporterait chaque année une action achetée au cours du jour, si le dividende se
 maintient. Un rendement très élevé est parfois un signal d'alerte : le marché ne croit pas que
 le dividende va durer (d'où le taux de distribution et la dette dans le même profil).
+
+**Dividendes exceptionnels.** Si le dernier versement dépasse 2 fois la médiane des 3 exercices
+précédents (au moins 2 connus), c'est une distribution ponctuelle (cession, trésorerie
+redistribuée) : le rendement, le taux de distribution et la croissance utilisent cette médiane,
+le dividende « habituel ». Exemple : North Atlantic Energies (ex-Esso) a versé 1 455 M€ en 2025
+contre 193 M€ l'année d'avant, soit 150 % de rendement apparent.
 
 ---
 

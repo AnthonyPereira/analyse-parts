@@ -192,4 +192,41 @@ class RatioCalculatorTest {
                     Ratio.CURRENT_RATIO, Ratio.EQUITY_RATIO, Ratio.FCF_MARGIN, Ratio.FCF_YIELD);
         }
     }
+
+    @Test
+    void exceptionalDividendIsReplacedByTheUsualOne() {
+        // Versements habituels 100, 120, 110 puis 600 (cession redistribuée) : on retient la médiane, 110
+        Valuation valuation = new Valuation(new BigDecimal("10"), "EUR", new BigDecimal("10"), "EUR",
+                java.time.Instant.parse("2026-11-06T10:00:00Z"), "YAHOO", 220L);
+        RatioSet r = RatioCalculator.compute(new FinancialHistory(List.of(
+                year(2025, DIVIDENDS_PAID, -600, NET_INCOME_GROUP, 400),
+                year(2024, DIVIDENDS_PAID, -110, NET_INCOME_GROUP, 300),
+                year(2023, DIVIDENDS_PAID, -120, NET_INCOME_GROUP, 280),
+                year(2022, DIVIDENDS_PAID, -100, NET_INCOME_GROUP, 250))), valuation, null);
+
+        assertThat(r.get(Ratio.DIVIDEND_YIELD).orElseThrow().value()).isCloseTo(110.0 / 2200, within(1e-9));
+        assertThat(r.get(Ratio.DIVIDEND_YIELD).orElseThrow().inputs())
+                .anySatisfy(i -> assertThat(i.source()).contains("exceptionnel"));
+        assertThat(r.get(Ratio.PAYOUT_RATIO).orElseThrow().value()).isCloseTo(110.0 / 400, within(1e-9));
+    }
+
+    @Test
+    void risingDividendIsNotExceptional() {
+        RatioSet r = RatioCalculator.compute(new FinancialHistory(List.of(
+                year(2025, DIVIDENDS_PAID, -180, NET_INCOME_GROUP, 400),
+                year(2024, DIVIDENDS_PAID, -110, NET_INCOME_GROUP, 300),
+                year(2023, DIVIDENDS_PAID, -100, NET_INCOME_GROUP, 280))));
+
+        assertThat(r.get(Ratio.PAYOUT_RATIO).orElseThrow().value()).isCloseTo(180.0 / 400, within(1e-9));
+    }
+
+    @Test
+    void dividendPaidDespiteALossScoresNothing() {
+        RatioSet r = RatioCalculator.compute(new FinancialHistory(List.of(
+                year(2025, DIVIDENDS_PAID, -50, NET_INCOME_GROUP, -200))));
+
+        double payout = r.get(Ratio.PAYOUT_RATIO).orElseThrow().value();
+        assertThat(payout).isNegative();
+        assertThat(Ratio.PAYOUT_RATIO.scale().points(payout)).isZero();
+    }
 }
