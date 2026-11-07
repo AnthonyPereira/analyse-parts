@@ -31,8 +31,8 @@ import java.util.Set;
 /**
  * L'<b>historique des notes</b> : des photos des 4 notes d'une société, prises à trois moments.
  * <ul>
- *   <li>{@link Origin#FILING} : à l'arrivée d'un rapport, lu dans le topic Kafka {@code filings}
- *       ({@code internal.FilingListener}) ;</li>
+ *   <li>{@link Origin#FILING} : à l'arrivée d'un rapport (événement {@code FilingRecorded},
+ *       {@code internal.FilingRecordedListener}) ;</li>
  *   <li>{@link Origin#DAILY} : chaque soir de bourse, après la clôture (la note Value suit le cours) ;</li>
  *   <li>{@link Origin#BACKFILL} : une fois, pour chaque exercice passé, à sa date de clôture.</li>
  * </ul>
@@ -60,13 +60,13 @@ public class ScoreHistoryService {
 
     /**
      * Un rapport est arrivé : on photographie les notes, datées du jour de l'enregistrement du
-     * rapport (lu dans le message, donc identique si le message est rejoué), et on complète
+     * rapport (lu dans l'événement, donc identique s'il est rejoué), et on complète
      * l'historique reconstitué avec le nouvel exercice.
      */
     public void recordFiling(FilingRecorded filing) {
         Optional<ProfileScores> scores = scoring.currentScores(filing.isin());
         if (scores.isEmpty()) {
-            log.warn("Rapport {} : société {} inconnue, message ignoré", filing.sourceId(), filing.isin());
+            log.warn("Rapport {} : société {} inconnue, événement ignoré", filing.sourceId(), filing.isin());
             return;
         }
         ProfileScores s = scores.get();

@@ -96,7 +96,7 @@ export const useIntraday = (isin: string, enabled = true) =>
     enabled,
   })
 
-// Historique des notes, alimenté par le topic Kafka « filings » et la photo du soir.
+// Historique des notes : à chaque rapport, chaque soir de bourse, et reconstitué pour le passé.
 export const useScoreHistory = (isin: string) =>
   useQuery({ queryKey: ['scoreHistory', isin], queryFn: () => get<ScorePoint[]>(`/api/companies/${isin}/score-history`) })
 

@@ -4,7 +4,7 @@ package com.analyseparts.ingestion;
  * Événement : une liste de sociétés vient d'être importée depuis une place de cotation.
  * <p>
  * Publié par l'import Euronext. Écouté par l'enrichissement LEI (GLEIF), et plus tard par
- * d'autres étapes (ESEF…). En Phase 4, il sera envoyé dans Kafka.
+ * d'autres étapes (ESEF…).
  * <p>
  * Placé à la racine du module : il fait partie de son API publique.
  *

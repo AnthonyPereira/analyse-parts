@@ -18,7 +18,7 @@ public class ScoreHistoryRepository {
 
     /** D'où vient une note enregistrée. */
     public enum Origin {
-        /** Recalculée à l'arrivée d'un rapport (topic Kafka {@code filings}). */
+        /** Recalculée à l'arrivée d'un rapport (événement {@code FilingRecorded}). */
         FILING,
         /** Photo quotidienne après la clôture. */
         DAILY,
@@ -40,7 +40,7 @@ public class ScoreHistoryRepository {
     /**
      * Écrit les notes d'une société pour un jour et une origine. <b>Idempotent</b> : si la ligne
      * existe déjà (même société, profil, jour, origine), elle est remplacée, pas dupliquée. Un
-     * message Kafka reçu deux fois laisse donc la table dans le même état qu'une seule fois.
+     * événement rejoué laisse donc la table dans le même état qu'un seul traitement.
      * <p>
      * Les profils sans note (données insuffisantes) ne sont pas écrits.
      */

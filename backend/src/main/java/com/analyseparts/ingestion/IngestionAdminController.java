@@ -13,8 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Déclenchement manuel des imports. Provisoire : en Phase 4, ces étapes seront
- * enchaînées par des événements Kafka.
+ * Déclenchement manuel des imports (les mêmes tâches tournent aussi seules, planifiées).
  */
 @RestController
 @RequestMapping("/api/admin/ingestion")

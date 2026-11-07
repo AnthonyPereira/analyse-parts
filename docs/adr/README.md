@@ -18,4 +18,4 @@ Règles :
 | [0005](0005-sources-marche-et-amf.md) | Sources : AMF en priorité (rapports annuels), fiche Euronext (secteur, actions), Yahoo et BCE (cours, change) | Acceptée |
 | [0006](0006-front-react.md) | Front React + TypeScript (Vite), TanStack Query, React Router, CSS simple | Acceptée |
 | [0007](0007-cours-en-direct-et-historiques.md) | Cours en direct par SSE (Yahoo chaque minute), historiques des cours et des ratios, graphiques Recharts | Acceptée |
-| [0008](0008-kafka.md) | Kafka (KRaft) pour les événements : topic `quotes` (cours, clé ISIN) consommé par le direct ; `filings` via outbox à venir | Acceptée |
+| [0008](0008-kafka.md) | Kafka essayé (topics `quotes` et `filings`) puis retiré : inutile pour une instance et un utilisateur ; l'historique des notes est gardé, sans Kafka | Abandonnée |

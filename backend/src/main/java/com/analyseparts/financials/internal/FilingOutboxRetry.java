@@ -9,13 +9,13 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * Le filet de sécurité de l'outbox : toutes les 5 minutes, renvoie vers Kafka les rapports dont
- * l'envoi a échoué (Kafka arrêté…). Ils sont restés dans {@code event_publication} sans date de
- * fin ({@code completion_date} vide).
+ * Le filet de sécurité de {@link FilingRecorded} : toutes les 5 minutes, rejoue les listeners qui
+ * ont échoué (une erreur pendant le calcul de l'historique, par exemple). Ils sont restés dans
+ * {@code event_publication} sans date de fin ({@code completion_date} vide).
  * <p>
  * Au redémarrage, Spring Modulith fait la même chose
  * ({@code spring.modulith.events.republish-outstanding-events-on-restart}) ; ici, on n'attend pas
- * un redémarrage. L'âge minimal (2 minutes) évite de renvoyer un message en cours d'envoi.
+ * un redémarrage. L'âge minimal (2 minutes) évite de rejouer un traitement encore en cours.
  */
 @Component
 class FilingOutboxRetry {

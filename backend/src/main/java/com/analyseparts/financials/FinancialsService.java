@@ -58,7 +58,7 @@ public class FinancialsService {
      * <p>
      * L'événement est publié <em>dans</em> la transaction : Spring Modulith l'écrit dans la table
      * {@code event_publication} avec le rapport. Si la transaction échoue, il n'existe pas ; si
-     * elle réussit, il partira vers Kafka, même si l'application s'arrête juste après.
+     * elle réussit, ses listeners seront appelés, même si l'application s'arrête juste après.
      */
     @Transactional
     public void recordFiling(long companyId, FilingData filing, List<ReportedFact> reportedFacts) {
