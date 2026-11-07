@@ -3,6 +3,7 @@ import { Link, NavLink, Route, Routes } from 'react-router'
 import { useLiveQuotes } from './api/live'
 import { CompanySearch } from './components/CompanySearch'
 import { LiveBadge } from './components/LiveQuote'
+import { SourceBanner } from './components/SourceBanner'
 // Chaque page est un fichier JavaScript à part, téléchargé seulement quand on l'ouvre
 // (« code splitting ») : la première page s'affiche sans attendre le code des autres.
 const RankingPage = lazy(() => import('./pages/RankingPage').then(m => ({ default: m.RankingPage })))
@@ -34,6 +35,7 @@ export function App() {
         <CompanySearch />
       </header>
       <main>
+        <SourceBanner />
         <Suspense fallback={<p className="muted">Chargement…</p>}>
         <Routes>
           <Route path="/" element={<RankingPage />} />

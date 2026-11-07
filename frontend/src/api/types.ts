@@ -203,3 +203,17 @@ export interface ScorePoint {
   sourceId: string | null
   scores: Partial<Record<ProfileId, number>>
 }
+
+/** L'état d'une source externe (Yahoo, BCE, AMF, Euronext, GLEIF), tenu à jour par le backend. */
+export type SourceState = 'UNKNOWN' | 'UP' | 'DEGRADED' | 'DOWN'
+
+export interface SourceStatus {
+  source: string
+  label: string
+  state: SourceState
+  detail: string | null
+  problem: string | null
+  lastCheck: string | null
+  lastSuccess: string | null
+  problemSince: string | null
+}

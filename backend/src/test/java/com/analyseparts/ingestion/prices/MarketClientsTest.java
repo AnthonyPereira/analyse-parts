@@ -12,6 +12,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -36,6 +37,42 @@ class MarketClientsTest {
         assertThat(quotes.getFirst()).isEqualTo(new YahooQuoteClient.YahooQuote("MC.PA", new BigDecimal("403.75"),
                 "EUR", "PAR", Instant.ofEpochSecond(1793973274), new BigDecimal("418.65")));
         server.verify();
+    }
+
+    /** Un champ renommé chez Yahoo : des résultats, mais plus aucun cours exploitable, et on le sait. */
+    @Test
+    void yahooSparkWithARenamedFieldIsReportedAsAFormatChange() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://yahoo.test/v7/finance/spark?symbols=MC.PA%2CAIR.PA&range=1d&interval=1d"))
+                .andRespond(withSuccess("""
+                        {"spark":{"result":[
+                          {"symbol":"MC.PA","response":[{"meta":{"currency":"EUR","symbol":"MC.PA","exchangeName":"PAR",
+                            "lastPrice":403.75,"regularMarketTime":1793973274}}]},
+                          {"symbol":"AIR.PA","response":[{"meta":{"currency":"EUR","symbol":"AIR.PA","exchangeName":"PAR",
+                            "lastPrice":196.54,"regularMarketTime":1793973278}}]}]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        var batch = new YahooQuoteClient(builder, "https://yahoo.test").spark(List.of("MC.PA", "AIR.PA"));
+
+        assertThat(batch.results()).isEqualTo(2);
+        assertThat(batch.usable()).isEmpty();
+        assertThat(batch.looksLikeFormatChange()).isTrue();
+    }
+
+    @Test
+    void yahooChartWithoutMetaFailsClearly() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://yahoo.test/v8/finance/chart/MC.PA?range=5d&interval=1d"))
+                .andRespond(withSuccess("""
+                        {"chart":{"result":[{"timestamp":[1793952000],"indicators":{"quote":[{"close":[417.1]}]}}]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        var client = new YahooQuoteClient(builder, "https://yahoo.test");
+
+        assertThatThrownBy(() -> client.chart("MC.PA", "5d", "1d"))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("meta absent");
     }
 
     @Test

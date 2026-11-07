@@ -1,6 +1,9 @@
 package com.analyseparts.ingestion.esef;
 
 import com.analyseparts.company.Company;
+import com.analyseparts.ingestion.SourceHealth;
+import com.analyseparts.ingestion.SourceHealth.Source;
+import com.analyseparts.ingestion.SourceHealth.Tally;
 import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.financials.FilingData;
 import com.analyseparts.financials.FinancialsService;
@@ -40,12 +43,15 @@ public class EsefImportService {
     private final int filingsPerCompany;
     /** Source complémentaire (null dans les tests qui ne la simulent pas). */
     private final AmfFilingsClient amf;
+    private final SourceHealth health;
 
     @Autowired
     public EsefImportService(FilingsXbrlClient client, AmfFilingsClient amf, FinancialsService financials,
                              CompanyRepository companies,
                              @Value("${analyse-parts.esef.filings-per-company:3}") int filingsPerCompany,
-                             @Value("${analyse-parts.amf.enabled:true}") boolean amfEnabled) {
+                             @Value("${analyse-parts.amf.enabled:true}") boolean amfEnabled,
+                             SourceHealth health) {
+        this.health = health;
         this.client = client;
         this.amf = amfEnabled ? amf : null;
         this.financials = financials;
@@ -63,18 +69,47 @@ public class EsefImportService {
         }
     }
 
+    /**
+     * Le bilan d'une collecte, une colonne par source : chaque appel et chaque rapport lu compte
+     * pour un essai. Envoyé à {@link SourceHealth} à la fin de la collecte.
+     */
+    private record Checks(Tally amf, Tally filingsXbrl) {
+        Checks() {
+            this(new Tally(), new Tally());
+        }
+    }
+
+    private void report(Checks checks) {
+        health.report(Source.AMF, checks.amf());
+        health.report(Source.FILINGS_XBRL, checks.filingsXbrl());
+    }
+
+    /**
+     * Un rapport dont on n'a tiré aucun chiffre IFRS : le fichier a été lu, mais plus rien n'y
+     * est reconnu. Le signe d'un changement de format, à signaler plutôt qu'à ignorer.
+     */
+    static boolean noIfrsFacts(List<ReportedFact> facts) {
+        return facts.stream().noneMatch(f -> f.concept().startsWith("ifrs-full:"));
+    }
+
     /** Une société, par ISIN. */
     public ImportResult importCompany(String isin) {
-        return companies.findByIsin(isin).map(this::importCompany)
+        Company company = companies.findByIsin(isin)
                 .orElseThrow(() -> new IllegalArgumentException("ISIN inconnu : " + isin));
+        Checks checks = new Checks();
+        ImportResult result = importCompany(company, true, checks);
+        report(checks);
+        return result;
     }
 
     /** Les sociétés avec un LEI dont l'index ESEF n'a pas encore été consulté avec succès, au plus {@code limit}. */
     public ImportResult importMissing(int limit) {
         ImportResult total = ImportResult.EMPTY;
+        Checks checks = new Checks();
         for (Company company : companies.findByLeiIsNotNullAndEsefCheckedAtIsNullOrderByName().stream().limit(limit).toList()) {
-            total = total.plus(importCompany(company));
+            total = total.plus(importCompany(company, true, checks));
         }
+        report(checks);
         log.info("Import ESEF : {}", total);
         return total;
     }
@@ -99,9 +134,11 @@ public class EsefImportService {
                 .toList();
         log.info("Rafraîchissement ESEF : {} sociétés à vérifier", due.size());
         ImportResult total = ImportResult.EMPTY;
+        Checks checks = new Checks();
         for (Company company : due) {
-            total = total.plus(importCompany(company, useFilingsXbrlOrg));
+            total = total.plus(importCompany(company, useFilingsXbrlOrg, checks));
         }
+        report(checks);
         log.info("Rafraîchissement ESEF : {}", total);
         return total;
     }
@@ -118,18 +155,14 @@ public class EsefImportService {
      * Les deux sources publient le même document ESEF : un exercice déjà importé n'est jamais
      * réimporté depuis l'autre.
      */
-    ImportResult importCompany(Company company) {
-        return importCompany(company, true);
-    }
-
-    ImportResult importCompany(Company company, boolean useFilingsXbrlOrg) {
+    private ImportResult importCompany(Company company, boolean useFilingsXbrlOrg, Checks checks) {
         if (company.getLei() == null) {
             return new ImportResult(1, 0, 0, 0, 0);
         }
-        ImportResult amfResult = amf == null ? ImportResult.EMPTY : importFromAmf(company);
+        ImportResult amfResult = amf == null ? ImportResult.EMPTY : importFromAmf(company, checks.amf());
         Set<LocalDate> known = new HashSet<>(financials.periodEnds(company.getId()));
         ImportResult xbrlOrg = useFilingsXbrlOrg && needsComplement(known, LocalDate.now(), filingsPerCompany)
-                ? importFromFilingsXbrlOrg(company, known) : ImportResult.EMPTY;
+                ? importFromFilingsXbrlOrg(company, known, checks.filingsXbrl()) : ImportResult.EMPTY;
         ImportResult total = new ImportResult(1, xbrlOrg.filingsImported() + amfResult.filingsImported(),
                 xbrlOrg.filingsSkipped() + amfResult.filingsSkipped(), xbrlOrg.factCount() + amfResult.factCount(),
                 xbrlOrg.errors() + amfResult.errors());
@@ -146,7 +179,7 @@ public class EsefImportService {
      * que les dépôts publiés après la clôture du dernier exercice connu, et on s'arrête à
      * {@code filingsPerCompany} nouveaux exercices.
      */
-    private ImportResult importFromAmf(Company company) {
+    private ImportResult importFromAmf(Company company, Tally tally) {
         Set<LocalDate> known = new HashSet<>(financials.periodEnds(company.getId()));
         LocalDate since = known.stream().max(LocalDate::compareTo).map(d -> d.plusMonths(1))
                 .orElse(LocalDate.now().minusYears(4));
@@ -154,8 +187,10 @@ public class EsefImportService {
         List<AmfFilingsClient.AmfFiling> reports;
         try {
             reports = amf.annualReports(company.getIsin(), company.getLei(), since);
+            tally.ok();
         } catch (RestClientException e) {
             log.warn("AMF {} : flux indisponible : {}", company.getName(), e.getMessage());
+            tally.fail("flux de l'AMF indisponible ou illisible : " + e.getMessage());
             return new ImportResult(1, 0, 0, 0, 1);
         }
         for (AmfFilingsClient.AmfFiling report : reports) {
@@ -167,6 +202,14 @@ public class EsefImportService {
             try {
                 InlineXbrlParser.ParsedReport parsed =
                         InlineXbrlParser.parsePackage(new ByteArrayInputStream(amf.download(report.url())));
+                if (noIfrsFacts(parsed.facts())) {
+                    log.warn("AMF {} : aucun chiffre IFRS reconnu dans {}", company.getName(), report.fileName());
+                    tally.fail("rapport " + report.fileName() + " lu, mais aucun chiffre IFRS reconnu : "
+                            + "format du paquet ESEF changé ?");
+                    skipped++; // comptes non consolidés possibles : pas une erreur d'import, mais signalé à SourceHealth
+                    continue;
+                }
+                tally.ok();
                 if (parsed.lei() != null && !parsed.lei().equals(company.getLei())) {
                     log.warn("AMF {} : {} est le rapport d'une autre entité ({})", company.getName(), report.fileName(), parsed.lei());
                     skipped++;
@@ -186,6 +229,7 @@ public class EsefImportService {
                 log.info("AMF {} {} : {} faits ({})", company.getName(), periodEnd, parsed.facts().size(), report.title());
             } catch (IOException | RestClientException | DataAccessException e) {
                 log.warn("AMF {} : échec pour {} : {}", company.getName(), report.url(), e.getMessage());
+                tally.fail("téléchargement ou lecture d'un rapport AMF en échec : " + e.getMessage());
                 errors++;
             }
         }
@@ -211,11 +255,12 @@ public class EsefImportService {
         return known.stream().anyMatch(d -> Math.abs(ChronoUnit.DAYS.between(d, periodEnd)) <= MAX_PERIOD_END_GAP_DAYS);
     }
 
-    private ImportResult importFromFilingsXbrlOrg(Company company, Set<LocalDate> known) {
+    private ImportResult importFromFilingsXbrlOrg(Company company, Set<LocalDate> known, Tally tally) {
         int imported = 0, skipped = 0, factCount = 0, errors = 0;
         try {
             List<FilingInfo> selected = FilingSelector.select(
                     client.listFilings(company.getLei()), company.getCountry(), filingsPerCompany);
+            tally.ok();
             for (FilingInfo filing : selected) {
                 if (financials.isImported(filing.fxoId()) || isKnown(known, LocalDate.parse(filing.periodEnd()))) {
                     skipped++; // déjà importé, ou exercice déjà fourni par l'AMF
@@ -223,6 +268,14 @@ public class EsefImportService {
                 }
                 try {
                     List<ReportedFact> facts = XbrlJsonParser.totals(client.download(filing.jsonUrl()));
+                    if (noIfrsFacts(facts)) {
+                        log.warn("ESEF {} : aucun chiffre IFRS reconnu dans {}", company.getName(), filing.jsonUrl());
+                        tally.fail("rapport " + filing.fxoId() + " lu, mais aucun chiffre IFRS reconnu : "
+                                + "format xBRL-JSON changé ?");
+                        skipped++; // comptes non consolidés possibles : pas une erreur d'import, mais signalé à SourceHealth
+                        continue;
+                    }
+                    tally.ok();
                     LocalDate periodEnd = periodEnd(company, filing, facts);
                     if (isKnown(known, periodEnd)) {
                         skipped++;
@@ -237,11 +290,13 @@ public class EsefImportService {
                 } catch (RestClientException | DataAccessException e) {
                     // Un rapport en échec (téléchargement ou enregistrement) n'arrête pas les autres
                     log.warn("ESEF {} : échec pour {} : {}", company.getName(), filing.jsonUrl(), e.getMessage());
+                    tally.fail("téléchargement d'un rapport en échec : " + e.getMessage());
                     errors++;
                 }
             }
         } catch (RestClientException e) {
             log.warn("ESEF {} : index indisponible : {}", company.getName(), e.getMessage());
+            tally.fail("index de filings.xbrl.org indisponible ou illisible : " + e.getMessage());
             errors++;
         }
         return new ImportResult(1, imported, skipped, factCount, errors);

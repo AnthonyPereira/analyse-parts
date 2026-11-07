@@ -506,6 +506,14 @@ export const GLOSSARY: Record<string, Entry> = {
   },
 
   // ---------------------------------------------------------------- Bourse
+  SOURCE_STATUS: {
+    term: 'Source de données en panne', category: 'Bourse',
+    short: 'L\'application va chercher ses données chez d\'autres : Yahoo (cours), la BCE (taux de change), l\'AMF et filings.xbrl.org (rapports annuels), Euronext (liste des actions, secteurs) et GLEIF (identifiants LEI). Quand l\'une d\'elles ne répond plus ou change sa façon de répondre, un bandeau le signale.',
+    what: 'Après chaque collecte, l\'application compare ce qu\'elle a demandé et ce qu\'elle a réellement pu lire. « En panne » : rien n\'a pu être lu (source injoignable, ou format de réponse changé). « Partiellement en échec » : une partie seulement, moins que d\'habitude. Quelques échecs isolés sont normaux (un titre suspendu n\'a pas de cours, par exemple) et ne déclenchent rien.',
+    read: 'Pendant une panne, l\'application continue d\'afficher les dernières données collectées : un cours en panne reste figé à sa dernière valeur, un rapport annuel publié pendant la panne arrivera plus tard. Les notes restent calculées, mais peuvent être en retard.',
+    watch: 'Un changement de format chez une source demande une correction dans l\'application : le bandeau reste affiché jusqu\'à ce qu\'une collecte réussisse à nouveau.',
+    see: ['QUOTE', 'ANNUAL_REPORT'],
+  },
   QUOTE: {
     term: 'Cours', category: 'Bourse',
     short: 'Le prix d\'une action à un instant donné, fixé par les achats et les ventes en bourse.',

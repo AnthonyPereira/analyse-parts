@@ -55,6 +55,27 @@ public class YahooQuoteClient {
     }
 
     public List<YahooQuote> quotes(List<String> symbols) {
+        return spark(symbols).usable();
+    }
+
+    /**
+     * Ce que Yahoo a renvoyé pour un lot de symboles.
+     *
+     * @param results nombre de résultats dans la réponse, exploitables ou non
+     * @param usable  les cours complets (prix et heure présents)
+     */
+    public record SparkBatch(int results, List<YahooQuote> usable) {
+
+        /**
+         * Des résultats, mais aucun exploitable : le plus souvent, Yahoo a renommé ou déplacé un
+         * champ. Sans ce contrôle, on obtiendrait « zéro cours » sans la moindre erreur.
+         */
+        public boolean looksLikeFormatChange() {
+            return results > 0 && usable.isEmpty();
+        }
+    }
+
+    public SparkBatch spark(List<String> symbols) {
         if (symbols.size() > MAX_SYMBOLS) {
             throw new IllegalArgumentException("Au plus " + MAX_SYMBOLS + " symboles par requête");
         }
@@ -63,15 +84,16 @@ public class YahooQuoteClient {
                 .retrieve()
                 .body(SparkResponse.class);
         if (response == null || response.spark() == null || response.spark().result() == null) {
-            return List.of();
+            return new SparkBatch(0, List.of());
         }
-        return response.spark().result().stream()
+        List<YahooQuote> usable = response.spark().result().stream()
                 .filter(r -> r.response() != null && !r.response().isEmpty())
                 .map(r -> r.response().getFirst().meta())
                 .filter(m -> m != null && m.regularMarketPrice() != null && m.regularMarketTime() != null)
                 .map(m -> new YahooQuote(m.symbol(), m.regularMarketPrice(), m.currency(), m.exchangeName(),
                         Instant.ofEpochSecond(m.regularMarketTime()), m.previousCloseOrChart()))
                 .toList();
+        return new SparkBatch(response.spark().result().size(), usable);
     }
 
     /**
@@ -101,6 +123,10 @@ public class YahooQuoteClient {
             }
         }
         Meta m = r.meta();
+        if (m == null) {
+            // la réponse ne ressemble plus à ce qu'on attend : une erreur claire plutôt qu'un NullPointerException
+            throw new IllegalStateException("réponse Yahoo inattendue pour " + symbol + " (bloc meta absent)");
+        }
         return Optional.of(new YahooChart(m.symbol(), m.currency(), m.exchangeName(), m.previousCloseOrChart(), points));
     }
 

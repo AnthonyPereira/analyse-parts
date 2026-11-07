@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query'
 import type {
   Calibration, Company, CompanyScore, CompanySummary, DailyClose, FinancialHistory, Intraday, PriceRange,
   ProfileDefinition, ProfileId, QuoteWithChange, UniverseEntry, YearRatios,
-  RankingEntry, RatioDefinition, ScorePoint,
+  RankingEntry, RatioDefinition, ScorePoint, SourceStatus,
 } from './types'
 
 /** Erreur HTTP, pour distinguer « introuvable » (404) d'une panne. */
@@ -126,3 +126,7 @@ export const useCustomRanking = (weights: Record<string, number>) =>
     enabled: Object.values(weights).some(w => w > 0),
     placeholderData: previous => previous, // garde l'ancien classement affiché pendant le calcul
   })
+
+// État des sources externes, pour le bandeau d'alerte : relu toutes les 5 minutes.
+export const useSources = () =>
+  useQuery({ queryKey: ['sources'], queryFn: () => get<SourceStatus[]>('/api/sources'), refetchInterval: 5 * 60 * 1000 })

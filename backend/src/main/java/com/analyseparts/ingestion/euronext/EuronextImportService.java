@@ -3,6 +3,8 @@ package com.analyseparts.ingestion.euronext;
 import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.ingestion.CompaniesImported;
+import com.analyseparts.ingestion.SourceHealth;
+import com.analyseparts.ingestion.SourceHealth.Source;
 import com.analyseparts.market.MarketDataService;
 import com.analyseparts.market.Quote;
 import org.slf4j.Logger;
@@ -30,6 +32,7 @@ public class EuronextImportService {
     private final ApplicationEventPublisher events;
     private final TransactionTemplate transaction;
     private final MarketDataService market;
+    private final SourceHealth health;
 
     /** Heure de clôture de la séance à Paris (fixing de clôture à 17 h 35). */
     private static final LocalTime CLOSE = LocalTime.of(17, 35);
@@ -37,8 +40,9 @@ public class EuronextImportService {
 
     public EuronextImportService(EuronextClient client, CompanyRepository companies,
                                  ApplicationEventPublisher events, TransactionTemplate transaction,
-                                 MarketDataService market) {
+                                 MarketDataService market, SourceHealth health) {
         this.market = market;
+        this.health = health;
         this.client = client;
         this.companies = companies;
         this.events = events;
@@ -49,8 +53,27 @@ public class EuronextImportService {
     }
 
     /** Télécharge la liste (hors transaction), puis l'enregistre. */
+    /**
+     * Euronext Paris liste environ 700 titres. Bien moins de lignes reconnues : les colonnes du
+     * fichier ont probablement changé (le lecteur les repère par leur position).
+     */
+    static final int MIN_EQUITIES = 100;
+
     public ImportResult importMarket(String mic) {
-        return importEquities(mic, client.fetchEquities(mic));
+        List<ListedEquity> equities;
+        try {
+            equities = client.fetchEquities(mic);
+        } catch (RuntimeException e) {
+            health.down(Source.EURONEXT_LIST, "fichier des actions Euronext indisponible ou illisible : " + e.getMessage());
+            throw e;
+        }
+        if (equities.size() < MIN_EQUITIES) {
+            health.down(Source.EURONEXT_LIST, "seulement " + equities.size()
+                    + " actions reconnues dans le fichier Euronext : ses colonnes ont probablement changé");
+        } else {
+            health.report(Source.EURONEXT_LIST, 1, 1, null);
+        }
+        return importEquities(mic, equities);
     }
 
     /**

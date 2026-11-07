@@ -24,15 +24,35 @@ public class LeiEnrichmentService {
     private final GleifClient gleif;
     private final CompanyRepository companies;
     private final Duration pause;
+    private final com.analyseparts.ingestion.SourceHealth health;
 
     public LeiEnrichmentService(GleifClient gleif, CompanyRepository companies,
-                                @Value("${analyse-parts.gleif.pause:1100ms}") Duration pause) {
+                                @Value("${analyse-parts.gleif.pause:1100ms}") Duration pause,
+                                com.analyseparts.ingestion.SourceHealth health) {
+        this.health = health;
         this.gleif = gleif;
         this.companies = companies;
         this.pause = pause;
     }
 
     public record EnrichmentResult(int checked, int found, int notFound, int duplicates, int errors) {
+    }
+
+    /**
+     * Au moins ce nombre de sociétés sans qu'aucun LEI soit trouvé : GLEIF répond, mais on ne sait
+     * plus lire sa réponse (presque toutes les sociétés cotées ont un LEI, obligatoire pour publier).
+     */
+    static final int SUSPICIOUS_NOT_FOUND = 10;
+
+    private void reportHealth(int checked, int found, int errors) {
+        var source = com.analyseparts.ingestion.SourceHealth.Source.GLEIF;
+        if (checked >= SUSPICIOUS_NOT_FOUND && found == 0 && errors < checked) {
+            health.down(source, "GLEIF ne trouve aucun LEI pour " + checked
+                    + " sociétés : son format de réponse a probablement changé");
+        } else {
+            health.report(source, checked, checked - errors,
+                    errors > 0 ? errors + " requêtes GLEIF en échec (service indisponible ?)" : null);
+        }
     }
 
     public EnrichmentResult enrichMissingLeis() {
@@ -64,6 +84,7 @@ public class LeiEnrichmentService {
             }
             sleep();
         }
+        reportHealth(checked, found, errors);
         log.info("Enrichissement LEI : {} traitées, {} trouvées, {} introuvables, {} doublons, {} erreurs",
                 checked, found, notFound, duplicates, errors);
         return new EnrichmentResult(checked, found, notFound, duplicates, errors);

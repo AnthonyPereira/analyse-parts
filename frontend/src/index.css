@@ -336,3 +336,8 @@ aside > .card:first-child { margin-top: 0; }
   background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--mid);
   border-radius: 10px; padding: 0.6rem 0.9rem; margin: 0.5rem 0 1rem;
 }
+/* Bandeau des sources en panne : rouge si une source est hors service, orange si partiellement. */
+.notice-bad { border-left-color: var(--bad); background: var(--bad-bg); }
+.notice-warn { border-left-color: var(--mid); background: var(--mid-bg); }
+.source-banner ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
+.source-banner li { margin: 0.15rem 0; }

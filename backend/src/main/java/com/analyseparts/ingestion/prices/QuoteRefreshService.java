@@ -2,6 +2,9 @@ package com.analyseparts.ingestion.prices;
 
 import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
+import com.analyseparts.ingestion.SourceHealth;
+import com.analyseparts.ingestion.SourceHealth.Source;
+import com.analyseparts.ingestion.prices.YahooQuoteClient.SparkBatch;
 import com.analyseparts.ingestion.prices.YahooQuoteClient.YahooChart;
 import com.analyseparts.ingestion.prices.YahooQuoteClient.YahooQuote;
 import com.analyseparts.market.MarketDataService;
@@ -37,6 +40,8 @@ import java.util.stream.Collectors;
  *       ou 5 ans pour une société qui n'a encore aucun historique) ;</li>
  *   <li>taux de change : chaque jour ouvré à 16 h 30, après la publication de la BCE.</li>
  * </ul>
+ * Après chaque collecte, le bilan part dans {@link SourceHealth} : c'est ainsi qu'on remarque un
+ * changement de format chez Yahoo (des réponses, mais plus aucun cours exploitable).
  */
 @Service
 public class QuoteRefreshService {
@@ -58,10 +63,13 @@ public class QuoteRefreshService {
     private final CompanyRepository companies;
     private final MarketDataService market;
     private final long historyPauseMillis;
+    private final SourceHealth health;
 
     public QuoteRefreshService(YahooQuoteClient yahoo, EcbFxClient ecb, CompanyRepository companies,
                                MarketDataService market,
-                               @Value("${analyse-parts.prices.history-pause-ms:300}") long historyPauseMillis) {
+                               @Value("${analyse-parts.prices.history-pause-ms:300}") long historyPauseMillis,
+                               SourceHealth health) {
+        this.health = health;
         this.yahoo = yahoo;
         this.ecb = ecb;
         this.companies = companies;
@@ -102,11 +110,18 @@ public class QuoteRefreshService {
         Map<String, Company> bySymbol = yahooCompanies();
         List<String> symbols = List.copyOf(bySymbol.keySet());
         List<Quote> quotes = new ArrayList<>();
-        int received = 0, errors = 0;
+        int received = 0, errors = 0, results = 0;
+        String problem = null;
         for (int i = 0; i < symbols.size(); i += YahooQuoteClient.MAX_SYMBOLS) {
             List<String> batch = symbols.subList(i, Math.min(i + YahooQuoteClient.MAX_SYMBOLS, symbols.size()));
             try {
-                for (YahooQuote q : yahoo.quotes(batch)) {
+                SparkBatch answer = yahoo.spark(batch);
+                results += answer.results();
+                if (answer.looksLikeFormatChange() && problem == null) {
+                    problem = "Yahoo répond, mais aucun cours n'est exploitable (prix ou heure absents) : "
+                            + "son format a probablement changé";
+                }
+                for (YahooQuote q : answer.usable()) {
                     received++;
                     Company company = bySymbol.get(q.symbol());
                     // On vérifie la place de cotation : un même mnémonique peut exister ailleurs.
@@ -118,8 +133,15 @@ public class QuoteRefreshService {
             } catch (RestClientException e) {
                 log.warn("Yahoo : échec pour {} : {}", batch, e.getMessage());
                 errors++;
+                if (problem == null) {
+                    problem = "Yahoo injoignable ou réponse illisible : " + e.getMessage();
+                }
             }
         }
+        if (problem == null && results == 0 && !symbols.isEmpty()) {
+            problem = "Yahoo ne renvoie aucun résultat";
+        }
+        health.report(Source.YAHOO_QUOTES, symbols.size(), quotes.size(), problem);
         int recorded = market.recordQuotes(quotes);
         RefreshResult result = new RefreshResult(symbols.size(), received, recorded, errors);
         log.debug("Cours Yahoo : {}", result);
@@ -135,6 +157,7 @@ public class QuoteRefreshService {
     public HistoryResult refreshHistory(boolean full) {
         Map<Long, LocalDate> latest = market.latestCloseDays();
         int done = 0, closes = 0, errors = 0;
+        SourceHealth.Tally tally = new SourceHealth.Tally();
         for (Map.Entry<String, Company> e : yahooCompanies().entrySet()) {
             Company company = e.getValue();
             String range = full || !latest.containsKey(company.getId()) ? "5y" : "5d";
@@ -148,16 +171,26 @@ public class QuoteRefreshService {
                             .values().stream().toList();
                     closes += market.recordCloses(company.getId(), points);
                     done++;
+                    if (points.isEmpty()) {
+                        tally.fail("Yahoo ne renvoie aucune clôture (" + e.getKey() + ") : format changé ?");
+                    } else {
+                        tally.ok();
+                    }
+                } else if (chart.isEmpty()) {
+                    tally.fail("Yahoo ne renvoie pas d'historique pour " + e.getKey());
                 }
                 Thread.sleep(historyPauseMillis); // poli avec Yahoo : ~3 requêtes par seconde au plus
-            } catch (RestClientException ex) {
+            } catch (RuntimeException ex) {
+                // RestClientException (réseau, JSON illisible) ou réponse inattendue : on passe à la suivante
                 log.warn("Yahoo : historique indisponible pour {} : {}", e.getKey(), ex.getMessage());
                 errors++;
+                tally.fail("Yahoo, historique de " + e.getKey() + " : " + ex.getMessage());
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 break;
             }
         }
+        health.report(Source.YAHOO_HISTORY, tally);
         HistoryResult result = new HistoryResult(done, closes, errors);
         log.info("Historique des cours : {}", result);
         return result;
@@ -171,8 +204,23 @@ public class QuoteRefreshService {
         return yahoo.chart(yahooSymbol(company), "1d", "5m");
     }
 
+    /** Moins de devises que cela, ou pas de dollar : le fichier de la BCE n'a plus la forme attendue. */
+    static final int MIN_FX_RATES = 20;
+
     public int refreshFxRates() {
-        EcbFxClient.FxRates rates = ecb.daily();
+        EcbFxClient.FxRates rates;
+        try {
+            rates = ecb.daily();
+        } catch (RuntimeException e) {
+            health.down(Source.ECB_FX, "fichier de la BCE indisponible ou illisible : " + e.getMessage());
+            throw e;
+        }
+        if (rates.ratePerEur().size() < MIN_FX_RATES || !rates.ratePerEur().containsKey("USD")) {
+            health.down(Source.ECB_FX, "seulement " + rates.ratePerEur().size()
+                    + " devises lues dans le fichier de la BCE : son format a probablement changé");
+            return 0;
+        }
+        health.report(Source.ECB_FX, 1, 1, null);
         market.recordFxRates(rates.ratePerEur(), rates.date());
         log.info("Taux BCE du {} : {} devises", rates.date(), rates.ratePerEur().size());
         return rates.ratePerEur().size();

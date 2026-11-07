@@ -1,57 +1,57 @@
-# ADR 0008 — Kafka : essayé, puis retiré
+# ADR 0008 — Kafka pour les événements entre modules
 
-- **Statut** : Abandonnée
+- **Statut** : Remplacée par l'[ADR 0009](0009-retrait-de-kafka.md) (Kafka retiré le 2026-11-07)
 - **Date** : 2026-11-07
-- **Concerne** : [ADR 0001](0001-monolithe-modulaire.md) (Kafka prévu en phase 4), [ADR 0007](0007-cours-en-direct-et-historiques.md)
+- **Complète** : [ADR 0001](0001-monolithe-modulaire.md), [ADR 0007](0007-cours-en-direct-et-historiques.md)
 
 ## Contexte
 
-La feuille de route prévoyait une phase 4 « Kafka », pour apprendre une architecture
-événementielle et en faire une vitrine. Trois étapes ont été réalisées (commits `90df462`,
-`e54a552`, `bc7d9e4`) :
+Les modules communiquent par des événements Spring en mémoire (`QuotesUpdated`,
+`CompaniesImported`). C'est suffisant pour une seule instance, mais :
 
-1. Kafka 4 (KRaft) et Kafka UI dans Docker Compose ;
-2. un topic `quotes` entre la collecte des cours et le direct (SSE) ;
-3. un topic `filings` publié par l'outbox de Spring Modulith, lu par un consommateur qui
-   alimente l'historique des notes.
+- un événement en cours de traitement est perdu si l'application s'arrête ;
+- personne ne peut le relire (un nouveau traitement ne voit que les événements futurs) ;
+- on ne garde aucune trace de ce qui s'est passé.
 
-En préparant l'étape 4 (dead letter topic, rejeu), le bilan est apparu clairement :
-
-- l'application tourne en **une instance**, pour **un utilisateur**. Kafka transportait des
-  données que notre code avait déjà récupérées, sans rien apporter que les événements Spring
-  Modulith ne font déjà ;
-- sur `quotes`, il **ajoutait une panne possible** (Kafka arrêté = plus de direct) ;
-- sur `filings`, la garantie « aucun rapport oublié » vient de la table `event_publication`,
-  pas de Kafka ;
-- l'étape 4 aurait ajouté des outils (DLT, rejeu) qui n'existent que pour gérer Kafka lui-même.
-
-Kafka ne surveille pas non plus les sources (Yahoo, AMF) : il ne contient que ce qu'on y écrit.
-La détection des nouveautés et des pannes reste le travail du code d'ingestion.
+Le projet sert aussi à apprendre une architecture événementielle (objectif « vitrine » du
+document de conception). Les usages à venir s'y prêtent : un rapport annuel ou semestriel
+importé devra déclencher le recalcul des notes, leur historique, puis l'analyse par le LLM
+local (phase 5), sans que l'import connaisse ces traitements.
 
 ## Décision
 
-- **Retirer Kafka** : conteneurs, dépendances, topics, tests et guide.
-- **Garder l'historique des notes** (étape 3), qui ne dépend pas de Kafka : l'événement
-  `FilingRecorded` est publié dans la transaction du rapport et traité par un
-  `@ApplicationModuleListener` (après le commit, en arrière-plan, rejoué s'il échoue grâce à
-  `event_publication` et `FilingOutboxRetry`).
-- Le direct revient à la version de l'[ADR 0007](0007-cours-en-direct-et-historiques.md) :
-  `QuotesUpdated` (événement Spring) → `QuoteStream` → SSE.
-- Kafka sera appris dans un **projet séparé**, conçu pour un cas où il est utile.
-
-## Quand Kafka deviendrait utile ici
-
-- plusieurs applications distinctes qui consomment les mêmes faits (par exemple un service
-  d'alertes déployé à part) ;
-- plusieurs instances de l'application à tenir synchronisées ;
-- des volumes que PostgreSQL ne suffit plus à absorber.
-
-L'architecture le permet sans réécriture : les modules communiquent déjà par événements, que
-Spring Modulith sait recopier dans Kafka (`spring-modulith-events-kafka`). Le code des trois
-étapes reste consultable dans l'historique Git.
+1. **Kafka 4 en mode KRaft**, un seul broker, dans `compose.yaml` ; **Kafka UI** pour observer
+   topics, messages et groupes. Testcontainers démarre la même image pour les tests.
+2. **Un topic par type de fait**, avec l'**ISIN pour clé** : tous les messages d'une société
+   sont dans la même partition, donc dans l'ordre. Messages en **JSON texte** (contrat :
+   `QuoteMessage`), lisibles dans Kafka UI.
+3. **Topic `quotes`** (étape 2) : chaque cours qui change. 3 partitions, rétention 1 jour.
+   - Producteur : `market.internal.QuotePublisher`, à partir de l'événement `QuotesUpdated`.
+   - Consommateur : `QuoteStream` (groupe `quote-stream`), qui pousse les cours au navigateur
+     par SSE. Le front ne change pas.
+   - Garantie **au plus une fois**, sans outbox : si Kafka est arrêté, le cours est perdu pour
+     le direct mais reste en base, et le suivant arrive une minute plus tard. `max.block.ms`
+     à 5 s pour ne pas bloquer la collecte.
+4. **Topic `filings`** (étape 3) : un rapport enregistré (`FilingRecorded`). Il ne doit pas
+   être perdu :
+   - publication par l'**outbox** de Spring Modulith : l'événement est écrit dans
+     `event_publication` dans la transaction du rapport, puis envoyé à Kafka
+     (`spring-modulith-events-kafka`, règle dans `financials.internal.FilingTopic`) ; renvoi au
+     redémarrage et toutes les 5 minutes (`FilingOutboxRetry`) ;
+   - garantie **au moins une fois** : le consommateur `score-history` (module scoring) est
+     **idempotent** (clé primaire de `score_history` + `ON CONFLICT DO UPDATE`) ;
+   - **rétention illimitée** : un nouveau consommateur peut relire tous les rapports (phase 5).
+   - Pas d'annotation `@Externalized` : sa clé en SpEL serait évaluée sur le JSON déjà écrit ;
+     la route et la clé sont donc déclarées en Java.
+5. **Erreurs** (étape 4) : nouvelles tentatives puis topic d'erreurs (dead letter topic).
 
 ## Conséquences
 
-- Un conteneur de moins ; les tests d'intégration ne démarrent plus de broker.
-- Les notions apprises (topic, partition, offset, groupe, outbox, idempotence) sont décrites
-  dans le guide `docs/kafka.md` du commit `bc7d9e4`.
+- Les notes ont désormais un historique (table `score_history`, migration V12) : à l'arrivée d'un
+  rapport, chaque soir de bourse, et reconstitué pour les exercices passés.
+- Docker Compose démarre un conteneur de plus ; sans Kafka, l'application démarre mais le
+  direct ne reçoit plus de cours.
+- Avec plusieurs instances de l'application, chacune aurait besoin de son propre groupe pour
+  le direct (dans un même groupe, les instances se partagent les partitions).
+- Les tests d'intégration démarrent un vrai Kafka (quelques secondes de plus).
+- Notions et démonstration en ligne de commande : `docs/kafka.md` (supprimé depuis, consultable dans le commit `bc7d9e4`).
