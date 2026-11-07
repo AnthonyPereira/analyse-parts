@@ -1,22 +1,18 @@
 package com.analyseparts.market;
 
-import com.analyseparts.company.Company;
-import com.analyseparts.company.CompanyRepository;
+import com.analyseparts.market.internal.QuoteTopic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.event.EventListener;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -27,7 +23,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * laquelle le serveur écrit des lignes {@code event: quote / data: {...}} quand il veut. Plus
  * simple qu'un WebSocket (sens unique serveur → navigateur, ce dont on a besoin), et le
  * navigateur se reconnecte tout seul si la connexion tombe ({@code EventSource}).
- * En Phase 4, ces cours passeront par Kafka avant d'arriver ici.
+ * <p>
+ * Les cours arrivent ici depuis le topic Kafka {@code quotes} : cette classe est un
+ * <b>consommateur</b> du groupe {@value #GROUP}.
  */
 @RestController
 public class QuoteStream {
@@ -35,18 +33,21 @@ public class QuoteStream {
     private static final Logger log = LoggerFactory.getLogger(QuoteStream.class);
     /** Pas de limite de durée : la connexion reste ouverte tant que l'onglet est ouvert. */
     private static final long NO_TIMEOUT = 0L;
+    /**
+     * Le groupe de consommateurs. Kafka retient pour lui la position de lecture (l'offset) de chaque
+     * partition : après un redémarrage, l'application reprend là où elle s'était arrêtée.
+     * <p>
+     * Avec plusieurs instances de l'application, chacune devrait avoir son propre groupe : dans un
+     * même groupe, les instances se <em>partagent</em> les partitions, et chaque navigateur ne
+     * recevrait qu'une partie des cours.
+     */
+    static final String GROUP = "quote-stream";
 
-    private final CompanyRepository companies;
+    private final JsonMapper json;
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
-    private final Map<Long, String> isinById = new ConcurrentHashMap<>();
 
-    public QuoteStream(CompanyRepository companies) {
-        this.companies = companies;
-    }
-
-    /** Ce que reçoit le navigateur, avec l'ISIN pour savoir quelle société a bougé. */
-    public record QuoteEvent(String isin, BigDecimal price, String currency, Instant asOf, String source,
-                             BigDecimal previousClose) {
+    public QuoteStream(JsonMapper json) {
+        this.json = json;
     }
 
     @GetMapping(path = "/api/quotes/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -65,17 +66,21 @@ public class QuoteStream {
         return emitter;
     }
 
-    @EventListener
-    void onQuotesUpdated(MarketDataService.QuotesUpdated event) {
+    /**
+     * Reçoit les cours par lots ({@code batch}) : tous les messages arrivés depuis la dernière
+     * lecture, envoyés au navigateur en un seul événement.
+     * <p>
+     * {@code auto.offset.reset=latest} : la toute première fois que le groupe lit le topic, il
+     * commence à la fin. Inutile de pousser au navigateur les cours de la veille.
+     */
+    @KafkaListener(topics = QuoteTopic.NAME, groupId = GROUP, batch = "true",
+            properties = "auto.offset.reset=latest")
+    void onQuotes(List<String> messages) {
         if (emitters.isEmpty()) {
-            return;
+            return; // personne ne regarde : les messages sont lus (l'offset avance) et ignorés
         }
-        List<QuoteEvent> payload = event.quotes().stream()
-                .map(q -> new QuoteEvent(isin(q.companyId()), q.price(), q.currency(), q.asOf(), q.source(),
-                        q.previousClose()))
-                .filter(e -> e.isin() != null)
-                .toList();
-        send(SseEmitter.event().name("quotes").data(payload, MediaType.APPLICATION_JSON));
+        List<QuoteMessage> quotes = messages.stream().map(m -> json.readValue(m, QuoteMessage.class)).toList();
+        send(SseEmitter.event().name("quotes").data(quotes, MediaType.APPLICATION_JSON));
     }
 
     /**
@@ -101,9 +106,5 @@ public class QuoteStream {
                 log.debug("Connexion SSE fermée : {}", e.getMessage());
             }
         }
-    }
-
-    private String isin(long companyId) {
-        return isinById.computeIfAbsent(companyId, id -> companies.findById(id).map(Company::getIsin).orElse(null));
     }
 }

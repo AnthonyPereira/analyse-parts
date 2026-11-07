@@ -1,8 +1,7 @@
 # Kafka dans Analyse Parts
 
 Ce guide explique les notions de Kafka utilisées dans le projet, avec des commandes à essayer.
-Le plan d'ensemble (topics `quotes` et `filings`, historique des notes) arrive par étapes ;
-la décision sera détaillée dans un ADR quand l'application utilisera Kafka.
+Les choix sont expliqués dans l'[ADR 0008](adr/0008-kafka.md).
 
 ## Démarrer
 
@@ -86,6 +85,27 @@ Supprimer le topic de démonstration :
 ```bash
 $K/kafka-topics.sh $B --delete --topic demo-cours
 ```
+
+## Dans l'application : le topic `quotes`
+
+```
+Yahoo (chaque minute) → MarketDataService.recordQuotes → événement QuotesUpdated
+   → QuotePublisher  ── producteur ──►  topic « quotes » (clé = ISIN, 3 partitions, 1 jour)
+   → QuoteStream     ◄── consommateur, groupe « quote-stream » ──  → navigateur (SSE)
+```
+
+Pour le voir sans attendre la bourse, écrire soi-même un cours dans le topic, avec le direct
+ouvert dans un autre terminal (`curl -N localhost:8080/api/quotes/stream`) ou sur une fiche
+société :
+
+```bash
+printf 'FR0000120321:{"isin":"FR0000120321","price":399.99,"currency":"EUR","asOf":"2026-11-07T15:30:00Z","source":"TEST","previousClose":381.5}
+' \n  | $K/kafka-console-producer.sh $B --topic quotes --property parse.key=true --property key.separator=:
+```
+
+Le navigateur affiche aussitôt 399,99 € pour L'Oréal (le cours n'est pas enregistré en base :
+il disparaît au rechargement de la page). Dans Kafka UI, l'onglet **Consumers** montre le
+groupe `quote-stream`, sa position et son retard sur chaque partition.
 
 ## Choix de configuration (`compose.yaml`)
 

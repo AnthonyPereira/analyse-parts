@@ -31,7 +31,7 @@ public class MarketDataService {
     private record CachedIntraday(Instant fetchedAt, Optional<IntradaySource.Intraday> value) {
     }
 
-    /** Publié quand des cours changent ; écouté par {@link QuoteStream} pour le direct. */
+    /** Publié quand des cours changent ; QuotePublisher le transmet au topic Kafka {@code quotes}. */
     public record QuotesUpdated(List<Quote> quotes) {
     }
 
