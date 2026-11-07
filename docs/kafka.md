@@ -1,0 +1,98 @@
+# Kafka dans Analyse Parts
+
+Ce guide explique les notions de Kafka utilisées dans le projet, avec des commandes à essayer.
+Le plan d'ensemble (topics `quotes` et `filings`, historique des notes) arrive par étapes ;
+la décision sera détaillée dans un ADR quand l'application utilisera Kafka.
+
+## Démarrer
+
+Kafka et son interface web sont dans `backend/compose.yaml`, à côté de PostgreSQL :
+
+```bash
+cd backend
+docker compose up -d kafka kafka-ui
+```
+
+- Kafka écoute sur `localhost:9092` ;
+- **Kafka UI** : <http://localhost:8081> (topics, messages, consommateurs).
+
+L'application Spring Boot démarre aussi ces conteneurs toute seule (support Docker Compose).
+
+## Les notions, en une page
+
+| Notion | En une phrase | Équivalent familier |
+|---|---|---|
+| **Message** (record) | Une clé, une valeur (ici du JSON) et une date. | Une ligne ajoutée à un journal |
+| **Topic** | Un journal thématique où l'on ajoute des messages à la suite, sans jamais modifier ni effacer les anciens. | Un fichier de log |
+| **Partition** | Un topic est découpé en plusieurs journaux indépendants, lus en parallèle. | Les tomes d'une encyclopédie |
+| **Offset** | Le numéro d'un message dans sa partition : 0, 1, 2… | Un numéro de ligne |
+| **Producteur** | Celui qui écrit. Il ne sait pas qui lira. | `INSERT` |
+| **Consommateur** | Celui qui lit, à son rythme, et retient où il en est. | Un marque-page |
+| **Groupe de consommateurs** | Les consommateurs d'un même groupe se partagent les partitions ; chaque groupe reçoit tous les messages. | Une équipe qui se partage un travail |
+| **Lag** (retard) | Nombre de messages qu'un groupe n'a pas encore lus. | Le courrier non lu |
+| **Broker** | Le serveur Kafka qui stocke les partitions. | Le serveur de base de données |
+| **Rétention** | Durée de conservation des messages, lus ou non (ici 7 jours). | La durée d'archivage |
+
+Deux règles à retenir :
+
+1. **La clé décide de la partition.** Tous les messages de même clé vont dans la même
+   partition, donc **restent dans l'ordre**. Avec l'ISIN comme clé, les cours de L'Oréal
+   arrivent toujours dans l'ordre où ils ont été produits. Entre deux partitions, aucun ordre
+   n'est garanti.
+2. **Lire ne supprime rien.** Le message reste dans le topic ; seul le marque-page (l'offset du
+   groupe) avance. Un nouveau lecteur peut donc tout relire depuis le début : c'est ce qu'une
+   file de messages classique (RabbitMQ, JMS) ne permet pas.
+
+**KRaft.** Depuis Kafka 4, le cluster se gère lui-même : un nœud « controller » tient la liste
+des topics et des partitions (ce que faisait autrefois le service ZooKeeper). Ici, un seul
+conteneur joue les deux rôles, broker et controller.
+
+## La démonstration à refaire
+
+Les outils en ligne de commande sont dans le conteneur. Sous Git Bash, préfixer par
+`MSYS_NO_PATHCONV=1` pour que les chemins `/opt/...` ne soient pas transformés.
+
+```bash
+K="docker exec -i backend-kafka-1 /opt/kafka/bin"; B="--bootstrap-server localhost:9092"
+
+# 1. Un topic de 3 partitions
+$K/kafka-topics.sh $B --create --topic demo-cours --partitions 3 --replication-factor 1
+
+# 2. Des messages « ISIN:JSON » : la partie avant « : » est la clé
+printf 'FR0000120321:{"cours":381.5}\nFR0000131104:{"cours":74.2}\nFR0000120321:{"cours":382.0}\n' \
+  | $K/kafka-console-producer.sh $B --topic demo-cours --property parse.key=true --property key.separator=:
+
+# 3. Lecture par le groupe « ecran », avec partition et offset
+$K/kafka-console-consumer.sh $B --topic demo-cours --group ecran --from-beginning --timeout-ms 5000 \
+  --property print.key=true --property print.partition=true --property print.offset=true
+
+# 4. Où en est le groupe ? (CURRENT-OFFSET, LOG-END-OFFSET, LAG)
+$K/kafka-consumer-groups.sh $B --describe --group ecran
+```
+
+Ce que l'on observe :
+
+- les messages de L'Oréal (`FR0000120321`) sont tous dans la **même partition**, dans l'ordre ;
+- après la lecture, le **lag** du groupe `ecran` est 0 ; si l'on produit 2 nouveaux messages,
+  il passe à 1 sur deux partitions, et une nouvelle lecture ne renvoie **que** ces 2 messages ;
+- un **nouveau groupe** (`--group scoring`) relit les 8 messages depuis le début, sans gêner
+  le groupe `ecran`.
+
+C'est exactement ce dont l'application aura besoin : l'écran en direct et le recalcul des
+notes liront le même topic des cours, chacun à son rythme.
+
+Supprimer le topic de démonstration :
+
+```bash
+$K/kafka-topics.sh $B --delete --topic demo-cours
+```
+
+## Choix de configuration (`compose.yaml`)
+
+- **Trois listeners** (portes d'entrée) : `EXTERNAL` (9092) pour Windows et l'application,
+  `INTERNAL` (19092) pour les autres conteneurs (Kafka UI), `CONTROLLER` (9093) pour Kafka
+  lui-même. Chacun annonce l'adresse par laquelle le client doit le rappeler
+  (`ADVERTISED_LISTENERS`) : `localhost` vu de Windows, `kafka` vu du réseau Docker.
+- **Facteur de réplication 1** : un seul broker, donc une seule copie de chaque partition. En
+  production on en met 3 pour survivre à la panne d'un serveur.
+- **3 partitions par défaut** et **rétention 7 jours**.
