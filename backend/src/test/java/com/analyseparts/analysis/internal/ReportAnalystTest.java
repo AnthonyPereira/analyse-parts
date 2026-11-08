@@ -109,10 +109,10 @@ class ReportAnalystTest {
     /** Le modèle remplit les champs dans l'ordre du schéma : l'extrait et la citation d'abord. */
     @Test
     void theAnswerFormatAlwaysAsksForTheQuoteFirst() {
-        String schema = JsonMapper.builder().build().writeValueAsString(ReportAnalyst.SCHEMA);
-        assertThat(schema.indexOf("\"extrait\"")).isLessThan(schema.indexOf("\"citation\""));
-        assertThat(schema.indexOf("\"citation\"")).isLessThan(schema.indexOf("\"titre\""));
-        assertThat(schema.indexOf("\"titre\"")).isLessThan(schema.indexOf("\"explication\""));
+        var mapper = JsonMapper.builder().build();
+        var properties = mapper.readTree(mapper.writeValueAsString(ReportAnalyst.SCHEMA))
+                .get("properties").get("points").get("items").get("properties");
+        assertThat(properties.propertyNames()).containsExactly("extrait", "citation", "titre", "explication");
     }
 
     /** Vus sur le rapport de L'Oréal : des citations exactes, mais des points inutiles. */
