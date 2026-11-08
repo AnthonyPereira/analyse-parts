@@ -35,7 +35,7 @@ Le premier essai réel, sur le rapport de L'Oréal, a donné 5 risques et des po
 7. Pour l'activité, le premier lot est le **chapitre de présentation du groupe, lu d'un seul
    tenant** : les 14 passages qui se suivent et qui sont, en moyenne, les plus proches de ce que
    décrit une présentation (métier, organisation, marché, modèle d'affaires).
-8. **Relecture** (réglable par `ANALYSIS_REVIEW`, activée par défaut) : le modèle juge, en donnant
+8. **Relecture** (réglable par `ANALYSIS_REVIEW`, désactivée par défaut : on préfère l'exhaustivité) : le modèle juge, en donnant
    d'abord sa raison, si chaque citation appuie vraiment son point.
 
 ## Mesures sur L'Oréal (qwen3:14b)
@@ -61,8 +61,8 @@ Le premier essai réel, sur le rapport de L'Oréal, a donné 5 risques et des po
 ## Conséquences
 
 - Les réponses sont plus justes, mais moins complètes : la relecture échange des points douteux
-  contre des risques manquants. Si l'on préfère l'exhaustivité, il suffit de la désactiver.
-- Lire toute la cote prend plus de 24 h avec qwen3:14b et la relecture : à faire en plusieurs nuits,
+  contre des risques manquants. On préfère l'exhaustivité : elle est désactivée (`ANALYSIS_REVIEW=true` la réactive).
+- Lire toute la cote prend environ 21 h avec qwen3:14b (plus de 24 h avec la relecture) : à faire en plusieurs nuits,
   ou pour le SBF 120 seulement.
 - Piste suivante : quand la relecture rejette un point, redemander une meilleure citation au modèle
   au lieu de retirer le point.

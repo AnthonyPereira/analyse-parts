@@ -207,7 +207,7 @@ public class ReportAnalyst {
     public ReportAnalyst(ChatModel chat, JsonMapper json,
                          @Value("${analyse-parts.analysis.context-tokens:10240}") int contextTokens,
                          @Value("${spring.ai.ollama.chat.options.model}") String model,
-                         @Value("${analyse-parts.analysis.review:true}") boolean review) {
+                         @Value("${analyse-parts.analysis.review:false}") boolean review) {
         this.chat = chat;
         this.json = json;
         this.contextTokens = contextTokens;
