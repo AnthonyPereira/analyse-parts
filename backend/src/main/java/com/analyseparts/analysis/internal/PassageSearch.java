@@ -78,15 +78,14 @@ public class PassageSearch {
          * mère…) que de toutes les recherches {@code queries} n'est jamais choisi.
          */
         public List<Integer> search(List<String> queries, List<String> avoid, int perQuery, int max) {
-            Set<Integer> chosen = new LinkedHashSet<>();
-            List<float[]> wanted = queries.stream().map(q -> normalize(embeddings.embed(q))).toList();
-            List<float[]> unwanted = avoid.stream().map(q -> normalize(embeddings.embed(q))).toList();
-            Set<Integer> excluded = new java.util.HashSet<>();
-            for (int i = 0; i < vectors.size(); i++) {
-                if (best(vectors.get(i), unwanted) > best(vectors.get(i), wanted)) {
-                    excluded.add(i);
-                }
-            }
+            return search(queries, avoid, List.of(), perQuery, max);
+        }
+
+        /** Pareil, en complétant des passages déjà choisis ({@code already}, rendus avec les autres). */
+        public List<Integer> search(List<String> queries, List<String> avoid, List<Integer> already, int perQuery, int max) {
+            Set<Integer> chosen = new LinkedHashSet<>(already);
+            List<float[]> wanted = embedQueries(queries);
+            Set<Integer> excluded = excluded(wanted, embedQueries(avoid));
             List<List<Integer>> rankings = wanted.stream()
                     .map(q -> rank(q).stream().filter(i -> !excluded.contains(i)).toList()).toList();
             // tour à tour : le meilleur de chaque question, puis le 2e de chaque question…
@@ -98,6 +97,65 @@ public class PassageSearch {
                 }
             }
             return chosen.stream().sorted().toList();
+        }
+
+        /**
+         * Un <b>chapitre</b> entier plutôt que des passages épars : les {@code length} passages
+         * qui se suivent et qui, <b>en moyenne</b>, sont les plus proches des {@code queries}.
+         * <p>
+         * Un rapport décrit son activité dans un chapitre d'un seul tenant (chez L'Oréal, les
+         * passages 11 à 75 sur 1 238). La recherche passage par passage y mêle la lettre du président
+         * ou le développement durable, qui parlent aussi d'activité, et chercher le seul titre du
+         * chapitre ne marche pas : le titre est fondu dans un passage qui parle d'autre chose. Une
+         * moyenne sur plusieurs passages voisins, elle, repère le chapitre. Un passage écarté par
+         * {@code avoid} compte comme le moins proche de tous. Rend les numéros dans l'ordre du rapport.
+         */
+        public List<Integer> chapter(List<String> queries, List<String> avoid, int length) {
+            if (queries.isEmpty() || vectors.isEmpty()) {
+                return List.of();
+            }
+            List<float[]> wanted = embedQueries(queries);
+            Set<Integer> excluded = excluded(wanted, embedQueries(avoid));
+            double[] score = new double[vectors.size()];
+            for (int i = 0; i < score.length; i++) {
+                score[i] = excluded.contains(i) ? -1 : best(vectors.get(i), wanted);
+            }
+            int start = densest(score, length);
+            return IntStream.range(start, Math.min(score.length, start + length)).boxed().toList();
+        }
+
+        /** Le début de la suite de {@code length} cases dont la somme est la plus grande. */
+        static int densest(double[] score, int length) {
+            int n = Math.min(length, score.length);
+            double sum = 0;
+            for (int i = 0; i < n; i++) {
+                sum += score[i];
+            }
+            double bestSum = sum;
+            int bestStart = 0;
+            for (int start = 1; start + n <= score.length; start++) {
+                sum += score[start + n - 1] - score[start - 1];
+                if (sum > bestSum) {
+                    bestSum = sum;
+                    bestStart = start;
+                }
+            }
+            return bestStart;
+        }
+
+        private List<float[]> embedQueries(List<String> queries) {
+            return queries.stream().map(q -> normalize(embeddings.embed(q))).toList();
+        }
+
+        /** Les passages plus proches d'une recherche à éviter que de toutes les recherches voulues. */
+        private Set<Integer> excluded(List<float[]> wanted, List<float[]> unwanted) {
+            Set<Integer> excluded = new java.util.HashSet<>();
+            for (int i = 0; i < vectors.size(); i++) {
+                if (best(vectors.get(i), unwanted) > best(vectors.get(i), wanted)) {
+                    excluded.add(i);
+                }
+            }
+            return excluded;
         }
 
         /** Les embeddings d'autres textes, avec le même modèle (pour comparer des points entre eux). */

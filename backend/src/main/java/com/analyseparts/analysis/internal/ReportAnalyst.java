@@ -43,6 +43,9 @@ public class ReportAnalyst {
     /** Passages envoyés au modèle en une fois : environ 6 000 tokens de texte. */
     static final int BATCH = 14;
 
+    /** Passages lus d'un seul tenant dans le chapitre de présentation : un lot entier. */
+    static final int CHAPTER_LENGTH = BATCH;
+
     /** Points demandés par lot de passages. */
     static final int POINTS_PER_BATCH = 5;
 
@@ -56,7 +59,13 @@ public class ReportAnalyst {
                         "Répartition du chiffre d'affaires par activité ou par division, avec leur poids et leur croissance",
                         "Répartition du chiffre d'affaires par zone géographique et par pays",
                         "Clients, canaux de distribution, réseau de vente et modes de commercialisation",
-                        "Chiffres clés de l'année : chiffre d'affaires, résultat, effectifs, nombre de sites et de pays")),
+                        "Chiffres clés de l'année : chiffre d'affaires, résultat, effectifs, nombre de sites et de pays"),
+                // le chapitre où le rapport présente le groupe : lu d'un seul tenant, avant les recherches
+                // (pas les résultats de l'année par division : le rapport de gestion l'emporterait)
+                List.of("Présentation du Groupe : son métier, sa raison d'être, ses fondamentaux et son histoire",
+                        "L'organisation du Groupe : ses divisions, ses zones géographiques, ses filiales et ses marques",
+                        "Le marché sur lequel le Groupe intervient, sa taille, sa croissance et sa position face aux concurrents",
+                        "Le modèle d'affaires et la chaîne de valeur : recherche, production, distribution, clients")),
         ADVANTAGES("Ses avantages face aux concurrents",
                 "Quels avantages concurrentiels la société met-elle en avant ? Préfère les faits vérifiables (parts de marché, position de numéro un, brevets, taille, réseau, coûts) aux simples affirmations.",
                 8, 2,
@@ -88,6 +97,8 @@ public class ReportAnalyst {
         final int maxPoints;
         final int batches;
         final List<String> searches;
+        /** Ce dont parle le chapitre à lire d'un seul tenant (voir {@link PassageSearch.Index#chapter}). */
+        final List<String> chapters;
 
         /** Les passages plus proches d'une de ces recherches que des recherches du thème sont écartés. */
         static final List<String> AVOID = List.of(
@@ -98,11 +109,29 @@ public class ReportAnalyst {
                 "Règles et méthodes comptables : comptabilisation du chiffre d'affaires, des remises, des frais et des instruments financiers");
 
         Topic(String title, String question, int maxPoints, int batches, List<String> searches) {
+            this(title, question, maxPoints, batches, searches, List.of());
+        }
+
+        Topic(String title, String question, int maxPoints, int batches, List<String> searches, List<String> chapters) {
             this.title = title;
             this.question = question;
             this.maxPoints = maxPoints;
             this.batches = batches;
             this.searches = searches;
+            this.chapters = chapters;
+        }
+
+        /** Les passages à lire : le chapitre d'abord, complété par les recherches. */
+        List<Integer> passages(PassageSearch.Index index) {
+            int max = BATCH * batches;
+            List<Integer> read = index.chapter(chapters, AVOID, Math.min(CHAPTER_LENGTH, max));
+            if (!read.isEmpty()) {
+                log.info("{} : chapitre lu, passages {} à {} : {}", this, read.get(0), read.get(read.size() - 1), read.stream()
+                        .filter(i -> !read.contains(i - 1))
+                        .map(i -> "[" + i + "] " + index.passage(i).substring(0, Math.min(80, index.passage(i).length())))
+                        .toList());
+            }
+            return index.search(searches, AVOID, read, max, max);
         }
     }
 
@@ -141,7 +170,7 @@ public class ReportAnalyst {
                                     "citation", Map.of("type", "string"),
                                     "titre", Map.of("type", "string"),
                                     "explication", Map.of("type", "string")),
-                            "required", List.of("titre", "explication", "extrait", "citation")))),
+                            "required", List.of("extrait", "citation", "titre", "explication")))),
             "required", List.of("points"));
 
     /** Une table qui garde l'ordre de ses clés (clé, valeur, clé, valeur…). */
@@ -183,7 +212,7 @@ public class ReportAnalyst {
         int rejected = 0;
         for (Topic topic : Topic.values()) {
             // dans l'ordre du rapport : un lot couvre des passages voisins, donc une même section
-            List<Integer> chosen = index.search(topic.searches, Topic.AVOID, BATCH * topic.batches, BATCH * topic.batches);
+            List<Integer> chosen = topic.passages(index);
             List<Point> candidates = new ArrayList<>();
             for (int from = 0; from < chosen.size(); from += BATCH) {
                 List<String> passages = chosen.subList(from, Math.min(chosen.size(), from + BATCH))
