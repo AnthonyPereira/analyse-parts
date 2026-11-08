@@ -22,11 +22,14 @@ import java.util.Map;
  * Pose les questions au modèle de langage, thème par thème, et ne garde que les points dont la
  * citation figure réellement dans le rapport.
  * <p>
- * Le rapport entier ne tient pas dans la mémoire du modèle. Pour chaque thème, en deux temps :
+ * Le rapport entier ne tient pas dans la mémoire du modèle. Pour chaque thème, en trois temps :
  * <ol>
  *   <li><b>lecture</b> : de nombreuses recherches (une par sous-sujet : chaque catégorie de risque,
  *       chaque façon de gagner de l'argent…) choisissent jusqu'à 42 passages, lus par lots de 14 ;
- *       chaque lot donne des points, dont la citation est vérifiée ({@link Quotes}) ;</li>
+ *       pour l'activité, le premier lot est le chapitre de présentation du groupe, lu d'un seul
+ *       tenant. Chaque lot donne des points, dont la citation est vérifiée ({@link Quotes}) ;</li>
+ *   <li><b>relecture</b> (réglable) : le modèle juge, point par point, si la citation appuie
+ *       vraiment le point ;</li>
  *   <li><b>regroupement</b> : deux points dont les titres <b>et</b> les explications ont le même
  *       sens (embeddings proches) n'en font qu'un. Ce n'est pas le modèle qui choisit : un essai
  *       où il triait lui-même écartait des risques importants (change, taux, climat) et en gardait
@@ -198,13 +201,22 @@ public class ReportAnalyst {
     private final int contextTokens;
     private final String model;
 
+    private final boolean review;
+
+    @org.springframework.beans.factory.annotation.Autowired
     public ReportAnalyst(ChatModel chat, JsonMapper json,
                          @Value("${analyse-parts.analysis.context-tokens:10240}") int contextTokens,
-                         @Value("${spring.ai.ollama.chat.options.model}") String model) {
+                         @Value("${spring.ai.ollama.chat.options.model}") String model,
+                         @Value("${analyse-parts.analysis.review:true}") boolean review) {
         this.chat = chat;
         this.json = json;
         this.contextTokens = contextTokens;
         this.model = model;
+        this.review = review;
+    }
+
+    ReportAnalyst(ChatModel chat, JsonMapper json, int contextTokens, String model) {
+        this(chat, json, contextTokens, model, true);
     }
 
     Result analyse(String company, LocalDate periodEnd, PassageSearch.Index index) {
@@ -242,6 +254,9 @@ public class ReportAnalyst {
                     }
                 }
             }
+            List<Point> supported = review ? review(topic, candidates) : candidates;
+            rejected += candidates.size() - supported.size();
+            candidates = supported;
             List<Point> kept = merge(candidates, index, topic.maxPoints);
             log.info("{} : {} passages lus, {} points proposés, {} gardés ; regroupés avec un autre : {}", topic,
                     chosen.size(), candidates.size(), kept.size(),
@@ -249,6 +264,90 @@ public class ReportAnalyst {
             themes.add(new Theme(topic.name(), topic.title, kept));
         }
         return new Result(themes, rejected);
+    }
+
+    /** Points relus en une fois : 8 extraits d'environ 1 800 caractères tiennent dans le contexte. */
+    static final int REVIEW_BATCH = 8;
+
+    static final String REVIEW_SYSTEM = """
+            Tu es un relecteur exigeant. Un analyste a tiré des points d'un rapport annuel ; chaque \
+            point a un titre, une explication et une citation exacte, tirée de l'extrait fourni.
+            Pour chaque point, vérifie que la citation, lue dans son extrait, appuie vraiment le titre \
+            et l'explication, et répond à la question posée. Réponds non si :
+            - la citation parle d'autre chose que le point ;
+            - la citation dit le contraire du point (par exemple « aucun impact significatif » pour \
+            présenter un risque important) ;
+            - la citation est une règle comptable, une méthode de calcul ou une phrase générale, et \
+            pas un fait sur la société qui réponde à la question ;
+            - l'explication affirme un fait ou un chiffre absent de l'extrait.
+            Sinon, réponds oui. Donne d'abord ta raison, en une phrase courte.""";
+
+    /** Le format de la relecture : la raison avant le verdict, pour que le verdict en découle. */
+    static final Map<String, Object> REVIEW_SCHEMA = Map.of(
+            "type", "object",
+            "properties", Map.of("avis", Map.of(
+                    "type", "array",
+                    "items", Map.of(
+                            "type", "object",
+                            "properties", ordered(
+                                    "point", Map.of("type", "integer"),
+                                    "raison", Map.of("type", "string"),
+                                    "soutenu", Map.of("type", "boolean")),
+                            "required", List.of("point", "raison", "soutenu")))),
+            "required", List.of("avis"));
+
+    record Review(List<Verdict> avis) {
+    }
+
+    record Verdict(Integer point, String raison, Boolean soutenu) {
+    }
+
+    /**
+     * La <b>relecture</b> : le modèle vérifie, point par point, que la citation appuie bien ce que
+     * dit le point. {@link Quotes} prouve qu'une citation existe ; seule une lecture dit si elle
+     * parle bien du sujet (vu sur L'Oréal : « aucun impact significatif » cité pour un risque
+     * climatique, une règle de comptabilisation citée comme avantage). Un point sans avis, ou une
+     * relecture illisible, est gardé : la relecture ne retire que ce qu'elle a jugé.
+     */
+    private List<Point> review(Topic topic, List<Point> candidates) {
+        List<Point> supported = new ArrayList<>();
+        for (int from = 0; from < candidates.size(); from += REVIEW_BATCH) {
+            List<Point> batch = candidates.subList(from, Math.min(candidates.size(), from + REVIEW_BATCH));
+            Map<Integer, Verdict> verdicts = new java.util.HashMap<>();
+            try {
+                Review review = ask(REVIEW_SYSTEM, reviewPrompt(topic, batch), REVIEW_SCHEMA, Review.class);
+                for (Verdict v : review.avis() == null ? List.<Verdict>of() : review.avis()) {
+                    if (v.point() != null) {
+                        verdicts.putIfAbsent(v.point() - 1, v); // numérotés à partir de 1
+                    }
+                }
+            } catch (tools.jackson.core.JacksonException e) {
+                log.warn("Relecture illisible ({}), points gardés : {}", topic, e.getOriginalMessage());
+            }
+            for (int i = 0; i < batch.size(); i++) {
+                Verdict v = verdicts.get(i);
+                if (v != null && Boolean.FALSE.equals(v.soutenu())) {
+                    log.info("Point écarté ({}), relecture : {} — {}", topic, v.raison(), batch.get(i).title());
+                } else {
+                    supported.add(batch.get(i));
+                }
+            }
+        }
+        return supported;
+    }
+
+    static String reviewPrompt(Topic topic, List<Point> points) {
+        StringBuilder sb = new StringBuilder("Question posée à l'analyste : ").append(topic.question).append('\n');
+        for (int i = 0; i < points.size(); i++) {
+            Point p = points.get(i);
+            sb.append("\nPoint ").append(i + 1).append('\n')
+                    .append("Titre : ").append(p.title()).append('\n')
+                    .append("Explication : ").append(p.explanation()).append('\n')
+                    .append("Citation : « ").append(p.quote()).append(" »\n")
+                    .append("Extrait : ").append(p.passage()).append('\n');
+        }
+        sb.append("\nDonne un avis pour chacun des ").append(points.size()).append(" points.");
+        return sb.toString();
     }
 
     /**

@@ -89,6 +89,34 @@ class ReportAnalystTest {
         assertThat(result.rejected()).isZero();
     }
 
+    /** La relecture retire un point jugé non soutenu ; un point sans avis est gardé. */
+    @Test
+    void aPointTheReviewJudgesUnsupportedIsRemoved() {
+        EmbeddingModel embeddings = mock(EmbeddingModel.class);
+        when(embeddings.embed(anyList())).thenReturn(List.of(new float[]{1, 0}, new float[]{0, 1}));
+        when(embeddings.embed(anyString())).thenReturn(new float[]{1, 1});
+        List<String> reviews = new ArrayList<>();
+        ChatModel chat = mock(ChatModel.class);
+        when(chat.call(any(Prompt.class))).thenAnswer(call -> {
+            Prompt prompt = call.getArgument(0);
+            if (prompt.getInstructions().get(0).getText().startsWith("Tu es un relecteur")) {
+                reviews.add(prompt.getInstructions().get(1).getText());
+                return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                        {"avis":[{"point":2,"raison":"La citation ne parle pas de ce risque.","soutenu":false}]}"""))));
+            }
+            return new ChatResponse(List.of(new Generation(new AssistantMessage(TWO_POINTS))));
+        });
+
+        var index = new PassageSearch(embeddings).index(PASSAGES);
+        var result = new ReportAnalyst(chat, JsonMapper.builder().build(), 16384, "test-model")
+                .analyse("L'ORÉAL", LocalDate.of(2025, 12, 31), index);
+
+        assertThat(result.themes()).allSatisfy(theme -> assertThat(theme.points())
+                .extracting(p -> p.title()).containsExactly("Numéro un mondial"));
+        assertThat(result.rejected()).isEqualTo(3); // « Devises », une fois par thème
+        assertThat(reviews.get(0)).contains("Point 2", "Titre : Devises", "Citation : « Le Groupe est exposé");
+    }
+
     /** Doublon seulement si les titres ET les explications ont le même sens (vecteurs proches). */
     @Test
     void aPointIsMergedOnlyWhenTitleAndExplanationBothMatch() {
