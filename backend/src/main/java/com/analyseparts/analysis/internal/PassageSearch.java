@@ -37,12 +37,17 @@ public class PassageSearch {
 
     /** Les passages d'un rapport, avec leurs embeddings, prêts à être interrogés. */
     public Index index(List<String> passages) {
-        List<float[]> vectors = new ArrayList<>(passages.size());
-        for (int from = 0; from < passages.size(); from += BATCH) {
-            List<String> batch = passages.subList(from, Math.min(passages.size(), from + BATCH));
+        return new Index(passages, embed(passages));
+    }
+
+    /** Les embeddings de plusieurs textes, ramenés à une longueur de 1. */
+    public List<float[]> embed(List<String> texts) {
+        List<float[]> vectors = new ArrayList<>(texts.size());
+        for (int from = 0; from < texts.size(); from += BATCH) {
+            List<String> batch = texts.subList(from, Math.min(texts.size(), from + BATCH));
             embeddings.embed(batch).forEach(v -> vectors.add(normalize(v)));
         }
-        return new Index(passages, vectors);
+        return vectors;
     }
 
     public final class Index {
@@ -93,6 +98,11 @@ public class PassageSearch {
                 }
             }
             return chosen.stream().sorted().toList();
+        }
+
+        /** Les embeddings d'autres textes, avec le même modèle (pour comparer des points entre eux). */
+        public List<float[]> embed(List<String> texts) {
+            return PassageSearch.this.embed(texts);
         }
 
         public String passage(int i) {

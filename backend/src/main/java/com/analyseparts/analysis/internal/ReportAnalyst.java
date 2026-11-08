@@ -22,54 +22,86 @@ import java.util.Map;
  * Pose les questions au modèle de langage, thème par thème, et ne garde que les points dont la
  * citation figure réellement dans le rapport.
  * <p>
- * Pour chaque thème : la recherche sémantique choisit une quinzaine de passages (le rapport entier
- * ne tient pas dans la mémoire du modèle), le modèle répond en JSON selon un schéma imposé, puis
- * chaque citation est vérifiée ({@link Quotes}).
+ * Le rapport entier ne tient pas dans la mémoire du modèle. Pour chaque thème, en deux temps :
+ * <ol>
+ *   <li><b>lecture</b> : de nombreuses recherches (une par sous-sujet : chaque catégorie de risque,
+ *       chaque façon de gagner de l'argent…) choisissent jusqu'à 42 passages, lus par lots de 14 ;
+ *       chaque lot donne des points, dont la citation est vérifiée ({@link Quotes}) ;</li>
+ *   <li><b>regroupement</b> : deux points dont les titres <b>et</b> les explications ont le même
+ *       sens (embeddings proches) n'en font qu'un. Ce n'est pas le modèle qui choisit : un essai
+ *       où il triait lui-même écartait des risques importants (change, taux, climat) et en gardait
+ *       de secondaires.</li>
+ * </ol>
+ * Les points restent dans l'ordre du rapport : une société présente d'habitude ses risques les plus
+ * importants en premier.
  */
 @Component
 public class ReportAnalyst {
 
     private static final Logger log = LoggerFactory.getLogger(ReportAnalyst.class);
 
-    /** Passages envoyés au modèle par thème : environ 6 000 tokens de texte. */
-    static final int PASSAGES_PER_TOPIC = 14;
+    /** Passages envoyés au modèle en une fois : environ 6 000 tokens de texte. */
+    static final int BATCH = 14;
+
+    /** Points demandés par lot de passages. */
+    static final int POINTS_PER_BATCH = 5;
 
     /** Un thème : sa question au modèle et les recherches qui trouvent les bons passages. */
     enum Topic {
         BUSINESS("Ce que fait la société",
-                "Que fait le groupe et comment gagne-t-il de l'argent ? (métiers, produits, clients, marchés, sources de revenus). Décris l'activité du groupe tout entier, pas les comptes de la seule société mère.",
-                4,
+                "Que fait le groupe et comment gagne-t-il de l'argent ? (métiers, produits, clients, marchés, sources de revenus, poids de chaque activité ou zone). Décris l'activité du groupe tout entier, pas les comptes de la seule société mère.",
+                8, 2,
                 List.of("Présentation du groupe, de ses activités, de ses métiers et de ses principaux marchés",
                         "Modèle d'affaires : comment la société crée de la valeur et génère son chiffre d'affaires",
-                        "Répartition du chiffre d'affaires par activité, par zone géographique et par type de clients")),
+                        "Répartition du chiffre d'affaires par activité ou par division, avec leur poids et leur croissance",
+                        "Répartition du chiffre d'affaires par zone géographique et par pays",
+                        "Clients, canaux de distribution, réseau de vente et modes de commercialisation",
+                        "Chiffres clés de l'année : chiffre d'affaires, résultat, effectifs, nombre de sites et de pays")),
         ADVANTAGES("Ses avantages face aux concurrents",
                 "Quels avantages concurrentiels la société met-elle en avant ? Préfère les faits vérifiables (parts de marché, position de numéro un, brevets, taille, réseau, coûts) aux simples affirmations.",
-                4,
+                8, 2,
                 List.of("Atouts et avantages concurrentiels du groupe face à ses concurrents",
-                        "Position de leader, parts de marché, marques reconnues, brevets, technologies, barrières à l'entrée",
+                        "Position de leader, numéro un mondial, parts de marché et taille face aux concurrents",
+                        "Marques reconnues, portefeuille de marques et fidélité des clients",
+                        "Recherche et innovation : brevets, technologies, dépenses de recherche et développement",
+                        "Réseau industriel et logistique, coûts de production, économies d'échelle, barrières à l'entrée",
                         "Stratégie du groupe et priorités stratégiques pour les prochaines années")),
         RISKS("Ses principaux risques",
-                "Quels sont les principaux risques pour la société, tels qu'elle les présente elle-même ? Préfère les risques propres à son activité aux risques génériques. Pour chaque risque, explique ce qui pourrait arriver et ce que cela changerait pour la société (ventes, marges, image, dette). Ne cite pas un simple titre de risque : choisis une phrase qui le décrit.",
-                5,
+                "Quels sont les risques pour la société, tels qu'elle les présente elle-même ? Préfère les risques propres à son activité aux risques génériques. Pour chaque risque, explique ce qui pourrait arriver et ce que cela changerait pour la société (ventes, marges, image, dette). Ne cite pas un simple titre de risque : choisis une phrase qui le décrit.",
+                16, 3,
                 List.of("Description d'un facteur de risque : ce qui peut arriver, son impact possible sur l'activité, les résultats ou la situation financière du Groupe, et les mesures pour le maîtriser",
-                        "Risques liés à l'activité, à la concurrence, à la réglementation et à l'évolution des marchés",
-                        "Risques financiers : change, liquidité, endettement, dépendance à des clients ou à des fournisseurs"));
+                        "Risques géopolitiques, économiques et politiques des pays où le groupe est implanté, droits de douane, tensions commerciales",
+                        "Risque lié à la concurrence, à l'évolution de la demande et des habitudes des consommateurs",
+                        "Risque de dépendance à un client, à un fournisseur, à une matière première ou à un pays",
+                        "Risque de rupture de la chaîne d'approvisionnement, disponibilité des produits, prix des matières premières et de l'énergie",
+                        "Risque lié aux systèmes d'information, aux cyberattaques et à la protection des données",
+                        "Risque lié à la qualité et à la sécurité des produits, rappels de produits, image et réputation",
+                        "Risques juridiques et réglementaires : évolution de la réglementation, non-conformité, litiges, enquêtes",
+                        "Risques liés au changement climatique et à l'environnement",
+                        "Risque lié aux ressources humaines : recrutement, talents, personnes clés",
+                        "Risque de change, risque de taux d'intérêt et risque d'inflation",
+                        "Risque de liquidité, endettement, financement et notation de crédit",
+                        "Risque lié aux acquisitions, aux participations et à la dépréciation des écarts d'acquisition"));
 
         final String title;
         final String question;
         final int maxPoints;
+        final int batches;
         final List<String> searches;
 
         /** Les passages plus proches d'une de ces recherches que des recherches du thème sont écartés. */
         static final List<String> AVOID = List.of(
                 "Plan de vigilance : évaluation et audit des fournisseurs et des sous-traitants, droits humains, santé et sécurité chez les fournisseurs",
                 "Comptes annuels de la société mère : prestations de services et redevances facturées aux filiales, résultat social de la société mère",
-                "Sommaire, table de concordance et renvois vers les chapitres du document");
+                "Sommaire, table de concordance et renvois vers les chapitres du document",
+                "Statuts de la société : objet social, forme juridique, durée et siège",
+                "Règles et méthodes comptables : comptabilisation du chiffre d'affaires, des remises, des frais et des instruments financiers");
 
-        Topic(String title, String question, int maxPoints, List<String> searches) {
+        Topic(String title, String question, int maxPoints, int batches, List<String> searches) {
             this.title = title;
             this.question = question;
             this.maxPoints = maxPoints;
+            this.batches = batches;
             this.searches = searches;
         }
     }
@@ -84,6 +116,7 @@ public class ReportAnalyst {
             phrase courte de cet extrait (moins de 300 caractères), dans sa langue d'origine, sans la \
             reformuler ni la traduire. La citation ne reprend pas le numéro de l'extrait. C'est une \
             phrase complète, pas un titre.
+            - Le titre fait 3 à 10 mots, écrits avec tes mots : ce n'est pas une phrase du rapport.
             - L'explication dit, avec tes mots, ce que le débutant doit comprendre : elle ne recopie pas \
             la citation.
             - Tu ne donnes aucun conseil d'achat ou de vente.""";
@@ -132,29 +165,77 @@ public class ReportAnalyst {
         List<Theme> themes = new ArrayList<>();
         int rejected = 0;
         for (Topic topic : Topic.values()) {
-            List<Integer> chosen = index.search(topic.searches, Topic.AVOID, 8, PASSAGES_PER_TOPIC);
-            List<String> passages = chosen.stream().map(index::passage).toList();
-            Answer answer = ask(prompt(company, periodEnd, topic, passages));
-            List<Point> points = new ArrayList<>();
-            for (AnswerPoint p : answer.points() == null ? List.<AnswerPoint>of() : answer.points()) {
-                int preferred = p.extrait() == null ? -1 : p.extrait() - 1; // numérotés à partir de 1
-                var match = Quotes.find(p.citation(), passages, preferred);
-                String weakness = match.isEmpty() ? "citation introuvable"
-                        : blank(p.titre()) ? "sans titre"
-                        : weakness(match.get().text(), p.explication());
-                if (weakness != null) {
-                    rejected++;
-                    log.info("Point écarté ({}), {} : {}", topic, weakness, p.citation());
+            // dans l'ordre du rapport : un lot couvre des passages voisins, donc une même section
+            List<Integer> chosen = index.search(topic.searches, Topic.AVOID, BATCH * topic.batches, BATCH * topic.batches);
+            List<Point> candidates = new ArrayList<>();
+            for (int from = 0; from < chosen.size(); from += BATCH) {
+                List<String> passages = chosen.subList(from, Math.min(chosen.size(), from + BATCH))
+                        .stream().map(index::passage).toList();
+                Answer answer;
+                try {
+                    answer = ask(SYSTEM, prompt(company, periodEnd, topic, passages), SCHEMA, Answer.class);
+                } catch (tools.jackson.core.JacksonException e) {
+                    // réponse coupée par la limite de longueur : on perd ce lot, pas toute la lecture
+                    log.warn("Lot de passages ignoré ({}), réponse illisible : {}", topic, e.getOriginalMessage());
                     continue;
                 }
-                if (points.size() < topic.maxPoints) {
-                    points.add(new Point(p.titre().strip(), p.explication() == null ? "" : p.explication().strip(),
-                            match.get().text(), passages.get(match.get().passage())));
+                for (AnswerPoint p : answer.points() == null ? List.<AnswerPoint>of() : answer.points()) {
+                    int preferred = p.extrait() == null ? -1 : p.extrait() - 1; // numérotés à partir de 1
+                    var match = Quotes.find(p.citation(), passages, preferred);
+                    String weakness = match.isEmpty() ? "citation introuvable"
+                            : blank(p.titre()) ? "sans titre"
+                            : weakness(match.get().text(), p.explication());
+                    if (weakness != null) {
+                        rejected++;
+                        log.info("Point écarté ({}), {} : {}", topic, weakness, p.citation());
+                        continue;
+                    }
+                    if (candidates.stream().noneMatch(c -> c.quote().equals(match.get().text()))) {
+                        candidates.add(new Point(p.titre().strip(), p.explication() == null ? "" : p.explication().strip(),
+                                match.get().text(), passages.get(match.get().passage())));
+                    }
                 }
             }
-            themes.add(new Theme(topic.name(), topic.title, points));
+            List<Point> kept = merge(candidates, index, topic.maxPoints);
+            log.info("{} : {} passages lus, {} points proposés, {} gardés ; regroupés avec un autre : {}", topic,
+                    chosen.size(), candidates.size(), kept.size(),
+                    candidates.stream().filter(c -> !kept.contains(c)).map(Point::title).toList());
+            themes.add(new Theme(topic.name(), topic.title, kept));
         }
         return new Result(themes, rejected);
+    }
+
+    /**
+     * Deux points sont un doublon quand leurs titres <b>et</b> leurs explications sont proches. Mesuré
+     * sur L'Oréal : « variations des devises » et « fluctuations des taux de change » donnent 0,86 et
+     * 0,86 (doublon) ; « taux d'intérêt » et « taux de change » donnent 0,92 pour les titres mais 0,83
+     * pour les explications (deux risques différents). Le seuil laisse passer quelques doublons plutôt
+     * que de fondre deux risques en un.
+     */
+    static final double SAME_MEANING = 0.85;
+
+    /** Les points sans doublon (le premier, dans l'ordre du rapport, est gardé), au plus {@code max}. */
+    private static List<Point> merge(List<Point> candidates, PassageSearch.Index index, int max) {
+        if (candidates.size() <= 1) {
+            return candidates;
+        }
+        List<float[]> titles = index.embed(candidates.stream().map(Point::title).toList());
+        List<float[]> texts = index.embed(candidates.stream().map(p -> p.title() + " : " + p.explanation()).toList());
+        return merge(candidates, titles, texts, max);
+    }
+
+    static List<Point> merge(List<Point> candidates, List<float[]> titles, List<float[]> texts, int max) {
+        List<Integer> kept = new ArrayList<>();
+        for (int i = 0; i < candidates.size() && kept.size() < max; i++) {
+            int candidate = i;
+            boolean duplicate = kept.stream().anyMatch(k ->
+                    PassageSearch.dot(titles.get(k), titles.get(candidate)) >= SAME_MEANING
+                            && PassageSearch.dot(texts.get(k), texts.get(candidate)) >= SAME_MEANING);
+            if (!duplicate) {
+                kept.add(i);
+            }
+        }
+        return kept.stream().map(candidates::get).toList();
     }
 
     static String prompt(String company, LocalDate periodEnd, Topic topic, List<String> passages) {
@@ -165,27 +246,35 @@ public class ReportAnalyst {
             sb.append("\n[").append(i + 1).append("] ").append(passages.get(i)).append('\n');
         }
         sb.append("\nQuestion : ").append(topic.question)
-                .append("\nDonne au plus ").append(topic.maxPoints)
+                .append("\nDonne au plus ").append(POINTS_PER_BATCH)
                 .append(" points, du plus important au moins important. Si les extraits ne permettent pas de répondre, renvoie une liste vide.");
         return sb.toString();
     }
 
-    private Answer ask(String userPrompt) {
+    /**
+     * Longueur maximale d'une réponse, en tokens. Avec un JSON imposé, le modèle peut tourner en
+     * boucle (des espaces sans fin) : sans limite, l'appel ne se termine jamais. Une réponse coupée
+     * n'est plus du JSON valide, et le lot est alors ignoré.
+     */
+    static final int MAX_ANSWER_TOKENS = 2500;
+
+    private <T> T ask(String system, String userPrompt, Map<String, Object> schema, Class<T> type) {
         // Spring AI 2.0 : les options passées à l'appel remplacent celles de la configuration, modèle compris
         OllamaChatOptions options = OllamaChatOptions.builder()
                 .model(model)
-                .format(SCHEMA)
+                .format(schema)
+                .numPredict(MAX_ANSWER_TOKENS)
                 .disableThinking() // qwen3 « réfléchit » par défaut : plus long, pas plus fidèle aux extraits
                 .numCtx(contextTokens)
                 .temperature(0.1) // peu de hasard : on veut recopier, pas créer
                 .build();
-        String content = chat.call(new Prompt(List.of(new SystemMessage(SYSTEM), new UserMessage(userPrompt)), options))
+        String content = chat.call(new Prompt(List.of(new SystemMessage(system), new UserMessage(userPrompt)), options))
                 .getResult().getOutput().getText();
-        return json.readValue(content, Answer.class);
+        return json.readValue(content, type);
     }
 
-    /** Une citation de moins de 6 mots est un titre (« Risques en matière d'Environnement »). */
-    static final int MIN_QUOTE_WORDS = 6;
+    /** Une citation de moins de 8 mots est un titre ou un nom (« Risques en matière d'Environnement »). */
+    static final int MIN_QUOTE_WORDS = 8;
 
     /** L'explication doit apporter au moins 3 mots (de 4 lettres ou plus) absents de la citation. */
     static final int MIN_NEW_WORDS = 3;

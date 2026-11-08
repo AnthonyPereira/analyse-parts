@@ -63,6 +63,49 @@ class ReportAnalystTest {
         assertThat(userPrompt).contains("[1] L’Oréal", "[2] Le Groupe", "exercice clos le 2025-12-31");
     }
 
+    static final String TWO_POINTS = """
+            {"points":[
+              {"titre":"Numéro un mondial","explication":"Le groupe domine son marché dans le monde entier.","extrait":1,
+               "citation":"L'Oréal est le numéro un mondial de la beauté"},
+              {"titre":"Devises","explication":"Une baisse du dollar réduirait la valeur des ventes faites aux États-Unis.","extrait":2,
+               "citation":"Le Groupe est exposé aux fluctuations des devises, en particulier du dollar américain"}]}
+            """;
+
+    /** Le modèle ne trie plus : tous les points vérifiés sont gardés, dans l'ordre du rapport. */
+    @Test
+    void everyVerifiedPointIsKeptInReportOrder() {
+        EmbeddingModel embeddings = mock(EmbeddingModel.class);
+        when(embeddings.embed(anyList())).thenReturn(List.of(new float[]{1, 0}, new float[]{0, 1}));
+        when(embeddings.embed(anyString())).thenReturn(new float[]{1, 1});
+        ChatModel chat = mock(ChatModel.class);
+        when(chat.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(TWO_POINTS)))));
+
+        var index = new PassageSearch(embeddings).index(PASSAGES);
+        var result = new ReportAnalyst(chat, JsonMapper.builder().build(), 16384, "test-model")
+                .analyse("L'ORÉAL", LocalDate.of(2025, 12, 31), index);
+
+        assertThat(result.themes()).allSatisfy(theme -> assertThat(theme.points())
+                .extracting(p -> p.title()).containsExactly("Numéro un mondial", "Devises"));
+        assertThat(result.rejected()).isZero();
+    }
+
+    /** Doublon seulement si les titres ET les explications ont le même sens (vecteurs proches). */
+    @Test
+    void aPointIsMergedOnlyWhenTitleAndExplanationBothMatch() {
+        var change = new com.analyseparts.analysis.ReportAnalysis.Point("Taux de change", "", "a", "a");
+        var devises = new com.analyseparts.analysis.ReportAnalysis.Point("Devises", "", "b", "b");
+        var taux = new com.analyseparts.analysis.ReportAnalysis.Point("Taux d'intérêt", "", "c", "c");
+        float[] x = {1, 0};
+        float[] y = {0, 1};
+        float[] near = {0.95f, 0.312f}; // cosinus 0,95 avec x
+        // devises : titre et explication proches de « change » → regroupé ;
+        // taux d'intérêt : titre proche mais explication différente → gardé
+        var kept = ReportAnalyst.merge(List.of(change, devises, taux), List.of(x, near, near), List.of(x, near, y), 10);
+        assertThat(kept).containsExactly(change, taux);
+        assertThat(ReportAnalyst.merge(List.of(change, devises, taux), List.of(x, y, x), List.of(y, x, x), 2))
+                .containsExactly(change, devises);
+    }
+
     /** Vus sur le rapport de L'Oréal : des citations exactes, mais des points inutiles. */
     @Test
     void aHeadingOrAnExplanationThatRepeatsTheQuoteIsRejected() {
