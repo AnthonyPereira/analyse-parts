@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -78,6 +79,13 @@ public class FinancialsService {
                 }
             });
         }
+    }
+
+    /** Le rapport le plus récent d'une société, s'il y en a un. */
+    @Transactional(readOnly = true)
+    public Optional<FilingRef> latestFiling(long companyId) {
+        return filings.findFirstByCompanyIdOrderByPeriodEndDesc(companyId)
+                .map(f -> new FilingRef(f.getSourceId(), f.getPeriodEnd(), f.getJsonUrl()));
     }
 
     /** Dates de clôture des rapports déjà enregistrés pour une société. */

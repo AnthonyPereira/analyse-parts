@@ -341,3 +341,14 @@ aside > .card:first-child { margin-top: 0; }
 .notice-warn { border-left-color: var(--mid); background: var(--mid-bg); }
 .source-banner ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
 .source-banner li { margin: 0.15rem 0; }
+
+/* Lecture du rapport annuel par le LLM : trois thèmes côte à côte, un seul par ligne sur mobile. */
+.report-analysis { margin-bottom: 1rem; }
+.analysis-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem 1.5rem; }
+.analysis-grid h3 { font-size: 1rem; margin: 0.5rem 0; }
+.analysis-points { margin: 0; padding-left: 1.2rem; }
+.analysis-points li { margin: 0 0 0.7rem; line-height: 1.45; }
+.analysis-points details { margin-top: 0.25rem; }
+.analysis-points summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; }
+.analysis-points blockquote { margin: 0.4rem 0; padding: 0.3rem 0.7rem; border-left: 3px solid var(--border); font-style: italic; }
+.analysis-points mark { background: var(--mid-bg); color: inherit; }

@@ -78,6 +78,16 @@ public class FilingsXbrlClient {
         return call(() -> restClient.get().uri(jsonUrl).retrieve().body(XbrlJson.class));
     }
 
+    /**
+     * Le rapport XHTML lisible d'un dépôt, à partir de l'adresse de son xBRL-JSON : le site range
+     * les deux côte à côte ({@code …/nom.json} et {@code …/nom/reports/nom.xhtml}).
+     */
+    public byte[] downloadReport(String jsonUrl) {
+        String base = jsonUrl.substring(0, jsonUrl.length() - ".json".length());
+        String name = base.substring(base.lastIndexOf('/') + 1);
+        return call(() -> restClient.get().uri(base + "/reports/" + name + ".xhtml").retrieve().body(byte[].class));
+    }
+
     /** Espace les requêtes et réessaie sur "429 Too Many Requests". */
     private synchronized <T> T call(Supplier<T> request) {
         for (int attempt = 0; ; attempt++) {

@@ -11,6 +11,7 @@ import { FreshnessBadge, PointsBar, ScoreBadge } from '../components/Badges'
 import { FinancialsTable } from '../components/FinancialsTable'
 import { LiveQuote } from '../components/LiveQuote'
 import { parseProfile, ProfileTabs } from '../components/ProfileTabs'
+import { ReportAnalysisSection } from '../components/ReportAnalysisSection'
 import { HowToRead, Term } from '../components/Term'
 import { glossary } from '../glossary'
 import { BANKS_SUPERSECTOR, formatDate, formatPercent, formatRatio, weightsFor } from '../format'
@@ -71,6 +72,11 @@ export function CompanyPage() {
             choisi dans les onglets. Le tableau montre, indicateur par indicateur, d'où vient la note : cliquez sur un
             indicateur pour sa définition et son <Term id="SCALE">barème</Term>.
           </li>
+          <li>
+            <strong>Ce que dit le rapport annuel</strong> : ce que fait la société, ses avantages et ses risques, lus dans
+            son rapport par une <Term id="REPORT_ANALYSIS">IA locale</Term>. Chaque point montre la phrase du rapport qui
+            l'appuie : dépliez-le pour la lire.
+          </li>
           <li><strong>Face à son secteur et au marché</strong> : où se place la société parmi toutes celles cotées à Paris.</li>
           <li>
             <strong>Évolution</strong> : l'<Term id="SCORE_HISTORY">historique de ses notes</Term>, puis ses chiffres année
@@ -115,16 +121,11 @@ export function CompanyPage() {
             {entry ? <ProfileScores entry={entry} profiles={profiles} current={profile} />
               : <p className="muted">{universe ? 'Pas de score.' : 'Chargement…'}</p>}
           </section>
-          {/* L'analyse du LLM sera affichée à côté du score, jamais dedans (document de conception). */}
-          <section className="card">
-            <h2>Analyse qualitative</h2>
-            <p className="muted">
-              Bientôt : un résumé du rapport annuel, l'avantage concurrentiel et ses risques, rédigés par un
-              modèle de langage local, avec leurs citations du rapport.
-            </p>
-          </section>
         </aside>
       </div>
+
+      {/* Affichée à côté du score, jamais prise en compte dedans (ADR 0011). */}
+      <ReportAnalysisSection isin={isin} />
 
       <section className="card">
         <h2>Face à son secteur et au marché</h2>

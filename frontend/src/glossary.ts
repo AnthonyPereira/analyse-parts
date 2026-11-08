@@ -514,6 +514,22 @@ export const GLOSSARY: Record<string, Entry> = {
     watch: 'Un changement de format chez une source demande une correction dans l\'application : le bandeau reste affiché jusqu\'à ce qu\'une collecte réussisse à nouveau.',
     see: ['QUOTE', 'ANNUAL_REPORT'],
   },
+  REPORT_ANALYSIS: {
+    term: 'Lecture du rapport par une IA locale', category: 'Comptes annuels',
+    short: 'Un modèle de langage (une IA qui lit et écrit du texte) lit le rapport annuel de la société et résume ce qu\'elle fait, ses avantages face aux concurrents et ses principaux risques. Il tourne sur l\'ordinateur qui héberge l\'application : le rapport n\'est envoyé à aucun service extérieur.',
+    what: 'Un rapport annuel fait souvent plus de 300 pages, trop pour que le modèle le lise d\'un coup. L\'application le découpe en passages, retrouve pour chaque thème la quinzaine de passages qui en parlent (recherche par le sens, pas par mots-clés), et pose la question au modèle avec ces seuls passages. Il doit appuyer chaque point sur une phrase recopiée du rapport.',
+    read: 'Chaque point se déplie pour montrer la phrase du rapport qui l\'appuie, et le passage d\'où elle vient. C\'est la société qui parle d\'elle-même : ses avantages sont ceux qu\'elle revendique, ses risques ceux qu\'elle choisit de présenter.',
+    watch: 'Le modèle peut mal interpréter une phrase exacte, ou oublier un point important qui n\'était pas dans les passages retrouvés. Cette lecture aide à comprendre la société ; elle n\'entre pas dans le score et ne remplace pas la lecture du rapport.',
+    see: ['VERIFIED_QUOTE', 'ANNUAL_REPORT'],
+  },
+  VERIFIED_QUOTE: {
+    term: 'Citation vérifiée', category: 'Comptes annuels',
+    short: 'Chaque point écrit par l\'IA doit citer une phrase du rapport. Avant d\'afficher le point, l\'application vérifie que cette phrase figure vraiment dans le rapport ; sinon, le point est écarté.',
+    what: 'Un modèle de langage peut « halluciner » : écrire une phrase plausible mais fausse. La vérification compare la citation au texte du rapport en ignorant seulement ce qui ne change pas le sens (majuscules, espaces, apostrophes, guillemets). Une citation reformulée ou un chiffre modifié ne passe pas.',
+    read: 'Le nombre de points écartés est indiqué sous la lecture. Beaucoup de points écartés signale un modèle qui a du mal avec ce rapport : à lire avec d\'autant plus de prudence.',
+    watch: 'La vérification prouve que la phrase existe, pas que le point en tire la bonne conclusion : lisez la citation.',
+    see: ['REPORT_ANALYSIS'],
+  },
   QUOTE: {
     term: 'Cours', category: 'Bourse',
     short: 'Le prix d\'une action à un instant donné, fixé par les achats et les ventes en bourse.',

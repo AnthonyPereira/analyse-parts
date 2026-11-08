@@ -217,3 +217,36 @@ export interface SourceStatus {
   lastSuccess: string | null
   problemSince: string | null
 }
+
+/** La lecture d'un rapport annuel par le modèle de langage local (module analysis du backend). */
+export interface AnalysisPoint {
+  title: string
+  explanation: string
+  /** La phrase du rapport qui appuie le point, vérifiée mot pour mot. */
+  quote: string
+  /** Le passage complet d'où vient la citation. */
+  passage: string
+}
+
+export interface AnalysisTheme {
+  key: 'BUSINESS' | 'ADVANTAGES' | 'RISKS'
+  title: string
+  points: AnalysisPoint[]
+}
+
+export interface ReportAnalysis {
+  sourceId: string
+  periodEnd: string
+  model: string
+  createdAt: string
+  durationMs: number
+  passageCount: number
+  rejected: number
+  themes: AnalysisTheme[]
+}
+
+export interface AnalysisView {
+  state: 'NONE' | 'QUEUED' | 'RUNNING' | 'DONE' | 'FAILED'
+  error: string | null
+  analysis: ReportAnalysis | null
+}

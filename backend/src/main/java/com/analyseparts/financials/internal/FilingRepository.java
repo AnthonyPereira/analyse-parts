@@ -5,12 +5,15 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface FilingRepository extends JpaRepository<FilingEntity, Long> {
 
     boolean existsBySourceId(String sourceId);
 
     boolean existsByCompanyId(Long companyId);
+
+    Optional<FilingEntity> findFirstByCompanyIdOrderByPeriodEndDesc(Long companyId);
 
     /** Date de clôture du rapport le plus récent, par société. */
     interface LatestPeriodEnd {

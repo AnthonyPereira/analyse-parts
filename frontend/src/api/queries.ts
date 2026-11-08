@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query'
 import type {
   Calibration, Company, CompanyScore, CompanySummary, DailyClose, FinancialHistory, Intraday, PriceRange,
   ProfileDefinition, ProfileId, QuoteWithChange, UniverseEntry, YearRatios,
-  RankingEntry, RatioDefinition, ScorePoint, SourceStatus,
+  AnalysisView, RankingEntry, RatioDefinition, ScorePoint, SourceStatus,
 } from './types'
 
 /** Erreur HTTP, pour distinguer « introuvable » (404) d'une panne. */
@@ -130,3 +130,11 @@ export const useCustomRanking = (weights: Record<string, number>) =>
 // État des sources externes, pour le bandeau d'alerte : relu toutes les 5 minutes.
 export const useSources = () =>
   useQuery({ queryKey: ['sources'], queryFn: () => get<SourceStatus[]>('/api/sources'), refetchInterval: 5 * 60 * 1000 })
+
+// Lecture du rapport annuel par le LLM local : relue toutes les 15 s tant qu'elle est en cours.
+export const useAnalysis = (isin: string) =>
+  useQuery({
+    queryKey: ['analysis', isin],
+    queryFn: () => get<AnalysisView>(`/api/companies/${isin}/analysis`),
+    refetchInterval: q => (q.state.data?.state === 'QUEUED' || q.state.data?.state === 'RUNNING' ? 15_000 : false),
+  })

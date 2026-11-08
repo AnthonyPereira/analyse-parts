@@ -65,6 +65,7 @@ class ScoreHistoryIntegrationTest {
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM event_publication
                  WHERE event_type = ? AND serialized_event LIKE '%obx-2025%' AND completion_date IS NOT NULL
+                   AND listener_id LIKE '%scoring%'
                 """, Integer.class, FilingRecorded.class.getName())).isEqualTo(1));
 
         var points = history.history("FR0000000088").orElseThrow();

@@ -58,6 +58,11 @@ final class InlineXbrlParser {
 
     /** Ouvre un paquet ESEF (.zip ou .xbri) et lit son rapport XHTML. */
     static ParsedReport parsePackage(InputStream zip) throws IOException {
+        return parse(new java.io.ByteArrayInputStream(reportOf(zip)));
+    }
+
+    /** Le rapport XHTML d'un paquet ESEF (.zip ou .xbri), tel quel. */
+    static byte[] reportOf(InputStream zip) throws IOException {
         java.nio.file.Path file = java.nio.file.Files.createTempFile("esef-", ".zip");
         try {
             java.nio.file.Files.copy(zip, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -65,7 +70,7 @@ final class InlineXbrlParser {
             if (best == null) {
                 throw new IOException("Aucun rapport XHTML dans le paquet ESEF");
             }
-            return parse(new java.io.ByteArrayInputStream(best));
+            return best;
         } finally {
             java.nio.file.Files.deleteIfExists(file);
         }
