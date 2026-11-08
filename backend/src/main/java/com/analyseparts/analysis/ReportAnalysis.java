@@ -9,7 +9,7 @@ import java.util.List;
  *
  * @param sourceId     rapport lu
  * @param periodEnd    clôture de l'exercice du rapport
- * @param model        modèle de langage utilisé (ex. {@code qwen3:8b})
+ * @param model        modèle de langage utilisé (ex. {@code qwen3:14b})
  * @param createdAt    fin de l'analyse
  * @param durationMs   durée totale (téléchargement, embeddings, questions)
  * @param passageCount nombre de passages de texte dans le rapport
