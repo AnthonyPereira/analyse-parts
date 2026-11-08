@@ -121,20 +121,37 @@ public class ReportAnalyst {
             la citation.
             - Tu ne donnes aucun conseil d'achat ou de vente.""";
 
-    /** Le format de réponse imposé au modèle (JSON Schema) : Ollama refuse toute autre forme. */
+    /**
+     * Le format de réponse imposé au modèle (JSON Schema) : Ollama refuse toute autre forme.
+     * <p>
+     * Le modèle écrit les champs <b>dans l'ordre du schéma</b>. Cet ordre doit donc être fixe :
+     * {@code Map.of} change d'ordre à chaque démarrage de Java, et un démarrage sur deux le modèle
+     * écrivait la citation avant de choisir l'extrait, et recopiait alors « [1] » au lieu d'une
+     * phrase (25 points écartés sur L'Oréal au lieu de 2). L'ordre choisi fait d'abord trouver la
+     * phrase, puis seulement la résumer : le titre et l'explication s'appuient sur la citation.
+     */
     static final Map<String, Object> SCHEMA = Map.of(
             "type", "object",
             "properties", Map.of("points", Map.of(
                     "type", "array",
                     "items", Map.of(
                             "type", "object",
-                            "properties", Map.of(
-                                    "titre", Map.of("type", "string"),
-                                    "explication", Map.of("type", "string"),
+                            "properties", ordered(
                                     "extrait", Map.of("type", "integer"),
-                                    "citation", Map.of("type", "string")),
+                                    "citation", Map.of("type", "string"),
+                                    "titre", Map.of("type", "string"),
+                                    "explication", Map.of("type", "string")),
                             "required", List.of("titre", "explication", "extrait", "citation")))),
             "required", List.of("points"));
+
+    /** Une table qui garde l'ordre de ses clés (clé, valeur, clé, valeur…). */
+    static Map<String, Object> ordered(Object... keysAndValues) {
+        Map<String, Object> map = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < keysAndValues.length; i += 2) {
+            map.put((String) keysAndValues[i], keysAndValues[i + 1]);
+        }
+        return java.util.Collections.unmodifiableMap(map);
+    }
 
     /** La réponse du modèle, telle que décrite par {@link #SCHEMA}. */
     record Answer(List<AnswerPoint> points) {

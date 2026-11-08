@@ -106,6 +106,15 @@ class ReportAnalystTest {
                 .containsExactly(change, devises);
     }
 
+    /** Le modèle remplit les champs dans l'ordre du schéma : l'extrait et la citation d'abord. */
+    @Test
+    void theAnswerFormatAlwaysAsksForTheQuoteFirst() {
+        String schema = JsonMapper.builder().build().writeValueAsString(ReportAnalyst.SCHEMA);
+        assertThat(schema.indexOf("\"extrait\"")).isLessThan(schema.indexOf("\"citation\""));
+        assertThat(schema.indexOf("\"citation\"")).isLessThan(schema.indexOf("\"titre\""));
+        assertThat(schema.indexOf("\"titre\"")).isLessThan(schema.indexOf("\"explication\""));
+    }
+
     /** Vus sur le rapport de L'Oréal : des citations exactes, mais des points inutiles. */
     @Test
     void aHeadingOrAnExplanationThatRepeatsTheQuoteIsRejected() {
