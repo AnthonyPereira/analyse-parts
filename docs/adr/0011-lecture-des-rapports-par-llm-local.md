@@ -1,6 +1,6 @@
 # ADR 0011 — Lecture des rapports annuels par un LLM local
 
-- **Statut** : Acceptée
+- **Statut** : Acceptée, remplacée en partie par [ADR 0012](0012-lecture-des-rapports-plus-complete.md) (modèle, tableaux, lots)
 - **Date** : 2026-11-08
 - **Complète** : [ADR 0003](0003-methode-de-score.md) (le score reste calculé sans le LLM), [ADR 0005](0005-sources-marche-et-amf.md)
 

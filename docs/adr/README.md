@@ -21,4 +21,5 @@ Règles :
 | [0008](0008-kafka.md) | Kafka (KRaft) pour les événements : topics `quotes` et `filings` (outbox) | Remplacée par 0009 |
 | [0009](0009-retrait-de-kafka.md) | Retrait de Kafka (inutile pour une instance et un utilisateur) ; historique des notes gardé, par événement Spring Modulith | Acceptée |
 | [0010](0010-surveillance-des-sources.md) | Surveillance des sources externes : bilan de chaque collecte, statut DEGRADED, bandeau sur le site | Acceptée |
-| [0011](0011-lecture-des-rapports-par-llm-local.md) | Lecture des rapports annuels par un LLM local (Ollama, qwen3:8b) : recherche par embeddings, citations vérifiées, jamais dans le score | Acceptée |
+| [0011](0011-lecture-des-rapports-par-llm-local.md) | Lecture des rapports annuels par un LLM local (Ollama, qwen3:8b) : recherche par embeddings, citations vérifiées, jamais dans le score | Remplacée en partie par 0012 |
+| [0012](0012-lecture-des-rapports-plus-complete.md) | Lecture plus complète : qwen3:14b, tableaux rédigés gardés, plusieurs lots par thème, doublons regroupés, chapitre de présentation, relecture réglable | Acceptée |
