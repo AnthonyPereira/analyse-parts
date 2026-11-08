@@ -64,8 +64,26 @@ public class PassageSearch {
          * lire pour le modèle).
          */
         public List<Integer> search(List<String> queries, int perQuery, int max) {
+            return search(queries, List.of(), perQuery, max);
+        }
+
+        /**
+         * Pareil, en écartant les passages hors sujet : un passage plus proche d'une des recherches
+         * {@code avoid} (le plan de vigilance sur les fournisseurs, les comptes de la seule société
+         * mère…) que de toutes les recherches {@code queries} n'est jamais choisi.
+         */
+        public List<Integer> search(List<String> queries, List<String> avoid, int perQuery, int max) {
             Set<Integer> chosen = new LinkedHashSet<>();
-            List<List<Integer>> rankings = queries.stream().map(q -> rank(normalize(embeddings.embed(q)))).toList();
+            List<float[]> wanted = queries.stream().map(q -> normalize(embeddings.embed(q))).toList();
+            List<float[]> unwanted = avoid.stream().map(q -> normalize(embeddings.embed(q))).toList();
+            Set<Integer> excluded = new java.util.HashSet<>();
+            for (int i = 0; i < vectors.size(); i++) {
+                if (best(vectors.get(i), unwanted) > best(vectors.get(i), wanted)) {
+                    excluded.add(i);
+                }
+            }
+            List<List<Integer>> rankings = wanted.stream()
+                    .map(q -> rank(q).stream().filter(i -> !excluded.contains(i)).toList()).toList();
             // tour à tour : le meilleur de chaque question, puis le 2e de chaque question…
             for (int rank = 0; rank < perQuery && chosen.size() < max; rank++) {
                 for (List<Integer> ranking : rankings) {
@@ -79,6 +97,11 @@ public class PassageSearch {
 
         public String passage(int i) {
             return passages.get(i);
+        }
+
+        /** La meilleure proximité entre un passage et une liste de recherches (-1 si la liste est vide). */
+        private static double best(float[] passage, List<float[]> queries) {
+            return queries.stream().mapToDouble(q -> dot(passage, q)).max().orElse(-1);
         }
 
         private List<Integer> rank(float[] query) {

@@ -29,7 +29,7 @@ class ReportAnalystTest {
 
     static final String ANSWER = """
             {"points":[
-              {"titre":"Numéro un mondial","explication":"Leader de son marché.","extrait":2,
+              {"titre":"Numéro un mondial","explication":"Le groupe domine son marché dans le monde entier.","extrait":2,
                "citation":"L'Oréal est le numéro un mondial de la beauté"},
               {"titre":"Invention","explication":"Pas dans le texte.","extrait":1,
                "citation":"Le Groupe double son chiffre d'affaires tous les ans"}]}
@@ -61,5 +61,18 @@ class ReportAnalystTest {
         assertThat(result.rejected()).isEqualTo(3); // l'invention, une fois par thème
         String userPrompt = prompts.get(0).getInstructions().get(1).getText();
         assertThat(userPrompt).contains("[1] L’Oréal", "[2] Le Groupe", "exercice clos le 2025-12-31");
+    }
+
+    /** Vus sur le rapport de L'Oréal : des citations exactes, mais des points inutiles. */
+    @Test
+    void aHeadingOrAnExplanationThatRepeatsTheQuoteIsRejected() {
+        assertThat(ReportAnalyst.weakness("Risques en matière d’Environnement", "Des risques pour l'environnement existent."))
+                .contains("trop courte");
+        assertThat(ReportAnalyst.weakness("Les principaux risques auxquels le Groupe est exposé sont décrits ci-après",
+                "Les principaux risques auxquels le Groupe est exposé sont décrits ci-après."))
+                .contains("répète");
+        assertThat(ReportAnalyst.weakness("nous avons déposé un nombre record de 725 brevets, promettant toujours plus d’innovations",
+                "Beaucoup de brevets protègent ses inventions : les concurrents ne peuvent pas les copier pendant vingt ans."))
+                .isNull();
     }
 }

@@ -44,12 +44,27 @@ class ReportTextTest {
     }
 
     @Test
-    void tablesAreSkippedUnlessTheyHoldMostOfTheText() throws Exception {
-        String table = "<table><tr><td>Tableau : " + sentence(99).repeat(2) + "</td></tr></table>";
+    void shortTableCellsAreSkippedUnlessTablesHoldMostOfTheText() throws Exception {
+        String table = "<table><tr><td>Chiffre d'affaires consolidé</td><td>44 050</td><td>43 487</td></tr></table>";
         String text = ("<p>" + sentence(1) + "</p>").repeat(10);
-        assertThat(String.join(" ", passages(text + table))).doesNotContain("Tableau");
+        assertThat(String.join(" ", passages(text + table))).doesNotContain("Chiffre d'affaires consolidé");
         // convertisseur qui met tout le rapport en tableaux : on garde les tableaux
-        assertThat(String.join(" ", passages(table.repeat(10)))).contains("Tableau");
+        String all = ("<table><tr><td>" + sentence(2) + "</td></tr></table>").repeat(10) + table;
+        assertThat(String.join(" ", passages(all))).contains("Chiffre d'affaires consolidé");
+    }
+
+    /** Vu chez L'Oréal : tout le chapitre « Facteurs de risque » est rédigé dans un tableau. */
+    @Test
+    void paragraphsWrittenInATableAreKeptWithTheirHeading() throws Exception {
+        String risk = "<table><tr><td><p>Risques liés à l’activité/Crise sanitaire</p></td></tr>"
+                + "<tr><td><p>Identification du risque</p></td><td><p>Gestion du risque</p></td></tr>"
+                + "<tr><td><p>Une pandémie pourrait fermer des magasins et des usines, et réduire fortement les ventes "
+                + "du Groupe dans les pays touchés pendant plusieurs mois, comme en 2020.</p></td>"
+                + "<td><p>Le Groupe a établi des plans de continuité d’activité pour ses usines et ses centrales "
+                + "de distribution, testés chaque année.</p></td></tr></table>";
+        String text = ("<p>" + sentence(1) + "</p>").repeat(10);
+        String joined = String.join(" ", passages(text + risk));
+        assertThat(joined).contains("Crise sanitaire", "Une pandémie pourrait fermer", "plans de continuité");
     }
 
     @Test

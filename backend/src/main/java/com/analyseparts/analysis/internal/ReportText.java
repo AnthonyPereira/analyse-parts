@@ -17,8 +17,10 @@ import java.util.Set;
  * Ce qui est écarté :
  * <ul>
  *   <li>{@code <head>}, {@code <style>}, {@code <script>} et l'en-tête caché {@code ix:header} ;</li>
- *   <li>les tableaux (états financiers, sommaires), sauf si le rapport met presque tout son texte
- *       dans des tableaux, ce que font certains convertisseurs de PDF ;</li>
+ *   <li>les cellules de tableau courtes ou chiffrées (états financiers, sommaires). Les paragraphes
+ *       rédigés dans un tableau sont gardés, avec leur intitulé ; et tout le tableau l'est si le
+ *       rapport met presque tout son texte dans des tableaux, ce que font certains convertisseurs
+ *       de PDF ;</li>
  *   <li>les passages surtout faits de chiffres.</li>
  * </ul>
  * Les rapports sont souvent des PDF convertis : un mot peut être coupé entre plusieurs
@@ -45,8 +47,42 @@ public final class ReportText {
         long all = blocks.stream().mapToLong(b -> b.text().length()).sum();
         long outside = blocks.stream().filter(b -> !b.inTable()).mapToLong(b -> b.text().length()).sum();
         boolean keepTables = all > 0 && outside < all * 0.3;
-        List<String> texts = blocks.stream().filter(b -> keepTables || !b.inTable()).map(Block::text).toList();
+        List<String> texts = new ArrayList<>();
+        for (int i = 0; i < blocks.size(); i++) {
+            Block b = blocks.get(i);
+            if (keepTables || !b.inTable() || prose(b) || label(b) && proseNear(blocks, i)) {
+                texts.add(b.text());
+            }
+        }
         return chunk(texts);
+    }
+
+    /**
+     * Un paragraphe rédigé, même dans un tableau : certains rapports présentent leurs facteurs de
+     * risque en tableau (« Identification du risque » | « Gestion du risque »). Les cellules de
+     * chiffres, elles, sont courtes.
+     */
+    static boolean prose(Block b) {
+        return b.text().length() >= 150 && letters(b.text()) >= b.text().length() * 0.6;
+    }
+
+    /** Un paragraphe de tableau juste avant, ou dans les trois blocs qui suivent (après l'en-tête de colonnes). */
+    private static boolean proseNear(List<Block> blocks, int i) {
+        for (int j = i - 1; j <= i + 3; j++) {
+            if (j != i && j >= 0 && j < blocks.size() && blocks.get(j).inTable() && prose(blocks.get(j))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Un intitulé court (« Risques liés à l'activité/Crise sanitaire ») : gardé à côté d'un paragraphe. */
+    private static boolean label(Block b) {
+        return b.text().length() >= 15 && letters(b.text()) >= b.text().length() * 0.7;
+    }
+
+    private static long letters(String s) {
+        return s.chars().filter(Character::isLetter).count();
     }
 
     static List<Block> blocks(InputStream xhtml) throws IOException {

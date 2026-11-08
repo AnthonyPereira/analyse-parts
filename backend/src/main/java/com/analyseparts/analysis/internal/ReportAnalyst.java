@@ -37,7 +37,7 @@ public class ReportAnalyst {
     /** Un thème : sa question au modèle et les recherches qui trouvent les bons passages. */
     enum Topic {
         BUSINESS("Ce que fait la société",
-                "Que fait la société et comment gagne-t-elle de l'argent ? (métiers, produits, clients, marchés, sources de revenus)",
+                "Que fait le groupe et comment gagne-t-il de l'argent ? (métiers, produits, clients, marchés, sources de revenus). Décris l'activité du groupe tout entier, pas les comptes de la seule société mère.",
                 4,
                 List.of("Présentation du groupe, de ses activités, de ses métiers et de ses principaux marchés",
                         "Modèle d'affaires : comment la société crée de la valeur et génère son chiffre d'affaires",
@@ -49,9 +49,9 @@ public class ReportAnalyst {
                         "Position de leader, parts de marché, marques reconnues, brevets, technologies, barrières à l'entrée",
                         "Stratégie du groupe et priorités stratégiques pour les prochaines années")),
         RISKS("Ses principaux risques",
-                "Quels sont les principaux risques pour la société, tels qu'elle les présente elle-même ? Préfère les risques propres à son activité aux risques génériques.",
+                "Quels sont les principaux risques pour la société, tels qu'elle les présente elle-même ? Préfère les risques propres à son activité aux risques génériques. Pour chaque risque, explique ce qui pourrait arriver et ce que cela changerait pour la société (ventes, marges, image, dette). Ne cite pas un simple titre de risque : choisis une phrase qui le décrit.",
                 5,
-                List.of("Principaux facteurs de risques spécifiques au groupe et leur niveau de criticité",
+                List.of("Description d'un facteur de risque : ce qui peut arriver, son impact possible sur l'activité, les résultats ou la situation financière du Groupe, et les mesures pour le maîtriser",
                         "Risques liés à l'activité, à la concurrence, à la réglementation et à l'évolution des marchés",
                         "Risques financiers : change, liquidité, endettement, dépendance à des clients ou à des fournisseurs"));
 
@@ -59,6 +59,12 @@ public class ReportAnalyst {
         final String question;
         final int maxPoints;
         final List<String> searches;
+
+        /** Les passages plus proches d'une de ces recherches que des recherches du thème sont écartés. */
+        static final List<String> AVOID = List.of(
+                "Plan de vigilance : évaluation et audit des fournisseurs et des sous-traitants, droits humains, santé et sécurité chez les fournisseurs",
+                "Comptes annuels de la société mère : prestations de services et redevances facturées aux filiales, résultat social de la société mère",
+                "Sommaire, table de concordance et renvois vers les chapitres du document");
 
         Topic(String title, String question, int maxPoints, List<String> searches) {
             this.title = title;
@@ -76,7 +82,10 @@ public class ReportAnalyst {
             l'inventes pas et tu ne la complètes pas avec tes connaissances.
             - Chaque point s'appuie sur un extrait : tu donnes son numéro, et tu recopies MOT POUR MOT une \
             phrase courte de cet extrait (moins de 300 caractères), dans sa langue d'origine, sans la \
-            reformuler ni la traduire. La citation ne reprend pas le numéro de l'extrait.
+            reformuler ni la traduire. La citation ne reprend pas le numéro de l'extrait. C'est une \
+            phrase complète, pas un titre.
+            - L'explication dit, avec tes mots, ce que le débutant doit comprendre : elle ne recopie pas \
+            la citation.
             - Tu ne donnes aucun conseil d'achat ou de vente.""";
 
     /** Le format de réponse imposé au modèle (JSON Schema) : Ollama refuse toute autre forme. */
@@ -123,16 +132,19 @@ public class ReportAnalyst {
         List<Theme> themes = new ArrayList<>();
         int rejected = 0;
         for (Topic topic : Topic.values()) {
-            List<Integer> chosen = index.search(topic.searches, 8, PASSAGES_PER_TOPIC);
+            List<Integer> chosen = index.search(topic.searches, Topic.AVOID, 8, PASSAGES_PER_TOPIC);
             List<String> passages = chosen.stream().map(index::passage).toList();
             Answer answer = ask(prompt(company, periodEnd, topic, passages));
             List<Point> points = new ArrayList<>();
             for (AnswerPoint p : answer.points() == null ? List.<AnswerPoint>of() : answer.points()) {
                 int preferred = p.extrait() == null ? -1 : p.extrait() - 1; // numérotés à partir de 1
                 var match = Quotes.find(p.citation(), passages, preferred);
-                if (match.isEmpty() || blank(p.titre())) {
+                String weakness = match.isEmpty() ? "citation introuvable"
+                        : blank(p.titre()) ? "sans titre"
+                        : weakness(match.get().text(), p.explication());
+                if (weakness != null) {
                     rejected++;
-                    log.info("Point écarté ({}), citation introuvable : {}", topic, p.citation());
+                    log.info("Point écarté ({}), {} : {}", topic, weakness, p.citation());
                     continue;
                 }
                 if (points.size() < topic.maxPoints) {
@@ -170,6 +182,32 @@ public class ReportAnalyst {
         String content = chat.call(new Prompt(List.of(new SystemMessage(SYSTEM), new UserMessage(userPrompt)), options))
                 .getResult().getOutput().getText();
         return json.readValue(content, Answer.class);
+    }
+
+    /** Une citation de moins de 6 mots est un titre (« Risques en matière d'Environnement »). */
+    static final int MIN_QUOTE_WORDS = 6;
+
+    /** L'explication doit apporter au moins 3 mots (de 4 lettres ou plus) absents de la citation. */
+    static final int MIN_NEW_WORDS = 3;
+
+    /**
+     * Un point dont la citation existe peut quand même être inutile : une citation trop courte (un
+     * titre) ou une explication qui ne fait que la répéter. Renvoie la raison, ou {@code null}.
+     */
+    static String weakness(String quote, String explanation) {
+        if (words(quote, 2).size() < MIN_QUOTE_WORDS) {
+            return "citation trop courte (un titre ?)";
+        }
+        java.util.Set<String> quoted = new java.util.HashSet<>(words(quote, 4));
+        long added = words(explanation == null ? "" : explanation, 4).stream()
+                .distinct().filter(w -> !quoted.contains(w)).count();
+        return added < MIN_NEW_WORDS ? "explication qui répète la citation" : null;
+    }
+
+    /** Les mots d'au moins {@code minLetters} lettres, simplifiés (minuscules, sans accents). */
+    private static List<String> words(String text, int minLetters) {
+        return java.util.Arrays.stream(Quotes.Normalized.of(text).text.split("[^\\p{L}\\p{N}]+"))
+                .filter(w -> w.length() >= minLetters).toList();
     }
 
     private static boolean blank(String s) {
