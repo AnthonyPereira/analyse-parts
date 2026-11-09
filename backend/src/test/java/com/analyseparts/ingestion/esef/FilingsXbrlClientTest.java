@@ -49,6 +49,34 @@ class FilingsXbrlClientTest {
     }
 
     @Test
+    void downloadsReportAtTheAddressGivenByTheIndex() {
+        // dossier, nom et extension ne se déduisent pas de l'adresse du xBRL-JSON
+        server.expect(ExpectedCount.once(), requestTo(INDEX_URL)).andRespond(withSuccess("""
+                {"data":[{"type":"filing","id":"1","attributes":{"fxo_id":"a","period_end":"2025-12-31",
+                  "json_url":"/LEI1/2025-12-31/ESEF/FR/1/bnp-2025-12-31-1-fr.json",
+                  "report_url":"/LEI1/2025-12-31/ESEF/FR/1/bnp-2025-12-31-1/reports/bnp-2025-12-31-1-fr.html"}}]}
+                """, MediaType.valueOf("application/vnd.api+json")));
+        server.expect(ExpectedCount.once(),
+                        requestTo("https://xbrl.test/LEI1/2025-12-31/ESEF/FR/1/bnp-2025-12-31-1/reports/bnp-2025-12-31-1-fr.html"))
+                .andRespond(withSuccess("<html/>", MediaType.TEXT_HTML));
+
+        byte[] report = client.downloadReport("/LEI1/2025-12-31/ESEF/FR/1/bnp-2025-12-31-1-fr.json");
+
+        assertThat(new String(report)).isEqualTo("<html/>");
+        server.verify();
+    }
+
+    @Test
+    void guessesReportAddressWhenIndexDoesNotKnowTheFiling() {
+        server.expect(ExpectedCount.once(), requestTo(INDEX_URL)).andRespond(withSuccess("""
+                {"data":[]}
+                """, MediaType.valueOf("application/vnd.api+json")));
+
+        assertThat(client.reportUrlOf("/LEI1/2025-12-31/ESEF/FR/0/x-fr.json"))
+                .isEqualTo("/LEI1/2025-12-31/ESEF/FR/0/x-fr/reports/x-fr.xhtml");
+    }
+
+    @Test
     void givesUpAfterLastRetry() {
         server.expect(ExpectedCount.times(3), requestTo(INDEX_URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
 

@@ -210,7 +210,10 @@ public class EsefImportService {
                     continue;
                 }
                 tally.ok();
-                if (parsed.lei() != null && !parsed.lei().equals(company.getLei())) {
+                // Un rapport balisé avec un autre LEI est écarté, sauf si l'AMF l'a enregistré sous le LEI
+                // de la société : OPmobility balise ses rapports avec l'ancien LEI de Plastic Omnium.
+                if (parsed.lei() != null && !parsed.lei().equals(company.getLei())
+                        && !(company.getLei() != null && company.getLei().equals(report.lei()))) {
                     log.warn("AMF {} : {} est le rapport d'une autre entité ({})", company.getName(), report.fileName(), parsed.lei());
                     skipped++;
                     continue;

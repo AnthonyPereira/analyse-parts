@@ -54,7 +54,13 @@ public class FilingsXbrlClient {
             String country,
             @JsonProperty("json_url") String jsonUrl,
             @JsonProperty("error_count") Integer errorCount,
-            @JsonProperty("date_added") String dateAdded) {
+            @JsonProperty("date_added") String dateAdded,
+            @JsonProperty("report_url") String reportUrl) {
+
+        public FilingInfo(String fxoId, String periodEnd, String country, String jsonUrl, Integer errorCount,
+                          String dateAdded) {
+            this(fxoId, periodEnd, country, jsonUrl, errorCount, dateAdded, null);
+        }
     }
 
     /** Tous les rapports d'une entité, identifiée par son LEI. */
@@ -79,13 +85,29 @@ public class FilingsXbrlClient {
     }
 
     /**
-     * Le rapport XHTML lisible d'un dépôt, à partir de l'adresse de son xBRL-JSON : le site range
-     * les deux côte à côte ({@code …/nom.json} et {@code …/nom/reports/nom.xhtml}).
+     * Le rapport XHTML lisible d'un dépôt, à partir de l'adresse de son xBRL-JSON.
+     * <p>
+     * Son adresse ne se devine pas : le dossier, le nom et l'extension (.xhtml ou .html) varient
+     * d'un dépôt à l'autre ({@code …/bnp-2025-12-31-1/reports/bnp-2025-12-31-1-fr.html}). On la
+     * demande donc à l'index ({@code report_url}), retrouvé par le LEI, premier segment de l'adresse.
+     * L'ancienne devinette ({@code …/nom/reports/nom.xhtml}) ne sert que si l'index ne connaît pas le dépôt.
      */
     public byte[] downloadReport(String jsonUrl) {
-        String base = jsonUrl.substring(0, jsonUrl.length() - ".json".length());
-        String name = base.substring(base.lastIndexOf('/') + 1);
-        return call(() -> restClient.get().uri(base + "/reports/" + name + ".xhtml").retrieve().body(byte[].class));
+        String reportUrl = reportUrlOf(jsonUrl);
+        return call(() -> restClient.get().uri(reportUrl).retrieve().body(byte[].class));
+    }
+
+    String reportUrlOf(String jsonUrl) {
+        String lei = jsonUrl.substring(1, jsonUrl.indexOf('/', 1));
+        return listFilings(lei).stream()
+                .filter(f -> jsonUrl.equals(f.jsonUrl()) && f.reportUrl() != null)
+                .map(FilingInfo::reportUrl)
+                .findFirst()
+                .orElseGet(() -> {
+                    String base = jsonUrl.substring(0, jsonUrl.length() - ".json".length());
+                    String name = base.substring(base.lastIndexOf('/') + 1);
+                    return base + "/reports/" + name + ".xhtml";
+                });
     }
 
     /** Espace les requêtes et réessaie sur "429 Too Many Requests". */

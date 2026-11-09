@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -24,6 +25,8 @@ public class ReportAnalysisRunner {
 
     /** En dessous, le texte n'a pas pu être lu correctement (rapport fait d'images, par exemple). */
     static final int MIN_PASSAGES = 30;
+
+    static final Duration RETRY_DELAY = Duration.ofSeconds(30);
 
     private final ReportDocuments documents;
     private final PassageSearch search;
@@ -48,14 +51,37 @@ public class ReportAnalysisRunner {
                     + " passages) : rapport sans texte lisible ?");
         }
         long downloaded = clock.millis();
-        PassageSearch.Index index = search.index(passages);
-        long embedded = clock.millis();
-        ReportAnalyst.Result result = analyst.analyse(company, filing.periodEnd(), index);
+        PassageSearch.Index index;
+        ReportAnalyst.Result result;
+        long embedded;
+        try {
+            index = search.index(passages);
+            embedded = clock.millis();
+            result = analyst.analyse(company, filing.periodEnd(), index);
+        } catch (RuntimeException e) {
+            // Ollama échoue parfois de façon passagère après des heures de lecture (sockets épuisés
+            // sous Windows : « insufficient buffer space ») : un seul nouvel essai, un peu plus tard
+            log.warn("Lecture du rapport de {} interrompue ({}), nouvel essai dans {} s",
+                    company, e.getMessage(), RETRY_DELAY.toSeconds());
+            pause();
+            index = search.index(passages);
+            embedded = clock.millis();
+            result = analyst.analyse(company, filing.periodEnd(), index);
+        }
         long end = clock.millis();
         log.info("Rapport de {} lu : {} passages, téléchargement {} s, embeddings {} s, questions {} s, {} points écartés",
                 company, passages.size(), (downloaded - start) / 1000, (embedded - downloaded) / 1000,
                 (end - embedded) / 1000, result.rejected());
         return new ReportAnalysis(filing.sourceId(), filing.periodEnd(), model, clock.instant(), end - start,
                 passages.size(), result.rejected(), result.themes());
+    }
+
+    private void pause() {
+        try {
+            Thread.sleep(RETRY_DELAY);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrompu pendant l'attente", e);
+        }
     }
 }
