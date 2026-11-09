@@ -24,3 +24,4 @@ Règles :
 | [0011](0011-lecture-des-rapports-par-llm-local.md) | Lecture des rapports annuels par un LLM local (Ollama, qwen3:8b) : recherche par embeddings, citations vérifiées, jamais dans le score | Remplacée en partie par 0012 |
 | [0012](0012-lecture-des-rapports-plus-complete.md) | Lecture plus complète : qwen3:14b, tableaux rédigés gardés, plusieurs lots par thème, doublons regroupés, chapitre de présentation, relecture réglable | Acceptée |
 | [0013](0013-notation-des-assurances.md) | Notation à part pour les assurances (ICB 3030) : poids sans endettement ni cash-flow, comme pour les banques | Acceptée |
+| [0014](0014-lecture-des-rapports-moins-de-doublons.md) | Lecture des rapports : doublons signalés par le modèle, nouvel essai de citation, facteurs de risques lus d'un seul tenant, sommaires écartés, relecture par thème, import d'un paquet ESEF par adresse | Acceptée |

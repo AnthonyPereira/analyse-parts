@@ -109,19 +109,29 @@ public class PassageSearch {
          * chapitre ne marche pas : le titre est fondu dans un passage qui parle d'autre chose. Une
          * moyenne sur plusieurs passages voisins, elle, repère le chapitre. Un passage écarté par
          * {@code avoid} compte comme le moins proche de tous. Rend les numéros dans l'ordre du rapport.
+         * <p>
+         * {@code within} : la part du rapport où le chapitre doit commencer (1 : n'importe où). La
+         * présentation du groupe ouvre le document d'enregistrement universel (passages 3 à 53 chez
+         * Nexans, L'Oréal et Covivio) ; sans limite, chez BNP Paribas, l'information sectorielle des
+         * notes annexes, au passage 1 775 sur 2 067, l'emportait.
          */
-        public List<Integer> chapter(List<String> queries, List<String> avoid, int length) {
+        public List<Integer> chapter(List<String> queries, List<String> avoid, int length, double within) {
             if (queries.isEmpty() || vectors.isEmpty()) {
                 return List.of();
             }
             List<float[]> wanted = embedQueries(queries);
             Set<Integer> excluded = excluded(wanted, embedQueries(avoid));
-            double[] score = new double[vectors.size()];
+            int end = Math.max(Math.min(length, vectors.size()), (int) Math.ceil(vectors.size() * within));
+            double[] score = new double[Math.min(vectors.size(), end + length - 1)];
             for (int i = 0; i < score.length; i++) {
                 score[i] = excluded.contains(i) ? -1 : best(vectors.get(i), wanted);
             }
             int start = densest(score, length);
             return IntStream.range(start, Math.min(score.length, start + length)).boxed().toList();
+        }
+
+        public List<Integer> chapter(List<String> queries, List<String> avoid, int length) {
+            return chapter(queries, avoid, length, 1);
         }
 
         /** Le début de la suite de {@code length} cases dont la somme est la plus grande. */
@@ -151,11 +161,33 @@ public class PassageSearch {
         private Set<Integer> excluded(List<float[]> wanted, List<float[]> unwanted) {
             Set<Integer> excluded = new java.util.HashSet<>();
             for (int i = 0; i < vectors.size(); i++) {
-                if (best(vectors.get(i), unwanted) > best(vectors.get(i), wanted)) {
+                if (isContents(passages.get(i)) || best(vectors.get(i), unwanted) > best(vectors.get(i), wanted)) {
                     excluded.add(i);
                 }
             }
             return excluded;
+        }
+
+        /** Un intitulé numéroté : « 1.3.2 Autres activités », « 3.5Facteurs de risques ». */
+        private static final java.util.regex.Pattern HEADING =
+                java.util.regex.Pattern.compile("(?<![\\d.,])\\d{1,2}(\\.\\d{1,2}){1,3}\\.?\\s*\\p{Lu}");
+
+        /** Intitulés numérotés à partir desquels un passage est un sommaire. */
+        static final int CONTENTS_HEADINGS = 6;
+
+        /**
+         * Un <b>sommaire</b> : une suite d'intitulés numérotés. Sa proximité avec n'importe quelle
+         * recherche est trompeuse (il cite tous les sujets) et il ne dit rien : chez Nexans, le
+         * chapitre de présentation lu commençait par le sommaire, et le modèle en tirait des titres.
+         * Un vrai chapitre n'a qu'un ou deux intitulés par passage.
+         */
+        static boolean isContents(String passage) {
+            var m = HEADING.matcher(passage);
+            int headings = 0;
+            while (m.find() && ++headings < CONTENTS_HEADINGS) {
+                // compte jusqu'au seuil
+            }
+            return headings >= CONTENTS_HEADINGS;
         }
 
         /** Les embeddings d'autres textes, avec le même modèle (pour comparer des points entre eux). */

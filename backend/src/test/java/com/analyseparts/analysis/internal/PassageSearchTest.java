@@ -51,6 +51,8 @@ class PassageSearchTest {
         var index = new PassageSearch(embeddings).index(List.of("a", "b", "c", "d", "e", "f", "g"));
 
         assertThat(index.chapter(List.of("activité"), List.of("sommaire"), 3)).containsExactly(3, 4, 5);
+        // limité au début du rapport : le chapitre doit commencer dans les 3 premiers passages
+        assertThat(index.chapter(List.of("activité"), List.of("sommaire"), 3, 0.15)).containsExactly(1, 2, 3);
         // complété par la recherche : les passages les plus proches qui ne sont pas déjà lus
         assertThat(index.search(List.of("activité"), List.of("sommaire"), List.of(3, 4, 5), 5, 4)).containsExactly(1, 3, 4, 5);
     }
@@ -59,5 +61,14 @@ class PassageSearchTest {
     void densestFindsTheStretchWithTheLargestSum() {
         assertThat(PassageSearch.Index.densest(new double[]{0.9, 0, 0.5, 0.5, 0.5, 0}, 3)).isEqualTo(2);
         assertThat(PassageSearch.Index.densest(new double[]{0.9, 0.1}, 5)).isZero(); // rapport plus court que le chapitre
+    }
+
+    /** Vu chez Nexans : le sommaire, lu comme un chapitre, ne donnait que des titres. */
+    @Test
+    void aTableOfContentsIsRecognised() {
+        assertThat(PassageSearch.Index.isContents("1.3.2 Autres activités 1.3.3 Activités hors Électrification 1.4 Innovation "
+                + "1.4.1 Recherche 1.5 Activités du Groupe durant l'année 2025 1.6.1 Investissements 1.6.2 Contrats importants")).isTrue();
+        assertThat(PassageSearch.Index.isContents("1.3.1 Bureaux : 49% du patrimoine de Covivio. Le patrimoine de bureaux "
+                + "s'élève à 8,2 Md€, dont 2.1 Paris en part du Groupe.")).isFalse();
     }
 }

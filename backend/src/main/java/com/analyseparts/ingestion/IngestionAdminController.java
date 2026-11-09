@@ -81,6 +81,15 @@ public class IngestionAdminController {
     }
 
     /**
+     * Un paquet ESEF publié ailleurs (site de la société), par son adresse.
+     * Ex. : POST /api/admin/ingestion/esef/package?isin=LU0569974404&url=https://www.aperam.com/…zip
+     */
+    @PostMapping("/esef/package")
+    public EsefImportService.ImportResult importEsefPackage(@RequestParam String isin, @RequestParam String url) {
+        return esefImport.importPackage(isin, url);
+    }
+
+    /**
      * Cherche les nouveaux rapports des sociétés dont un rapport plus récent est attendu.
      * Ex. : POST /api/admin/ingestion/esef/refresh (aussi lancé chaque lundi à 3 h).
      * {@code source=amf} : n'interroge que l'AMF.

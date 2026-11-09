@@ -170,6 +170,47 @@ public class EsefImportService {
     }
 
     /**
+     * Un paquet ESEF donné par son adresse, pour une société que ni l'AMF ni filings.xbrl.org ne
+     * couvrent à jour : Aperam (autorité luxembourgeoise) n'a que son rapport 2021 sur
+     * filings.xbrl.org, mais publie les suivants sur son propre site. Le paquet doit être balisé
+     * avec le LEI de la société ; un exercice déjà connu n'est pas réimporté.
+     */
+    public ImportResult importPackage(String isin, String url) {
+        Company company = companies.findByIsin(isin)
+                .orElseThrow(() -> new IllegalArgumentException("ISIN inconnu : " + isin));
+        if (amf == null) {
+            throw new IllegalStateException("Téléchargement des paquets désactivé (analyse-parts.amf.enabled=false)");
+        }
+        if (financials.isImported(url)) {
+            return new ImportResult(1, 0, 1, 0, 0);
+        }
+        InlineXbrlParser.ParsedReport parsed;
+        try {
+            parsed = InlineXbrlParser.parsePackage(new ByteArrayInputStream(amf.download(url)));
+        } catch (IOException | RestClientException e) {
+            log.warn("Paquet {} : échec pour {} : {}", company.getName(), url, e.getMessage());
+            return new ImportResult(1, 0, 0, 0, 1);
+        }
+        if (company.getLei() == null || !company.getLei().equals(parsed.lei())) {
+            throw new IllegalArgumentException("Le paquet est balisé avec le LEI " + parsed.lei()
+                    + ", pas celui de " + company.getName() + " (" + company.getLei() + ")");
+        }
+        if (noIfrsFacts(parsed.facts())) {
+            throw new IllegalArgumentException("Aucun chiffre IFRS reconnu dans " + url);
+        }
+        LocalDate periodEnd = parsed.facts().stream().filter(f -> !f.isInstant())
+                .map(ReportedFact::periodEnd).max(LocalDate::compareTo).orElseThrow();
+        if (isKnown(new HashSet<>(financials.periodEnds(company.getId())), periodEnd)) {
+            return new ImportResult(1, 0, 1, 0, 0);
+        }
+        // l'adresse sert d'identifiant ; commençant par http, le rapport est relu depuis le paquet
+        financials.recordFiling(company.getId(), new FilingData(url, periodEnd, company.getCountry(), url, null),
+                parsed.facts());
+        log.info("Paquet {} {} : {} faits ({})", company.getName(), periodEnd, parsed.facts().size(), url);
+        return new ImportResult(1, 1, 0, parsed.facts().size(), 0);
+    }
+
+    /**
      * Deux sources, dans cet ordre (ADR 0005) :
      * <ol>
      *   <li><b>l'AMF</b>, source officielle : le rapport tel que la société l'a déposé, disponible le
