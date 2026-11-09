@@ -522,6 +522,21 @@ export const GLOSSARY: Record<string, Entry> = {
     watch: 'Le modèle peut mal interpréter une phrase exacte, ou oublier un point important qui n\'était pas dans les passages retrouvés. Cette lecture aide à comprendre la société ; elle n\'entre pas dans le score et ne remplace pas la lecture du rapport.',
     see: ['VERIFIED_QUOTE', 'ANNUAL_REPORT'],
   },
+  HALF_YEAR_REPORT: {
+    term: 'Rapport financier semestriel', category: 'Comptes annuels',
+    short: 'Le rapport que chaque société cotée publie six mois après la clôture de son exercice : les comptes du premier semestre (de janvier à juin, le plus souvent), comparés au même semestre de l\'année précédente.',
+    what: 'Il est déposé à l\'AMF, comme le rapport annuel, mais en PDF et sans balisage : ses chiffres ne sont pas lisibles directement par un programme. Un modèle de langage local recopie quelques lignes du compte de résultat, et l\'application vérifie chaque nombre (voir « 12 mois glissants »).',
+    read: 'Les comptes semestriels sont « résumés » et seulement revus par les commissaires aux comptes (examen limité), pas audités comme les comptes annuels.',
+    see: ['TTM', 'ANNUAL_REPORT'],
+  },
+  TTM: {
+    term: '12 mois glissants', category: 'Comptes annuels',
+    short: 'Les chiffres des 12 derniers mois connus, plutôt que ceux du dernier exercice : dernier exercice + semestre publié depuis − même semestre un an plus tôt. En anglais : TTM (trailing twelve months).',
+    what: 'Exemple, L\'Oréal : chiffre d\'affaires 2025 de 44,1 Md €, plus 23,8 Md € au premier semestre 2026, moins 22,5 Md € au premier semestre 2025 : 45,4 Md € de juillet 2025 à juin 2026. Les nombres du semestre sont recopiés du rapport semestriel par l\'IA locale, puis vérifiés : chacun doit figurer tel quel sur la page, la colonne de l\'exercice complet doit être égale aux comptes annuels, et le semestre de l\'an passé doit peser 30 à 70 % de l\'exercice.',
+    read: 'Plus récents de six mois que les comptes annuels : une forte hausse ou baisse depuis la clôture se voit ici avant le prochain rapport annuel.',
+    watch: 'Ces chiffres sont affichés à titre d\'information : le score reste calculé sur les comptes annuels, balisés et audités. Une ligne qui n\'a pas passé les vérifications n\'est pas affichée.',
+    see: ['HALF_YEAR_REPORT', 'FISCAL_YEAR'],
+  },
   VERIFIED_QUOTE: {
     term: 'Citation vérifiée', category: 'Comptes annuels',
     short: 'Chaque point écrit par l\'IA doit citer une phrase du rapport. Avant d\'afficher le point, l\'application vérifie que cette phrase figure vraiment dans le rapport ; sinon, le point est écarté.',

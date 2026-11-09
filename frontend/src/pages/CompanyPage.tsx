@@ -9,6 +9,7 @@ import { ScoreHistoryChart } from '../charts/ScoreHistoryChart'
 import { ProfileScores, ScaleChart, ScoreBars, StripList } from '../charts/ScoreCharts'
 import { FreshnessBadge, PointsBar, ScoreBadge } from '../components/Badges'
 import { FinancialsTable } from '../components/FinancialsTable'
+import { TtmSection } from '../components/TtmSection'
 import { LiveQuote } from '../components/LiveQuote'
 import { parseProfile, ProfileTabs } from '../components/ProfileTabs'
 import { ReportAnalysisSection } from '../components/ReportAnalysisSection'
@@ -154,6 +155,9 @@ export function CompanyPage() {
         <ScoreHistoryChart isin={isin} profiles={profiles} current={profile} />
       </div>
       <HistoryCharts isin={isin} />
+
+      {/* Pour information : le score reste calculé sur les comptes annuels (ADR 0015). */}
+      <TtmSection isin={isin} />
 
       <section className="card" style={{ marginTop: '1rem' }}>
         <h2><Term id="ANNUAL_REPORT">Comptes annuels</Term></h2>

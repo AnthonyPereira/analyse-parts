@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query'
 import type {
   Calibration, Company, CompanyScore, CompanySummary, DailyClose, FinancialHistory, Intraday, PriceRange,
   ProfileDefinition, ProfileId, QuoteWithChange, UniverseEntry, YearRatios,
-  AnalysisView, RankingEntry, RatioDefinition, ScorePoint, SourceStatus,
+  AnalysisView, HalfYearView, RankingEntry, RatioDefinition, ScorePoint, SourceStatus,
 } from './types'
 
 /** Erreur HTTP, pour distinguer « introuvable » (404) d'une panne. */
@@ -136,5 +136,13 @@ export const useAnalysis = (isin: string) =>
   useQuery({
     queryKey: ['analysis', isin],
     queryFn: () => get<AnalysisView>(`/api/companies/${isin}/analysis`),
+    refetchInterval: q => (q.state.data?.state === 'QUEUED' || q.state.data?.state === 'RUNNING' ? 15_000 : false),
+  })
+
+// Dernier rapport semestriel et chiffres sur 12 mois glissants (lus par le LLM local, vérifiés).
+export const useHalfYear = (isin: string) =>
+  useQuery({
+    queryKey: ['half-year', isin],
+    queryFn: () => get<HalfYearView>(`/api/companies/${isin}/half-year`),
     refetchInterval: q => (q.state.data?.state === 'QUEUED' || q.state.data?.state === 'RUNNING' ? 15_000 : false),
   })

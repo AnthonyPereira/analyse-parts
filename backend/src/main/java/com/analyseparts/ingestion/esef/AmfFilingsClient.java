@@ -46,10 +46,25 @@ public class AmfFilingsClient {
 
     /** Les rapports annuels ESEF d'une société publiés depuis {@code since}, du plus récent au plus ancien. */
     public List<AmfFiling> annualReports(String isin, String lei, LocalDate since) {
+        return filings(isin, lei, ANNUAL_TYPES + " and " + ESEF_FILES, since);
+    }
+
+    private static final String HALF_YEAR_TYPE =
+            "sous_type_d_information=\"Rapports financiers et d'audit semestriels/examens réduits\"";
+
+    /**
+     * Les dépôts « rapports financiers semestriels » d'une société (des PDF), du plus récent au plus
+     * ancien. On y trouve aussi les avis de mise à disposition et la version anglaise : au lecteur
+     * de choisir celui qui contient les comptes.
+     */
+    public List<AmfFiling> halfYearReports(String isin, String lei, LocalDate since) {
+        return filings(isin, lei, HALF_YEAR_TYPE + " and fichierdecontenu_inf_fic_nom like \"*.pdf\"", since);
+    }
+
+    private List<AmfFiling> filings(String isin, String lei, String what, LocalDate since) {
         String who = lei == null ? "identificationsociete_iso_cd_isi=\"" + isin + "\""
                 : "(identificationsociete_iso_cd_isi=\"" + isin + "\" or identificationsociete_iso_cd_lei=\"" + lei + "\")";
-        String where = who + " and " + ANNUAL_TYPES + " and " + ESEF_FILES
-                + " and informationdeposee_inf_dat_emt>=\"" + since + "\"";
+        String where = who + " and " + what + " and informationdeposee_inf_dat_emt>=\"" + since + "\"";
         Response response = http.get()
                 .uri(b -> b.path("/api/explore/v2.1/catalog/datasets/flux-amf-new-prod/records")
                         .queryParam("where", "{where}")

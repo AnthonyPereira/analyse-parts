@@ -252,3 +252,43 @@ export interface AnalysisView {
   error: string | null
   analysis: ReportAnalysis | null
 }
+
+/** Un rapport financier semestriel lu par le modèle de langage local, puis vérifié (ADR 0015). */
+export type HalfYearItem = 'REVENUE' | 'OPERATING_INCOME' | 'NET_INCOME_GROUP' | 'EPS_BASIC'
+
+export interface HalfYearLine {
+  item: HalfYearItem
+  /** L'intitulé de la ligne dans le rapport. */
+  label: string
+  current: number
+  previous: number
+  fullYear: number | null
+}
+
+export interface HalfYearReport {
+  periodEnd: string
+  publishedOn: string
+  title: string | null
+  sourceUrl: string
+  model: string
+  createdAt: string
+  lines: HalfYearLine[]
+}
+
+/** Un chiffre sur 12 mois glissants : fullYear + current − previous. */
+export interface Ttm {
+  item: HalfYearItem
+  value: number
+  fiscalYearEnd: string
+  periodEnd: string
+  fullYear: number
+  current: number
+  previous: number
+}
+
+export interface HalfYearView {
+  state: 'NONE' | 'QUEUED' | 'RUNNING' | 'DONE' | 'FAILED'
+  error: string | null
+  report: HalfYearReport | null
+  ttm: Ttm[]
+}

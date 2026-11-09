@@ -4,11 +4,7 @@ import com.analyseparts.analysis.ReportAnalysis.Point;
 import com.analyseparts.analysis.ReportAnalysis.Theme;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -673,18 +669,7 @@ public class ReportAnalyst {
     static final int MAX_ANSWER_TOKENS = 2500;
 
     private <T> T ask(String system, String userPrompt, Map<String, Object> schema, Class<T> type) {
-        // Spring AI 2.0 : les options passées à l'appel remplacent celles de la configuration, modèle compris
-        OllamaChatOptions options = OllamaChatOptions.builder()
-                .model(model)
-                .format(schema)
-                .numPredict(MAX_ANSWER_TOKENS)
-                .disableThinking() // qwen3 « réfléchit » par défaut : plus long, pas plus fidèle aux extraits
-                .numCtx(contextTokens)
-                .temperature(0.1) // peu de hasard : on veut recopier, pas créer
-                .build();
-        String content = chat.call(new Prompt(List.of(new SystemMessage(system), new UserMessage(userPrompt)), options))
-                .getResult().getOutput().getText();
-        return json.readValue(content, type);
+        return LocalModel.ask(chat, json, model, contextTokens, MAX_ANSWER_TOKENS, system, userPrompt, schema, type);
     }
 
     /** Une citation de moins de 8 mots est un titre ou un nom (« Risques en matière d'Environnement »). */

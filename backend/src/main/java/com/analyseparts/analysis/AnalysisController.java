@@ -12,9 +12,30 @@ import java.util.Map;
 public class AnalysisController {
 
     private final AnalysisService analyses;
+    private final HalfYearService halfYears;
 
-    public AnalysisController(AnalysisService analyses) {
+    public AnalysisController(AnalysisService analyses, HalfYearService halfYears) {
         this.analyses = analyses;
+        this.halfYears = halfYears;
+    }
+
+    /** Le dernier rapport semestriel lu et les chiffres sur 12 mois glissants. */
+    @GetMapping("/api/companies/{isin}/half-year")
+    public ResponseEntity<HalfYearView> halfYear(@PathVariable String isin) {
+        return ResponseEntity.of(halfYears.view(isin));
+    }
+
+    /** Relit le rapport semestriel d'une société (réponse immédiate, lecture en arrière-plan). */
+    @PostMapping("/api/admin/half-year/{isin}")
+    public ResponseEntity<HalfYearView> readHalfYear(@PathVariable String isin) {
+        return halfYears.request(isin).map(v -> ResponseEntity.accepted().body(v))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Lit chaque rapport semestriel attendu et pas encore lu. */
+    @PostMapping("/api/admin/half-year/missing")
+    public Map<String, Integer> readMissingHalfYears() {
+        return Map.of("queued", halfYears.requestMissing());
     }
 
     /** La dernière lecture du rapport annuel d'une société, et l'état de la file. */
