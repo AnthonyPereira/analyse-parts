@@ -5,6 +5,7 @@ import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.company.Icb;
 import com.analyseparts.financials.FinancialHistory;
 import com.analyseparts.financials.FinancialsService;
+import com.analyseparts.financials.Metric;
 import com.analyseparts.market.MarketDataService;
 import com.analyseparts.market.Quote;
 import com.analyseparts.scoring.core.Freshness;
@@ -152,13 +153,20 @@ public class ScoringService {
     /** Code ICB du super-secteur des banques. */
     public static final String BANKS_SUPERSECTOR = "3010";
 
-    /** Une banque est notée avec les poids bancaires de chaque profil (voir {@link Profile}). */
-    static boolean isBank(Company company) {
-        return company.getIcb().map(icb -> BANKS_SUPERSECTOR.equals(icb.supersectorCode())).orElse(false);
+    /** Code ICB du super-secteur des assurances. */
+    public static final String INSURANCE_SUPERSECTOR = "3030";
+
+    /** Banques et assurances sont notées avec leurs propres poids dans chaque profil (voir {@link Profile}). */
+    static Profile.Book bookOf(Company company) {
+        String supersector = company.getIcb().map(icb -> icb.supersectorCode()).orElse(null);
+        if (BANKS_SUPERSECTOR.equals(supersector)) {
+            return Profile.Book.BANK;
+        }
+        return INSURANCE_SUPERSECTOR.equals(supersector) ? Profile.Book.INSURER : Profile.Book.STANDARD;
     }
 
     private static Map<Ratio, Integer> weightsFor(Company company, Profile profile) {
-        return profile.weights(isBank(company));
+        return profile.weights(bookOf(company));
     }
 
     /** Les ISIN des sociétés notées (celles qui ont au moins un rapport). */
@@ -297,7 +305,7 @@ public class ScoringService {
     }
 
     private List<YearRatioSet> yearRatioSets(Company company) {
-        FinancialHistory history = financials.history(company.getId());
+        FinancialHistory history = history(company);
         String quoted = market.latestQuote(company.getId()).map(Quote::currency).orElse("EUR");
         String reporting = reportingCurrency(history).orElse(quoted);
         List<YearRatioSet> result = new ArrayList<>();
@@ -315,8 +323,32 @@ public class ScoringService {
         return result;
     }
 
-    private RatioSet ratios(Company company) {
+    private FinancialHistory history(Company company) {
         FinancialHistory history = financials.history(company.getId());
+        return bookOf(company) == Profile.Book.INSURER ? withInsuranceRevenue(history) : history;
+    }
+
+    /**
+     * Pour un assureur qui ne publie pas de chiffre d'affaires total (SCOR, Coface), le revenu des
+     * contrats d'assurance (IFRS 17) en tient lieu. Réservé aux assurances : les banques publient
+     * aussi ce revenu pour leur filiale d'assurance, et leur équivalent est le PNB.
+     */
+    static FinancialHistory withInsuranceRevenue(FinancialHistory history) {
+        List<FinancialHistory.Year> years = history.years().stream().map(year -> {
+            Optional<FinancialHistory.Value> insurance = year.get(Metric.INSURANCE_REVENUE);
+            if (year.get(Metric.REVENUE).isPresent() || insurance.isEmpty()) {
+                return year;
+            }
+            Map<Metric, FinancialHistory.Value> metrics = new EnumMap<>(Metric.class);
+            metrics.putAll(year.metrics());
+            metrics.put(Metric.REVENUE, insurance.get());
+            return new FinancialHistory.Year(year.fiscalYearEnd(), metrics);
+        }).toList();
+        return new FinancialHistory(years);
+    }
+
+    private RatioSet ratios(Company company) {
+        FinancialHistory history = history(company);
         if (company.isCooperativeCertificate()) {
             return RatioCalculator.compute(history, null, COOPERATIVE_CERTIFICATE);
         }

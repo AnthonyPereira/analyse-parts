@@ -587,8 +587,15 @@ export const GLOSSARY: Record<string, Entry> = {
     term: 'Banques : une notation à part', category: 'La société',
     short: 'Les banques ne se lisent pas comme les autres entreprises. Chaque profil les note avec des indicateurs propres à leur métier.',
     what: 'Une banque prête l\'argent de ses déposants : plus de 90 % de son bilan est financé par des dettes, et c\'est normal. L\'endettement, la liquidité, la valeur d\'entreprise et le cash-flow libre n\'ont donc pas de sens pour elle. Elle n\'a pas non plus de chiffre d\'affaires, mais un produit net bancaire. Pour une banque, chaque profil pose les mêmes questions (est-elle rentable ? solide ? bon marché ?) avec les indicateurs que regardent les analystes du secteur : ROE, coefficient d\'exploitation, coût du risque, PER et cours / valeur comptable.',
-    watch: 'Les ratios de solvabilité réglementaires (CET1) ne figurent pas dans les rapports numériques standard : ils ne sont pas encore pris en compte. Les assurances sont pour l\'instant notées comme les autres entreprises.',
-    see: ['COST_INCOME_RATIO', 'COST_OF_RISK_RATIO', 'NET_BANKING_INCOME', 'CCI'],
+    watch: 'Les ratios de solvabilité réglementaires (CET1) ne figurent pas dans les rapports numériques standard : ils ne sont pas encore pris en compte.',
+    see: ['COST_INCOME_RATIO', 'COST_OF_RISK_RATIO', 'NET_BANKING_INCOME', 'CCI', 'INSURER'],
+  },
+  INSURER: {
+    term: 'Assurances : une notation à part', category: 'La société',
+    short: 'Les assurances non plus ne se lisent pas comme une entreprise classique. Chaque profil les note sans les indicateurs d\'endettement et de cash-flow.',
+    what: 'Un assureur encaisse les primes avant de payer les sinistres, et place cet argent en attendant. Son bilan est fait de ces placements et de ce qu\'il doit à ses assurés : la dette nette, la liquidité, la valeur d\'entreprise ou le cash-flow libre d\'une entreprise industrielle n\'y ont pas de sens. Chaque profil le juge donc sur sa rentabilité (ROE, marge nette), sa régularité, sa croissance, son dividende et son prix (PER, cours / valeur comptable).',
+    watch: 'Les indicateurs propres au métier, le ratio combiné (sinistres et frais ÷ primes) et le ratio de solvabilité, ne sont pas balisés dans les rapports numériques : ils ne sont pas pris en compte.',
+    see: ['BANK', 'ROE', 'PER', 'PRICE_TO_BOOK'],
   },
   CCI: {
     term: 'Certificats coopératifs (CCI)', category: 'La société',

@@ -14,7 +14,7 @@ import { parseProfile, ProfileTabs } from '../components/ProfileTabs'
 import { ReportAnalysisSection } from '../components/ReportAnalysisSection'
 import { HowToRead, Term } from '../components/Term'
 import { glossary } from '../glossary'
-import { BANKS_SUPERSECTOR, formatDate, formatPercent, formatRatio, weightsFor } from '../format'
+import { BANKS_SUPERSECTOR, INSURANCE_SUPERSECTOR, formatDate, formatPercent, formatRatio, weightsFor } from '../format'
 
 // Caisses régionales du Crédit Agricole (même règle que Company.isCooperativeCertificate côté Java)
 const COOPERATIVE = /^CRCAM |CCI$/
@@ -104,6 +104,14 @@ export function CompanyPage() {
             <> Cette caisse régionale n'est cotée qu'à travers ses <Term id="CCI">certificats coopératifs</Term> :
               ses ratios de valorisation ne sont pas calculés.</>
           )}
+        </p>
+      )}
+      {supersectorCode === INSURANCE_SUPERSECTOR && (
+        <p className="notice">
+          <strong>Une assurance se note à part.</strong> Son bilan est fait des placements qui couvrent les contrats
+          de ses assurés : la dette, la liquidité ou le cash-flow libre d'une entreprise classique n'ont pas de sens
+          pour elle. Chaque profil la juge donc sur sa rentabilité, sa régularité, sa croissance, son dividende et son
+          prix. <Term id="INSURER">En savoir plus</Term>
         </p>
       )}
       <ProfileTabs value={profile} onChange={p => setParams({ profil: p })} />

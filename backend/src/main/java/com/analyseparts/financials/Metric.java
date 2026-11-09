@@ -25,6 +25,12 @@ public enum Metric {
      */
     REVENUE(Kind.FLOW, "ifrs-full:Revenue", "ifrs-full:RevenueFromContractsWithCustomers",
             "ifrs-full:RevenueFromSaleOfGoods"),
+    /**
+     * Revenu des contrats d'assurance (norme IFRS 17) : le chiffre d'affaires d'un assureur qui ne
+     * publie pas de total (SCOR, Coface). Les banques le publient aussi pour leur filiale
+     * d'assurance : il ne sert donc qu'aux assurances, jamais à la place du PNB.
+     */
+    INSURANCE_REVENUE(Kind.FLOW, "ifrs-full:InsuranceRevenue"),
     /** Marge brute : ventes moins coût direct des produits vendus. */
     GROSS_PROFIT(Kind.FLOW, "ifrs-full:GrossProfit"),
     /** Résultat opérationnel : ce que rapporte le métier, avant frais financiers et impôts. */

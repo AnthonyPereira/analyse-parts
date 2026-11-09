@@ -34,6 +34,12 @@ import static com.analyseparts.scoring.core.Ratio.ROE;
  * d'entreprise et le cash-flow libre n'ont pas de sens pour elles. Ces poids posent les mêmes
  * questions (rentable ? solide ? bon marché ?) avec les indicateurs du métier bancaire :
  * coefficient d'exploitation et coût du risque.
+ * <p>
+ * Les <b>assurances</b> ont aussi leurs poids : comme les banques, leur bilan n'a ni dette
+ * financière ni liquidité au sens industriel (il est fait des placements qui couvrent les
+ * contrats), et leurs indicateurs propres (ratio combiné, ratio de solvabilité) ne sont pas
+ * balisés dans les rapports ESEF. On les note donc sur la rentabilité, sa régularité, la
+ * croissance, le dividende et le prix, sans les ratios bancaires.
  * Le profil Value est le seul qui utilise le cours de bourse : il compare le prix au bénéfice.
  */
 public enum Profile {
@@ -44,31 +50,43 @@ public enum Profile {
                     NET_DEBT_TO_EQUITY, 10, EQUITY_RATIO, 5, CURRENT_RATIO, 5,
                     PROFITABLE_YEARS, 10),
             weights(ROE, 25, COST_INCOME_RATIO, 20, COST_OF_RISK_RATIO, 15, ROA, 10, NET_MARGIN, 10,
-                    PROFITABLE_YEARS, 20)),
+                    PROFITABLE_YEARS, 20),
+            weights(ROE, 30, NET_MARGIN, 20, ROA, 15, PROFITABLE_YEARS, 25, EPS_GROWTH, 10)),
     GROWTH("Croissance", "Des entreprises dont les ventes et les bénéfices augmentent vite, sans s'endetter pour cela.",
             weights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 15, OPERATING_MARGIN, 10, NET_DEBT_TO_EQUITY, 10),
-            weights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 20, COST_INCOME_RATIO, 15)),
+            weights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 20, COST_INCOME_RATIO, 15),
+            weights(REVENUE_GROWTH, 35, EPS_GROWTH, 35, ROE, 20, NET_MARGIN, 10)),
     DIVIDEND("Dividende", "Des entreprises qui versent un dividende régulier, en hausse, et qu'elles peuvent se permettre.",
             weights(DIVIDEND_YIELD, 20, PAYOUT_RATIO, 20, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 10,
                     NET_DEBT_TO_EQUITY, 10, FCF_MARGIN, 10, CASH_CONVERSION, 10),
             weights(DIVIDEND_YIELD, 25, PAYOUT_RATIO, 20, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 15,
-                    COST_OF_RISK_RATIO, 10, ROE, 10)),
+                    COST_OF_RISK_RATIO, 10, ROE, 10),
+            weights(DIVIDEND_YIELD, 25, PAYOUT_RATIO, 25, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 20, ROE, 10)),
     VALUE("Value", "Des entreprises bon marché par rapport à ce qu'elles gagnent, sans dette excessive "
             + "(pour éviter les « pièges à value » : pas chères parce qu'en mauvaise santé).",
             weights(PER, 25, EV_TO_EBIT, 25, FCF_YIELD, 20, PRICE_TO_BOOK, 10, DIVIDEND_YIELD, 10,
                     NET_DEBT_TO_EQUITY, 10),
-            weights(PER, 35, PRICE_TO_BOOK, 30, DIVIDEND_YIELD, 20, COST_OF_RISK_RATIO, 15));
+            weights(PER, 35, PRICE_TO_BOOK, 30, DIVIDEND_YIELD, 20, COST_OF_RISK_RATIO, 15),
+            weights(PER, 40, PRICE_TO_BOOK, 30, DIVIDEND_YIELD, 30));
+
+    /** Comment une société est notée : les poids généraux, ceux des banques ou ceux des assurances. */
+    public enum Book {
+        STANDARD, BANK, INSURER
+    }
 
     private final String label;
     private final String description;
     private final Map<Ratio, Integer> weights;
     private final Map<Ratio, Integer> bankWeights;
+    private final Map<Ratio, Integer> insurerWeights;
 
-    Profile(String label, String description, Map<Ratio, Integer> weights, Map<Ratio, Integer> bankWeights) {
+    Profile(String label, String description, Map<Ratio, Integer> weights, Map<Ratio, Integer> bankWeights,
+            Map<Ratio, Integer> insurerWeights) {
         this.label = label;
         this.description = description;
         this.weights = weights;
         this.bankWeights = bankWeights;
+        this.insurerWeights = insurerWeights;
     }
 
     public String label() {
@@ -88,8 +106,17 @@ public enum Profile {
         return bankWeights;
     }
 
-    public Map<Ratio, Integer> weights(boolean bank) {
-        return bank ? bankWeights : weights;
+    /** Les poids appliqués aux assurances. */
+    public Map<Ratio, Integer> insurerWeights() {
+        return insurerWeights;
+    }
+
+    public Map<Ratio, Integer> weights(Book book) {
+        return switch (book) {
+            case STANDARD -> weights;
+            case BANK -> bankWeights;
+            case INSURER -> insurerWeights;
+        };
     }
 
     private static Map<Ratio, Integer> weights(Object... ratioWeightPairs) {

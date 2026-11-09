@@ -144,6 +144,32 @@ public class EsefImportService {
     }
 
     /**
+     * Vérification quotidienne, à l'AMF seulement, des sociétés dont un nouveau rapport annuel est
+     * attendu. L'AMF publie le rapport le jour du dépôt et ne limite pas les requêtes : inutile
+     * d'attendre la vérification hebdomadaire. La date de dernière consultation n'est pas modifiée,
+     * pour que la vérification hebdomadaire interroge encore filings.xbrl.org (sociétés étrangères).
+     */
+    public ImportResult refreshFromAmf() {
+        Instant now = Instant.now();
+        Map<Long, LocalDate> latest = financials.latestPeriodEnds();
+        List<Company> due = companies.findByLeiIsNotNullOrderByName().stream()
+                .filter(c -> EsefRefreshPolicy.isReportExpected(latest.get(c.getId()), now))
+                .toList();
+        if (amf == null || due.isEmpty()) {
+            return ImportResult.EMPTY;
+        }
+        log.info("Vérification AMF du jour : {} sociétés attendent un nouveau rapport", due.size());
+        ImportResult total = ImportResult.EMPTY;
+        Checks checks = new Checks();
+        for (Company company : due) {
+            total = total.plus(importFromAmf(company, checks.amf()));
+        }
+        report(checks);
+        log.info("Vérification AMF du jour : {}", total);
+        return total;
+    }
+
+    /**
      * Deux sources, dans cet ordre (ADR 0005) :
      * <ol>
      *   <li><b>l'AMF</b>, source officielle : le rapport tel que la société l'a déposé, disponible le

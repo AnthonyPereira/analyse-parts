@@ -37,6 +37,13 @@ class EsefRefreshPolicyTest {
     }
 
     @Test
+    void dailyAmfCheckOnlyForExpectedReports() {
+        assertThat(EsefRefreshPolicy.isReportExpected(LocalDate.of(2024, 12, 31), NOW)).isTrue();
+        assertThat(EsefRefreshPolicy.isReportExpected(LocalDate.of(2025, 12, 31), NOW)).isFalse();
+        assertThat(EsefRefreshPolicy.isReportExpected(null, NOW)).isFalse(); // sans rapport : vérification mensuelle
+    }
+
+    @Test
     void companyWithoutFilingIsCheckedMonthly() {
         assertThat(EsefRefreshPolicy.isDue(LAST_WEEK, null, NOW, false)).isFalse();
         assertThat(EsefRefreshPolicy.isDue(NOW.minus(31, ChronoUnit.DAYS), null, NOW, false)).isTrue();

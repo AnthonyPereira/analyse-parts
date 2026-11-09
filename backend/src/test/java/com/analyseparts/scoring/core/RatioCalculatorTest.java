@@ -194,6 +194,16 @@ class RatioCalculatorTest {
     }
 
     @Test
+    void everyProfileHasInsurerWeightsWithoutIndustrialOrBankRatios() {
+        for (Profile p : Profile.values()) {
+            assertThat(p.insurerWeights().values().stream().mapToInt(Integer::intValue).sum()).isEqualTo(100);
+            assertThat(p.insurerWeights()).doesNotContainKeys(Ratio.NET_DEBT_TO_EQUITY, Ratio.EV_TO_EBIT,
+                    Ratio.CURRENT_RATIO, Ratio.EQUITY_RATIO, Ratio.FCF_MARGIN, Ratio.FCF_YIELD,
+                    Ratio.OPERATING_MARGIN, Ratio.CASH_CONVERSION, Ratio.COST_INCOME_RATIO, Ratio.COST_OF_RISK_RATIO);
+        }
+    }
+
+    @Test
     void exceptionalDividendIsReplacedByTheUsualOne() {
         // Versements habituels 100, 120, 110 puis 600 (cession redistribuée) : on retient la médiane, 110
         Valuation valuation = new Valuation(new BigDecimal("10"), "EUR", new BigDecimal("10"), "EUR",

@@ -60,6 +60,8 @@ export interface ProfileDefinition {
   weights: Record<string, number>
   /** Poids appliqués aux banques (super-secteur ICB 3010) : indicateurs du métier bancaire. */
   bankWeights: Record<string, number>
+  /** Poids appliqués aux assurances (super-secteur ICB 3030). */
+  insurerWeights: Record<string, number>
 }
 
 export interface RankingEntry {

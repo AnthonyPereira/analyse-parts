@@ -80,11 +80,17 @@ export const METRIC_LABEL: Record<string, string> = {
 /** Code ICB du super-secteur des banques : elles sont notées avec leurs propres indicateurs. */
 export const BANKS_SUPERSECTOR = '3010'
 
-/** Les poids d'un profil pour une société : ceux des banques si c'en est une. */
-export function weightsFor(profile: { weights: Record<string, number>; bankWeights: Record<string, number> } | undefined,
+/** Code ICB du super-secteur des assurances : elles aussi ont leurs propres poids. */
+export const INSURANCE_SUPERSECTOR = '3030'
+
+/** Les poids d'un profil pour une société : ceux des banques ou des assurances si c'en est une. */
+export function weightsFor(profile: { weights: Record<string, number>; bankWeights: Record<string, number>;
+                             insurerWeights?: Record<string, number> } | undefined,
                            supersectorCode: string | null | undefined): Record<string, number> {
   if (!profile) return {}
-  return supersectorCode === BANKS_SUPERSECTOR ? profile.bankWeights : profile.weights
+  if (supersectorCode === BANKS_SUPERSECTOR) return profile.bankWeights
+  if (supersectorCode === INSURANCE_SUPERSECTOR && profile.insurerWeights) return profile.insurerWeights
+  return profile.weights
 }
 
 /** Couleur d'un score : rouge sous 40, orange jusqu'à 60, vert au-delà. */

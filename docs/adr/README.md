@@ -23,3 +23,4 @@ Règles :
 | [0010](0010-surveillance-des-sources.md) | Surveillance des sources externes : bilan de chaque collecte, statut DEGRADED, bandeau sur le site | Acceptée |
 | [0011](0011-lecture-des-rapports-par-llm-local.md) | Lecture des rapports annuels par un LLM local (Ollama, qwen3:8b) : recherche par embeddings, citations vérifiées, jamais dans le score | Remplacée en partie par 0012 |
 | [0012](0012-lecture-des-rapports-plus-complete.md) | Lecture plus complète : qwen3:14b, tableaux rédigés gardés, plusieurs lots par thème, doublons regroupés, chapitre de présentation, relecture réglable | Acceptée |
+| [0013](0013-notation-des-assurances.md) | Notation à part pour les assurances (ICB 3030) : poids sans endettement ni cash-flow, comme pour les banques | Acceptée |

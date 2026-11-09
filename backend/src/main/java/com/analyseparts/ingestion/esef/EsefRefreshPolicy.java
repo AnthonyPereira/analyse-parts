@@ -40,9 +40,17 @@ final class EsefRefreshPolicy {
         if (latestPeriodEnd == null) {
             return ignoreRecentCheck || checkedBefore(lastChecked, now, RECHECK_WITHOUT_FILING);
         }
+        return isReportExpected(latestPeriodEnd, now)
+                && (ignoreRecentCheck || checkedBefore(lastChecked, now, RECHECK_WHEN_EXPECTED));
+    }
+
+    /** Un nouveau rapport annuel est attendu : {@value #NEXT_REPORT_MONTHS} mois ont passé depuis la dernière clôture connue. */
+    static boolean isReportExpected(LocalDate latestPeriodEnd, Instant now) {
+        if (latestPeriodEnd == null) {
+            return false;
+        }
         LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
-        boolean newReportExpected = !latestPeriodEnd.plusMonths(NEXT_REPORT_MONTHS).isAfter(today);
-        return newReportExpected && (ignoreRecentCheck || checkedBefore(lastChecked, now, RECHECK_WHEN_EXPECTED));
+        return !latestPeriodEnd.plusMonths(NEXT_REPORT_MONTHS).isAfter(today);
     }
 
     private static boolean checkedBefore(Instant lastChecked, Instant now, Duration delay) {

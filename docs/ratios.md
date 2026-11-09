@@ -259,8 +259,28 @@ la caisse entière : PER, rendement et cours / valeur comptable sont donc laiss�
 **Dividendes : repli.** Quand le montant total versé n'est pas publié (BNP Paribas), il est
 reconstitué : dividende par action × nombre d'actions (résultat net ÷ BPA).
 
-Limites : les ratios réglementaires (CET1) ne sont pas dans les rapports ESEF standard. Les
-assurances (ICB 3030) restent notées avec les poids généraux.
+Limites : les ratios réglementaires (CET1) ne sont pas dans les rapports ESEF standard.
+
+## Assurances — une notation à part
+
+Un assureur encaisse les primes avant de payer les sinistres et place cet argent en attendant.
+Son bilan est fait de ces placements et de ce qu'il doit à ses assurés : comme pour une banque,
+le gearing, l'autonomie financière, la liquidité, la VE / EBIT et le cash-flow libre n'ont pas de
+sens. Ses indicateurs propres, le **ratio combiné** (sinistres et frais ÷ primes) et le **ratio de
+solvabilité** (Solvabilité II), ne sont pas balisés dans les rapports ESEF : on ne peut pas les
+calculer.
+
+Les sociétés du super-secteur ICB **3030 (Assurance)** (AXA, SCOR, Coface) sont donc notées avec
+les **poids assurance** de chaque profil (`Profile.insurerWeights`), faits seulement des ratios
+qui gardent leur sens. Avant (poids généraux), le profil Value ne notait pas AXA : seuls 45 %
+des poids étaient calculables.
+
+| Profil | Poids assurance |
+|---|---|
+| Qualité | ROE 30, exercices bénéficiaires 25, marge nette 20, ROA 15, croissance du BPA 10 |
+| Croissance | croissance du chiffre d'affaires 35, croissance du BPA 35, ROE 20, marge nette 10 |
+| Dividende | rendement 25, taux de distribution 25, croissance du dividende 20, exercices bénéficiaires 20, ROE 10 |
+| Value | PER 40, cours / valeur comptable 30, rendement 30 |
 
 ## Barèmes adaptés au secteur
 

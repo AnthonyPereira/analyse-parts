@@ -49,7 +49,7 @@ public class ScoringController {
     }
 
     public record ProfileDefinition(Profile id, String label, String description, Map<Ratio, Integer> weights,
-                                    Map<Ratio, Integer> bankWeights) {
+                                    Map<Ratio, Integer> bankWeights, Map<Ratio, Integer> insurerWeights) {
     }
 
     @GetMapping("/api/scoring/ratios")
@@ -63,7 +63,7 @@ public class ScoringController {
     @GetMapping("/api/scoring/profiles")
     public List<ProfileDefinition> profiles() {
         return Arrays.stream(Profile.values())
-                .map(p -> new ProfileDefinition(p, p.label(), p.description(), p.weights(), p.bankWeights()))
+                .map(p -> new ProfileDefinition(p, p.label(), p.description(), p.weights(), p.bankWeights(), p.insurerWeights()))
                 .toList();
     }
 
