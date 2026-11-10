@@ -28,7 +28,7 @@ class InsuranceRevenueTest {
         FinancialHistory scor = new FinancialHistory(List.of(year(Map.of(
                 Metric.INSURANCE_REVENUE, value(15_378, "ifrs-full:InsuranceRevenue")))));
 
-        FinancialHistory adjusted = ScoringService.withInsuranceRevenue(scor);
+        FinancialHistory adjusted = ScoringService.addInsuranceRevenue(scor);
 
         assertThat(adjusted.years().getFirst().get(Metric.REVENUE))
                 .hasValueSatisfying(v -> assertThat(v.concept()).isEqualTo("ifrs-full:InsuranceRevenue"));
@@ -41,7 +41,7 @@ class InsuranceRevenueTest {
                 Metric.REVENUE, value(91_139, "ifrs-full:Revenue"),
                 Metric.INSURANCE_REVENUE, value(89_953, "ifrs-full:InsuranceRevenue")))));
 
-        FinancialHistory adjusted = ScoringService.withInsuranceRevenue(axa);
+        FinancialHistory adjusted = ScoringService.addInsuranceRevenue(axa);
 
         assertThat(adjusted.years().getFirst().get(Metric.REVENUE))
                 .hasValueSatisfying(v -> assertThat(v.value()).isEqualByComparingTo("91139"));

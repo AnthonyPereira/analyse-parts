@@ -47,7 +47,7 @@ class ReportAnalystTest {
             return new ChatResponse(List.of(new Generation(new AssistantMessage(ANSWER))));
         });
 
-        var index = new PassageSearch(embeddings).index(PASSAGES);
+        var index = new PassageSearch(embeddings).buildIndex(PASSAGES);
         var result = new ReportAnalyst(chat, JsonMapper.builder().build(), 16384, "test-model")
                 .analyse("L'ORÉAL", LocalDate.of(2025, 12, 31), index);
 
@@ -81,7 +81,7 @@ class ReportAnalystTest {
         ChatModel chat = mock(ChatModel.class);
         when(chat.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(TWO_POINTS)))));
 
-        var index = new PassageSearch(embeddings).index(PASSAGES);
+        var index = new PassageSearch(embeddings).buildIndex(PASSAGES);
         var result = new ReportAnalyst(chat, JsonMapper.builder().build(), 16384, "test-model")
                 .analyse("L'ORÉAL", LocalDate.of(2025, 12, 31), index);
 
@@ -108,7 +108,7 @@ class ReportAnalystTest {
             return new ChatResponse(List.of(new Generation(new AssistantMessage(TWO_POINTS))));
         });
 
-        var index = new PassageSearch(embeddings).index(PASSAGES);
+        var index = new PassageSearch(embeddings).buildIndex(PASSAGES);
         var result = new ReportAnalyst(chat, JsonMapper.builder().build(), 16384, "test-model")
                 .analyse("L'ORÉAL", LocalDate.of(2025, 12, 31), index);
 
@@ -141,7 +141,7 @@ class ReportAnalystTest {
                       "extrait":2,"citation":"Le Groupe dépend du dollar"}]}"""))));
         });
 
-        var index = new PassageSearch(embeddings).index(PASSAGES);
+        var index = new PassageSearch(embeddings).buildIndex(PASSAGES);
         var result = new ReportAnalyst(chat, JsonMapper.builder().build(), 16384, "test-model", "false")
                 .analyse("L'ORÉAL", LocalDate.of(2025, 12, 31), index);
 
@@ -190,11 +190,11 @@ class ReportAnalystTest {
 
     @Test
     void theReviewSettingNamesTheTopicsToReview() {
-        assertThat(ReportAnalyst.reviewedTopics("BUSINESS, advantages"))
+        assertThat(ReportAnalyst.parseReviewedTopics("BUSINESS, advantages"))
                 .containsExactly(ReportAnalyst.Topic.BUSINESS, ReportAnalyst.Topic.ADVANTAGES);
-        assertThat(ReportAnalyst.reviewedTopics("true")).hasSize(3);
-        assertThat(ReportAnalyst.reviewedTopics("false")).isEmpty();
-        assertThat(ReportAnalyst.reviewedTopics("")).isEmpty();
+        assertThat(ReportAnalyst.parseReviewedTopics("true")).hasSize(3);
+        assertThat(ReportAnalyst.parseReviewedTopics("false")).isEmpty();
+        assertThat(ReportAnalyst.parseReviewedTopics("")).isEmpty();
     }
 
     @Test
@@ -233,16 +233,16 @@ class ReportAnalystTest {
     /** Vus sur le rapport de L'Oréal : des citations exactes, mais des points inutiles. */
     @Test
     void aHeadingOrAnExplanationThatRepeatsTheQuoteIsRejected() {
-        assertThat(ReportAnalyst.weakness("Risques en matière d’Environnement", "Des risques pour l'environnement existent."))
+        assertThat(ReportAnalyst.findWeakness("Risques en matière d’Environnement", "Des risques pour l'environnement existent."))
                 .contains("trop courte");
-        assertThat(ReportAnalyst.weakness("Les principaux risques auxquels le Groupe est exposé sont décrits ci-après",
+        assertThat(ReportAnalyst.findWeakness("Les principaux risques auxquels le Groupe est exposé sont décrits ci-après",
                 "Les principaux risques auxquels le Groupe est exposé sont décrits ci-après."))
                 .contains("répète");
-        assertThat(ReportAnalyst.weakness("nous avons déposé un nombre record de 725 brevets, promettant toujours plus d’innovations",
+        assertThat(ReportAnalyst.findWeakness("nous avons déposé un nombre record de 725 brevets, promettant toujours plus d’innovations",
                 "Beaucoup de brevets protègent ses inventions : les concurrents ne peuvent pas les copier pendant vingt ans."))
                 .isNull();
         // un intitulé chiffré est gardé (Covivio)
-        assertThat(ReportAnalyst.weakness("1.3.1 Bureaux : 49% du patrimoine de Covivio",
+        assertThat(ReportAnalyst.findWeakness("1.3.1 Bureaux : 49% du patrimoine de Covivio",
                 "Les immeubles de bureaux sont la plus grosse activité, près de la moitié de la valeur des biens."))
                 .isNull();
     }

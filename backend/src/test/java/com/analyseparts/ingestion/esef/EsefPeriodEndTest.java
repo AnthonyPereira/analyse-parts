@@ -28,7 +28,7 @@ class EsefPeriodEndTest {
         var facts = List.of(flow(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31)),
                 flow(LocalDate.of(2024, 1, 1), LocalDate.of(2024, 12, 31)));
 
-        assertThat(EsefImportService.periodEnd(HERMES, declared("2026-12-31"), facts))
+        assertThat(EsefImportService.resolvePeriodEnd(HERMES, declared("2026-12-31"), facts))
                 .isEqualTo(LocalDate.of(2025, 12, 31));
     }
 
@@ -36,7 +36,7 @@ class EsefPeriodEndTest {
     void oneDayGapKeepsTheDeclaredDate() {
         var facts = List.of(flow(LocalDate.of(2023, 4, 1), LocalDate.of(2024, 3, 30)));
 
-        assertThat(EsefImportService.periodEnd(HERMES, declared("2024-03-31"), facts))
+        assertThat(EsefImportService.resolvePeriodEnd(HERMES, declared("2024-03-31"), facts))
                 .isEqualTo(LocalDate.of(2024, 3, 31));
     }
 }

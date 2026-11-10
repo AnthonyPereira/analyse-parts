@@ -17,7 +17,7 @@ public interface HalfYearDocuments {
      * Les dépôts publiés depuis {@code since}, du plus récent au plus ancien, sans les simples avis
      * de mise à disposition. Vide pour une société dont l'AMF n'est pas l'autorité.
      */
-    List<HalfYearDocument> reports(String isin, String lei, LocalDate since);
+    List<HalfYearDocument> findReports(String isin, String lei, LocalDate since);
 
     /** Télécharge un PDF (quelques Mo). */
     byte[] download(String url);

@@ -31,7 +31,7 @@ class LeiEnrichmentTrigger {
 
     @Async
     @TransactionalEventListener
-    void on(CompaniesImported event) {
+    void handleCompaniesImported(CompaniesImported event) {
         if (event.created() > 0) {
             enrichment.enrichMissingLeis();
         }

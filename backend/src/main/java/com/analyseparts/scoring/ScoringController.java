@@ -53,17 +53,17 @@ public class ScoringController {
     }
 
     @GetMapping("/api/scoring/ratios")
-    public List<RatioDefinition> ratios() {
+    public List<RatioDefinition> listRatios() {
         return Arrays.stream(Ratio.values())
-                .map(r -> new RatioDefinition(r, r.family(), r.family().label(), r.label(), r.description(),
-                        r.unit(), r.sectorAdjusted(), r.scale().anchors()))
+                .map(r -> new RatioDefinition(r, r.getFamily(), r.getFamily().getLabel(), r.getLabel(), r.getDescription(),
+                        r.getUnit(), r.isSectorAdjusted(), r.getScale().anchors()))
                 .toList();
     }
 
     @GetMapping("/api/scoring/profiles")
-    public List<ProfileDefinition> profiles() {
+    public List<ProfileDefinition> listProfiles() {
         return Arrays.stream(Profile.values())
-                .map(p -> new ProfileDefinition(p, p.label(), p.description(), p.weights(), p.bankWeights(), p.insurerWeights()))
+                .map(p -> new ProfileDefinition(p, p.getLabel(), p.getDescription(), p.getWeights(), p.getBankWeights(), p.getInsurerWeights()))
                 .toList();
     }
 
@@ -72,32 +72,32 @@ public class ScoringController {
 
     /** Les médianes par secteur utilisées pour adapter les barèmes. */
     @GetMapping("/api/scoring/calibration")
-    public CalibrationView calibration() {
-        SectorCalibration c = scoring.calibration();
-        return new CalibrationView(c.calibratedAt().orElse(null), c.medians());
+    public CalibrationView getCalibration() {
+        SectorCalibration c = scoring.getCalibration();
+        return new CalibrationView(c.getCalibratedAt().orElse(null), c.getMedians());
     }
 
     /** Recalcule et fige les médianes par secteur (à relancer après un gros import). */
     @PostMapping("/api/admin/scoring/calibrate")
     public CalibrationView recalibrate() {
         SectorCalibration c = scoring.recalibrate();
-        return new CalibrationView(c.calibratedAt().orElse(null), c.medians());
+        return new CalibrationView(c.getCalibratedAt().orElse(null), c.getMedians());
     }
 
     @GetMapping("/api/companies/{isin}/ratios")
-    public ResponseEntity<RatioSet> companyRatios(@PathVariable String isin) {
-        return ResponseEntity.of(scoring.ratios(isin));
+    public ResponseEntity<RatioSet> getCompanyRatios(@PathVariable String isin) {
+        return ResponseEntity.of(scoring.computeRatios(isin));
     }
 
     @GetMapping("/api/companies/{isin}/score")
-    public ResponseEntity<ScoringService.CompanyScore> companyScore(
+    public ResponseEntity<ScoringService.CompanyScore> getCompanyScore(
             @PathVariable String isin, @RequestParam(defaultValue = "QUALITY") Profile profile) {
         return ResponseEntity.of(scoring.score(isin, profile));
     }
 
     @GetMapping("/api/scores")
-    public List<ScoringService.RankingEntry> ranking(@RequestParam(defaultValue = "QUALITY") Profile profile) {
-        return scoring.ranking(profile);
+    public List<ScoringService.RankingEntry> getRanking(@RequestParam(defaultValue = "QUALITY") Profile profile) {
+        return scoring.computeRanking(profile);
     }
 
     /**
@@ -106,7 +106,7 @@ public class ScoringController {
      * que leur somme fasse 100).
      */
     @PostMapping("/api/scores/custom")
-    public ResponseEntity<List<ScoringService.RankingEntry>> customRanking(@RequestBody Map<Ratio, Integer> weights) {
+    public ResponseEntity<List<ScoringService.RankingEntry>> computeCustomRanking(@RequestBody Map<Ratio, Integer> weights) {
         Map<Ratio, Integer> positive = new EnumMap<>(Ratio.class);
         weights.forEach((ratio, weight) -> {
             if (weight != null && weight > 0) {
@@ -116,30 +116,30 @@ public class ScoringController {
         if (positive.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(scoring.ranking(positive));
+        return ResponseEntity.ok(scoring.computeRanking(positive));
     }
 
     /** Toutes les sociétés avec leurs ratios et leurs 4 scores, pour les graphiques de comparaison. */
     @GetMapping("/api/universe")
-    public List<ScoringService.UniverseEntry> universe() {
-        return scoring.universe();
+    public List<ScoringService.UniverseEntry> getUniverse() {
+        return scoring.buildUniverse();
     }
 
     /** Les ratios exercice par exercice, avec la valorisation à chaque date de clôture. */
     @GetMapping("/api/companies/{isin}/ratios/history")
-    public ResponseEntity<List<ScoringService.YearRatios>> ratioHistory(@PathVariable String isin) {
-        return ResponseEntity.of(scoring.ratioHistory(isin));
+    public ResponseEntity<List<ScoringService.YearRatios>> getRatioHistory(@PathVariable String isin) {
+        return ResponseEntity.of(scoring.computeRatioHistory(isin));
     }
 
     /** L'historique des 4 notes d'une société, un point par jour. */
     @GetMapping("/api/companies/{isin}/score-history")
-    public ResponseEntity<List<ScoreHistoryService.Point>> scoreHistory(@PathVariable String isin) {
-        return ResponseEntity.of(scoreHistory.history(isin));
+    public ResponseEntity<List<ScoreHistoryService.Point>> getScoreHistory(@PathVariable String isin) {
+        return ResponseEntity.of(scoreHistory.findHistory(isin));
     }
 
     /** Prend tout de suite la photo quotidienne des notes (sans attendre 18 h 45). */
     @PostMapping("/api/admin/scoring/history/snapshot")
-    public Map<String, Integer> snapshot() {
+    public Map<String, Integer> recordSnapshot() {
         return Map.of("companies", scoreHistory.recordDaily());
     }
 }

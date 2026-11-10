@@ -39,7 +39,7 @@ public final class HalfYearChecks {
     }
 
     /** La fin du semestre qui suit un exercice : 6 mois plus tard, en fin de mois (31/12 → 30/06). */
-    public static LocalDate halfYearEnd(LocalDate fiscalYearEnd) {
+    public static LocalDate computeHalfYearEnd(LocalDate fiscalYearEnd) {
         return YearMonth.from(fiscalYearEnd).plusMonths(6).atEndOfMonth();
     }
 
@@ -49,7 +49,7 @@ public final class HalfYearChecks {
 
     public static Checked check(HalfYearReader.Reading reading, FinancialHistory.Year fiscalYear) {
         List<String> rejected = new ArrayList<>(reading.rejected());
-        LocalDate expected = halfYearEnd(fiscalYear.fiscalYearEnd());
+        LocalDate expected = computeHalfYearEnd(fiscalYear.fiscalYearEnd());
         if (reading.periodEnd() == null || Math.abs(ChronoUnit.DAYS.between(expected, reading.periodEnd())) > 7) {
             rejected.add("semestre clos le " + reading.periodEnd() + ", attendu le " + expected);
             return new Checked(List.of(), rejected);
@@ -57,13 +57,13 @@ public final class HalfYearChecks {
         List<HalfYearReport.Line> kept = new ArrayList<>();
         boolean anchored = false; // au moins un chiffre confronté aux comptes annuels : l'unité est sûre
         for (HalfYearReader.Line l : reading.lines()) {
-            Optional<BigDecimal> annual = annual(l.item(), fiscalYear);
+            Optional<BigDecimal> annual = findAnnualAmount(l.item(), fiscalYear);
             if (l.fullYear() != null && annual.isPresent() && !close(l.fullYear(), annual.get())) {
                 rejected.add(l.item() + " : exercice complet " + l.fullYear() + " dans le rapport, " + annual.get()
                         + " dans les comptes annuels");
                 continue;
             }
-            if (l.item() == Item.REVENUE && annual.isPresent() && !plausibleHalf(l.previous(), annual.get())) {
+            if (l.item() == Item.REVENUE && annual.isPresent() && !isPlausibleHalf(l.previous(), annual.get())) {
                 rejected.add("REVENUE : semestre précédent " + l.previous() + " pour un exercice de " + annual.get());
                 continue;
             }
@@ -80,7 +80,7 @@ public final class HalfYearChecks {
     }
 
     /** Le chiffre annuel correspondant : pour le chiffre d'affaires, le PNB d'une banque ou les revenus d'un assureur. */
-    static Optional<BigDecimal> annual(Item item, FinancialHistory.Year year) {
+    static Optional<BigDecimal> findAnnualAmount(Item item, FinancialHistory.Year year) {
         List<Metric> metrics = switch (item) {
             case REVENUE -> List.of(Metric.REVENUE, Metric.NET_BANKING_INCOME, Metric.INSURANCE_REVENUE);
             case OPERATING_INCOME -> List.of(Metric.OPERATING_INCOME);
@@ -97,7 +97,7 @@ public final class HalfYearChecks {
                 || gap.compareTo(new BigDecimal("0.01")) <= 0; // arrondi d'un BPA à deux décimales
     }
 
-    static boolean plausibleHalf(BigDecimal half, BigDecimal year) {
+    static boolean isPlausibleHalf(BigDecimal half, BigDecimal year) {
         if (year.signum() <= 0) {
             return false;
         }
@@ -106,10 +106,10 @@ public final class HalfYearChecks {
     }
 
     /** Les chiffres sur 12 mois : dernier exercice + semestre publié − même semestre de l'exercice. */
-    public static List<Ttm> ttm(HalfYearReport report, FinancialHistory.Year fiscalYear) {
+    public static List<Ttm> computeTtm(HalfYearReport report, FinancialHistory.Year fiscalYear) {
         List<Ttm> result = new ArrayList<>();
         for (HalfYearReport.Line l : report.lines()) {
-            annual(l.item(), fiscalYear).ifPresent(a -> result.add(new Ttm(l.item(),
+            findAnnualAmount(l.item(), fiscalYear).ifPresent(a -> result.add(new Ttm(l.item(),
                     a.add(l.current()).subtract(l.previous()), fiscalYear.fiscalYearEnd(), report.periodEnd(),
                     a, l.current(), l.previous())));
         }

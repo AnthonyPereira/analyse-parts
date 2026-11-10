@@ -16,7 +16,7 @@ public record ListedEquity(String name, String isin, String symbol, String marke
     }
 
     /** Les 2 premières lettres de l'ISIN donnent le pays d'émission du titre. */
-    public String isinCountry() {
+    public String extractIsinCountry() {
         return isin.substring(0, 2);
     }
 

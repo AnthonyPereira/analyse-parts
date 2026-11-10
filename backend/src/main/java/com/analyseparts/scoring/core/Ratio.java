@@ -149,28 +149,28 @@ public enum Ratio {
         this.scale = scale;
     }
 
-    public RatioFamily family() {
+    public RatioFamily getFamily() {
         return family;
     }
 
-    public Unit unit() {
+    public Unit getUnit() {
         return unit;
     }
 
     /** Le barème s'adapte-t-il au niveau normal du secteur ? */
-    public boolean sectorAdjusted() {
+    public boolean isSectorAdjusted() {
         return sectorAdjusted;
     }
 
-    public String label() {
+    public String getLabel() {
         return label;
     }
 
-    public String description() {
+    public String getDescription() {
         return description;
     }
 
-    public Scale scale() {
+    public Scale getScale() {
         return scale;
     }
 }

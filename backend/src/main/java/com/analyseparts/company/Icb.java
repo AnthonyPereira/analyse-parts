@@ -14,15 +14,15 @@ package com.analyseparts.company;
  */
 public record Icb(String code, String industry, String supersector, String sector, String subsector) {
 
-    public String industryCode() {
+    public String extractIndustryCode() {
         return code.substring(0, 2);
     }
 
-    public String supersectorCode() {
+    public String extractSupersectorCode() {
         return code.substring(0, 4);
     }
 
-    public String sectorCode() {
+    public String extractSectorCode() {
         return code.substring(0, 6);
     }
 }

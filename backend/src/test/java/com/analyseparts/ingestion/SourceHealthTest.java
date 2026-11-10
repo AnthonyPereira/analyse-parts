@@ -81,7 +81,7 @@ class SourceHealthTest {
     @Test
     void aTallyCountsAttemptsAndKeepsTheFirstProblem() {
         SourceHealth.Tally tally = new SourceHealth.Tally();
-        tally.ok();
+        tally.recordSuccess();
         tally.fail("premier problème");
         tally.fail("second problème");
         health.report(Source.AMF, tally);

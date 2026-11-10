@@ -47,7 +47,7 @@ public class LeiEnrichmentService {
     private void reportHealth(int checked, int found, int errors) {
         var source = com.analyseparts.ingestion.SourceHealth.Source.GLEIF;
         if (checked >= SUSPICIOUS_NOT_FOUND && found == 0 && errors < checked) {
-            health.down(source, "GLEIF ne trouve aucun LEI pour " + checked
+            health.markDown(source, "GLEIF ne trouve aucun LEI pour " + checked
                     + " sociétés : son format de réponse a probablement changé");
         } else {
             health.report(source, checked, checked - errors,

@@ -83,20 +83,20 @@ public class FinancialsService {
 
     /** Le rapport le plus récent d'une société, s'il y en a un. */
     @Transactional(readOnly = true)
-    public Optional<FilingRef> latestFiling(long companyId) {
+    public Optional<FilingRef> findLatestFiling(long companyId) {
         return filings.findFirstByCompanyIdOrderByPeriodEndDesc(companyId)
                 .map(f -> new FilingRef(f.getSourceId(), f.getPeriodEnd(), f.getJsonUrl()));
     }
 
     /** Dates de clôture des rapports déjà enregistrés pour une société. */
     @Transactional(readOnly = true)
-    public List<LocalDate> periodEnds(long companyId) {
+    public List<LocalDate> findPeriodEnds(long companyId) {
         return filings.findPeriodEnds(companyId);
     }
 
     /** Date de clôture du rapport le plus récent de chaque société qui en a au moins un. */
     @Transactional(readOnly = true)
-    public Map<Long, LocalDate> latestPeriodEnds() {
+    public Map<Long, LocalDate> findLatestPeriodEnds() {
         return filings.findLatestPeriodEnds().stream()
                 .collect(Collectors.toMap(FilingRepository.LatestPeriodEnd::getCompanyId,
                         FilingRepository.LatestPeriodEnd::getLatest));
@@ -104,11 +104,11 @@ public class FinancialsService {
 
     /** Identifiants des sociétés qui ont au moins un rapport (une seule requête). */
     @Transactional(readOnly = true)
-    public Set<Long> companiesWithFilings() {
-        return latestPeriodEnds().keySet();
+    public Set<Long> findCompaniesWithFilings() {
+        return findLatestPeriodEnds().keySet();
     }
 
-    public FinancialHistory history(long companyId) {
+    public FinancialHistory getHistory(long companyId) {
         return historyCache.computeIfAbsent(companyId, id -> MetricExtractor.extract(facts.findByCompany(id)));
     }
 }

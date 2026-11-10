@@ -39,7 +39,7 @@ public class AnalysisRepository {
     }
 
     /** La lecture la plus récente d'une société. */
-    public Optional<ReportAnalysis> latest(long companyId) {
+    public Optional<ReportAnalysis> findLatest(long companyId) {
         return jdbc.query("""
                 SELECT source_id, period_end, model, created_at, duration_ms, passage_count, rejected, content
                   FROM report_analysis WHERE company_id = ? ORDER BY period_end DESC, created_at DESC LIMIT 1
@@ -51,7 +51,7 @@ public class AnalysisRepository {
     }
 
     /** Les rapports déjà lus (identifiants chez la source). */
-    public Set<String> analysedSourceIds() {
+    public Set<String> findAnalysedSourceIds() {
         return Set.copyOf(jdbc.queryForList("SELECT source_id FROM report_analysis", String.class));
     }
 }

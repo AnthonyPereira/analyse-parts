@@ -18,11 +18,11 @@ public enum RatioFamily {
         this.question = question;
     }
 
-    public String label() {
+    public String getLabel() {
         return label;
     }
 
-    public String question() {
+    public String getQuestion() {
         return question;
     }
 }

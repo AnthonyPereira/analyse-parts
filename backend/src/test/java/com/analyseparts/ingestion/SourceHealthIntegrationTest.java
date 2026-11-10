@@ -51,7 +51,7 @@ class SourceHealthIntegrationTest {
     void aYahooFormatChangeIsDetectedAndShown() throws Exception {
         companies.save(new Company("FR0000000111", "FORMAT SA", "FMT", "FR", "Euronext Paris"));
         // Yahoo renvoie bien un résultat par symbole… dont aucun n'a plus de prix lisible
-        when(yahoo.spark(anyList())).thenAnswer(call ->
+        when(yahoo.fetchSpark(anyList())).thenAnswer(call ->
                 new SparkBatch(((List<?>) call.getArgument(0)).size(), List.of()));
 
         var result = refresh.refreshQuotes();

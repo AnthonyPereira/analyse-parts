@@ -56,7 +56,7 @@ public class SourceHealth {
             this.minSuccessRate = minSuccessRate;
         }
 
-        public String label() {
+        public String getLabel() {
             return label;
         }
     }
@@ -80,7 +80,7 @@ public class SourceHealth {
     }
 
     /**
-     * Les résultats d'une collecte : chaque essai réussi ({@link #ok}) ou raté ({@link #fail}).
+     * Les résultats d'une collecte : chaque essai réussi ({@link #recordSuccess}) ou raté ({@link #fail}).
      * On garde le premier message d'échec, souvent le plus parlant.
      */
     public static final class Tally {
@@ -88,7 +88,7 @@ public class SourceHealth {
         private int succeeded;
         private String firstProblem;
 
-        public void ok() {
+        public void recordSuccess() {
             attempted++;
             succeeded++;
         }
@@ -100,11 +100,11 @@ public class SourceHealth {
             }
         }
 
-        public int attempted() {
+        public int countAttempted() {
             return attempted;
         }
 
-        public int succeeded() {
+        public int countSucceeded() {
             return succeeded;
         }
     }
@@ -171,11 +171,11 @@ public class SourceHealth {
     }
 
     /** Un échec complet, sans compte détaillé (exception avant tout essai, par exemple). */
-    public void down(Source source, String problem) {
+    public void markDown(Source source, String problem) {
         report(source, 1, 0, problem);
     }
 
-    public synchronized List<Status> all() {
+    public synchronized List<Status> listAll() {
         return Arrays.stream(Source.values()).map(statuses::get).toList();
     }
 

@@ -66,17 +66,17 @@ public class HalfYearService {
     }
 
     /** Le dernier semestre lu et les chiffres sur 12 mois ; vide si la société est inconnue. */
-    public Optional<HalfYearView> view(String isin) {
-        return companies.findByIsin(isin).map(c -> view(c.getId()));
+    public Optional<HalfYearView> findView(String isin) {
+        return companies.findByIsin(isin).map(c -> findView(c.getId()));
     }
 
-    private HalfYearView view(long companyId) {
-        Optional<HalfYearReport> report = repository.latest(companyId);
+    private HalfYearView findView(long companyId) {
+        Optional<HalfYearReport> report = repository.findLatest(companyId);
         State state = pending.getOrDefault(companyId,
                 errors.containsKey(companyId) ? State.FAILED : report.isPresent() ? State.DONE : State.NONE);
-        List<HalfYearView.Ttm> ttm = report.flatMap(r -> latestYear(companyId)
-                        .filter(y -> HalfYearChecks.halfYearEnd(y.fiscalYearEnd()).equals(r.periodEnd()))
-                        .map(y -> HalfYearChecks.ttm(r, y)))
+        List<HalfYearView.Ttm> ttm = report.flatMap(r -> findLatestYear(companyId)
+                        .filter(y -> HalfYearChecks.computeHalfYearEnd(y.fiscalYearEnd()).equals(r.periodEnd()))
+                        .map(y -> HalfYearChecks.computeTtm(r, y)))
                 .orElse(List.of());
         return new HalfYearView(state, errors.get(companyId), report.orElse(null), ttm);
     }
@@ -85,7 +85,7 @@ public class HalfYearService {
     public Optional<HalfYearView> request(String isin) {
         return companies.findByIsin(isin).map(c -> {
             enqueue(c);
-            return view(c.getId());
+            return findView(c.getId());
         });
     }
 
@@ -94,12 +94,12 @@ public class HalfYearService {
         int queued = 0;
         LocalDate today = LocalDate.now(clock);
         for (Company company : companies.findAll()) {
-            Optional<FinancialHistory.Year> year = latestYear(company.getId());
+            Optional<FinancialHistory.Year> year = findLatestYear(company.getId());
             if (year.isEmpty()) {
                 continue;
             }
-            LocalDate expected = HalfYearChecks.halfYearEnd(year.get().fiscalYearEnd());
-            boolean done = repository.latest(company.getId()).filter(r -> !r.periodEnd().isBefore(expected)).isPresent();
+            LocalDate expected = HalfYearChecks.computeHalfYearEnd(year.get().fiscalYearEnd());
+            boolean done = repository.findLatest(company.getId()).filter(r -> !r.periodEnd().isBefore(expected)).isPresent();
             if (!expected.isAfter(today) && !done && enqueue(company)) {
                 queued++;
             }
@@ -108,8 +108,8 @@ public class HalfYearService {
         return queued;
     }
 
-    private Optional<FinancialHistory.Year> latestYear(long companyId) {
-        return financials.history(companyId).years().stream()
+    private Optional<FinancialHistory.Year> findLatestYear(long companyId) {
+        return financials.getHistory(companyId).years().stream()
                 .max(Comparator.comparing(FinancialHistory.Year::fiscalYearEnd));
     }
 
@@ -137,14 +137,14 @@ public class HalfYearService {
     }
 
     private void read(Company company) throws Exception {
-        FinancialHistory.Year year = latestYear(company.getId())
+        FinancialHistory.Year year = findLatestYear(company.getId())
                 .orElseThrow(() -> new IllegalStateException("Aucun exercice annuel enregistré"));
-        LocalDate expected = HalfYearChecks.halfYearEnd(year.fiscalYearEnd());
+        LocalDate expected = HalfYearChecks.computeHalfYearEnd(year.fiscalYearEnd());
         if (expected.isAfter(LocalDate.now(clock))) {
             throw new IllegalStateException("Le semestre qui suit l'exercice " + year.fiscalYearEnd()
                     + " n'est pas encore clos");
         }
-        List<HalfYearDocument> found = documents.reports(company.getIsin(), company.getLei(), expected);
+        List<HalfYearDocument> found = documents.findReports(company.getIsin(), company.getLei(), expected);
         if (found.isEmpty()) {
             throw new IllegalStateException("Aucun rapport semestriel déposé à l'AMF depuis le " + expected);
         }

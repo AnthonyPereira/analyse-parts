@@ -11,7 +11,7 @@ import java.util.Optional;
 public interface IntradaySource {
 
     /** Les cours de la dernière séance (un point toutes les 5 minutes), vide si inconnus. */
-    Optional<Intraday> intraday(long companyId);
+    Optional<Intraday> fetchIntraday(long companyId);
 
     record Intraday(String currency, java.math.BigDecimal previousClose, List<PricePoint> points) {
     }

@@ -28,7 +28,7 @@ class FilingRecordedListener {
     }
 
     @ApplicationModuleListener
-    void on(FilingRecorded filing) {
+    void handleFilingRecorded(FilingRecorded filing) {
         history.recordFiling(filing);
     }
 }

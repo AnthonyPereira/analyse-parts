@@ -48,18 +48,18 @@ class SectorCalibrationTest {
         SectorCalibration c = calibration();
 
         // univers : 25 valeurs, médiane = 20 %
-        var retail = c.adjustment(Ratio.NET_MARGIN, RETAIL).orElseThrow();
+        var retail = c.findAdjustment(Ratio.NET_MARGIN, RETAIL).orElseThrow();
         assertThat(retail.level()).isEqualTo(SectorCalibration.SUPERSECTOR);
         assertThat(retail.sectorMedian()).isCloseTo(0.02, within(1e-9));
         assertThat(retail.universeMedian()).isCloseTo(0.20, within(1e-9));
         assertThat(retail.factor()).isEqualTo(SectorCalibration.MIN_FACTOR); // 0,1 borné à 0,4
 
-        assertThat(c.adjustment(Ratio.NET_MARGIN, SOFTWARE).orElseThrow().factor()).isCloseTo(1.0, within(1e-9));
+        assertThat(c.findAdjustment(Ratio.NET_MARGIN, SOFTWARE).orElseThrow().factor()).isCloseTo(1.0, within(1e-9));
     }
 
     @Test
     void smallSupersectorsKeepTheirOwnMedian() {
-        var insurance = calibration().adjustment(Ratio.NET_MARGIN, INSURANCE).orElseThrow(); // 3 sociétés suffisent
+        var insurance = calibration().findAdjustment(Ratio.NET_MARGIN, INSURANCE).orElseThrow(); // 3 sociétés suffisent
         assertThat(insurance.level()).isEqualTo(SectorCalibration.SUPERSECTOR);
         assertThat(insurance.sectorMedian()).isCloseTo(0.25, within(1e-9));
     }
@@ -67,25 +67,25 @@ class SectorCalibrationTest {
     @Test
     void belowThreeCompaniesTheIndustryOrGeneralScaleApplies() {
         // 2 banques : trop peu ; l'industrie Financials (2 + 3 = 5) n'atteint pas 8 non plus
-        assertThat(calibration().adjustment(Ratio.NET_MARGIN, BANK)).isEmpty();
+        assertThat(calibration().findAdjustment(Ratio.NET_MARGIN, BANK)).isEmpty();
     }
 
     @Test
     void absoluteRatiosAreNeverAdjusted() {
-        assertThat(calibration().adjustment(Ratio.ROE, RETAIL)).isEmpty();
-        assertThat(calibration().adjustment(Ratio.NET_MARGIN, null)).isEmpty();
+        assertThat(calibration().findAdjustment(Ratio.ROE, RETAIL)).isEmpty();
+        assertThat(calibration().findAdjustment(Ratio.NET_MARGIN, null)).isEmpty();
     }
 
     @Test
     void adjustedScaleChangesThePoints() {
         // Avec un facteur 0,4, une marge de 4 % vaut autant qu'une marge de 10 % sur le barème général
-        Scale adjusted = Ratio.NET_MARGIN.scale().scaled(0.4);
-        assertThat(adjusted.points(0.04)).isCloseTo(Ratio.NET_MARGIN.scale().points(0.10), within(1e-9));
+        Scale adjusted = Ratio.NET_MARGIN.getScale().scaleBy(0.4);
+        assertThat(adjusted.computePoints(0.04)).isCloseTo(Ratio.NET_MARGIN.getScale().computePoints(0.10), within(1e-9));
     }
 
     @Test
     void median() {
-        assertThat(SectorCalibration.median(List.of(3.0, 1.0, 2.0))).isEqualTo(2.0);
-        assertThat(SectorCalibration.median(List.of(4.0, 1.0, 2.0, 3.0))).isEqualTo(2.5);
+        assertThat(SectorCalibration.computeMedian(List.of(3.0, 1.0, 2.0))).isEqualTo(2.0);
+        assertThat(SectorCalibration.computeMedian(List.of(4.0, 1.0, 2.0, 3.0))).isEqualTo(2.5);
     }
 }

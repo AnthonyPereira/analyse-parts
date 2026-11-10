@@ -69,7 +69,7 @@ public final class SectorCalibration {
     private SectorCalibration(List<Median> medians, Instant calibratedAt) {
         this.medians = new HashMap<>();
         for (Median m : medians) {
-            this.medians.put(key(m.level(), m.code(), m.ratio()), m);
+            this.medians.put(buildKey(m.level(), m.code(), m.ratio()), m);
         }
         this.calibratedAt = calibratedAt;
     }
@@ -80,7 +80,7 @@ public final class SectorCalibration {
     }
 
     /** Pas de calibration : tous les barèmes restent généraux. */
-    public static SectorCalibration none() {
+    public static SectorCalibration createEmpty() {
         return new SectorCalibration(List.of(), null);
     }
 
@@ -88,7 +88,7 @@ public final class SectorCalibration {
     public static SectorCalibration compute(List<Sample> samples, Instant now) {
         List<Median> result = new ArrayList<>();
         for (Ratio ratio : Ratio.values()) {
-            if (!ratio.sectorAdjusted()) {
+            if (!ratio.isSectorAdjusted()) {
                 continue;
             }
             Map<String, List<Double>> bySupersector = new HashMap<>();
@@ -103,24 +103,24 @@ public final class SectorCalibration {
                 double v = value.get().value();
                 all.add(v);
                 if (s.icb() != null) {
-                    bySupersector.computeIfAbsent(s.icb().supersectorCode(), _ -> new ArrayList<>()).add(v);
-                    byIndustry.computeIfAbsent(s.icb().industryCode(), _ -> new ArrayList<>()).add(v);
-                    labels.put(SUPERSECTOR + s.icb().supersectorCode(), s.icb().supersector());
-                    labels.put(INDUSTRY + s.icb().industryCode(), s.icb().industry());
+                    bySupersector.computeIfAbsent(s.icb().extractSupersectorCode(), _ -> new ArrayList<>()).add(v);
+                    byIndustry.computeIfAbsent(s.icb().extractIndustryCode(), _ -> new ArrayList<>()).add(v);
+                    labels.put(SUPERSECTOR + s.icb().extractSupersectorCode(), s.icb().supersector());
+                    labels.put(INDUSTRY + s.icb().extractIndustryCode(), s.icb().industry());
                 }
             }
             if (all.size() < MIN_SAMPLE) {
                 continue;
             }
-            result.add(new Median(UNIVERSE, UNIVERSE, "Toutes les sociétés", ratio, median(all), all.size()));
+            result.add(new Median(UNIVERSE, UNIVERSE, "Toutes les sociétés", ratio, computeMedian(all), all.size()));
             bySupersector.forEach((code, values) -> {
                 if (values.size() >= MIN_SUPERSECTOR_SAMPLE) {
-                    result.add(new Median(SUPERSECTOR, code, labels.get(SUPERSECTOR + code), ratio, median(values), values.size()));
+                    result.add(new Median(SUPERSECTOR, code, labels.get(SUPERSECTOR + code), ratio, computeMedian(values), values.size()));
                 }
             });
             byIndustry.forEach((code, values) -> {
                 if (values.size() >= MIN_SAMPLE) {
-                    result.add(new Median(INDUSTRY, code, labels.get(INDUSTRY + code), ratio, median(values), values.size()));
+                    result.add(new Median(INDUSTRY, code, labels.get(INDUSTRY + code), ratio, computeMedian(values), values.size()));
                 }
             });
         }
@@ -129,16 +129,16 @@ public final class SectorCalibration {
     }
 
     /** L'ajustement du barème d'un ratio pour une société de ce secteur, s'il y en a un. */
-    public Optional<Adjustment> adjustment(Ratio ratio, Icb icb) {
-        if (!ratio.sectorAdjusted() || icb == null) {
+    public Optional<Adjustment> findAdjustment(Ratio ratio, Icb icb) {
+        if (!ratio.isSectorAdjusted() || icb == null) {
             return Optional.empty();
         }
-        Median universe = medians.get(key(UNIVERSE, UNIVERSE, ratio));
+        Median universe = medians.get(buildKey(UNIVERSE, UNIVERSE, ratio));
         if (universe == null || universe.median() <= 0) {
             return Optional.empty();
         }
-        Median sector = Optional.ofNullable(medians.get(key(SUPERSECTOR, icb.supersectorCode(), ratio)))
-                .orElse(medians.get(key(INDUSTRY, icb.industryCode(), ratio)));
+        Median sector = Optional.ofNullable(medians.get(buildKey(SUPERSECTOR, icb.extractSupersectorCode(), ratio)))
+                .orElse(medians.get(buildKey(INDUSTRY, icb.extractIndustryCode(), ratio)));
         if (sector == null) {
             return Optional.empty();
         }
@@ -149,23 +149,23 @@ public final class SectorCalibration {
                 sector.median(), universe.median(), sector.sampleSize()));
     }
 
-    public List<Median> medians() {
+    public List<Median> getMedians() {
         return medians.values().stream()
                 .sorted(Comparator.comparing(Median::level).thenComparing(Median::code).thenComparing(Median::ratio))
                 .toList();
     }
 
-    public Optional<Instant> calibratedAt() {
+    public Optional<Instant> getCalibratedAt() {
         return Optional.ofNullable(calibratedAt);
     }
 
-    static double median(List<Double> values) {
+    static double computeMedian(List<Double> values) {
         List<Double> sorted = values.stream().sorted().toList();
         int n = sorted.size();
         return n % 2 == 1 ? sorted.get(n / 2) : (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2;
     }
 
-    private static String key(String level, String code, Ratio ratio) {
+    private static String buildKey(String level, String code, Ratio ratio) {
         return level + "|" + code + "|" + ratio;
     }
 }

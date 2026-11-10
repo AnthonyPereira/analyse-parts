@@ -35,7 +35,7 @@ public class HalfYearRepository {
     }
 
     /** Le semestre le plus récent d'une société. */
-    public Optional<HalfYearReport> latest(long companyId) {
+    public Optional<HalfYearReport> findLatest(long companyId) {
         return jdbc.query("""
                 SELECT period_end, published_on, title, source_url, model, created_at, content
                   FROM half_year_report WHERE company_id = ? ORDER BY period_end DESC LIMIT 1

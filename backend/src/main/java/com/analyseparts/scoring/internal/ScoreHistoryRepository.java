@@ -80,7 +80,7 @@ public class ScoreHistoryRepository {
     }
 
     /** Les sociétés qui ont déjà un historique reconstitué. */
-    public List<Long> companiesWithBackfill() {
+    public List<Long> findCompaniesWithBackfill() {
         return jdbc.queryForList("SELECT DISTINCT company_id FROM score_history WHERE origin = 'BACKFILL'", Long.class);
     }
 }

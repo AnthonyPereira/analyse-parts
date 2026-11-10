@@ -20,7 +20,7 @@ class HalfYearChecksTest {
     static final LocalDate H1 = LocalDate.of(2026, 6, 30);
 
     private static FinancialHistory.Value v(String amount, Metric metric) {
-        return new FinancialHistory.Value(new BigDecimal(amount), "EUR", metric.concepts().get(0), "rapport");
+        return new FinancialHistory.Value(new BigDecimal(amount), "EUR", metric.getConcepts().get(0), "rapport");
     }
 
     /** L'Oréal, exercice 2025 (comptes annuels ESEF). */
@@ -37,9 +37,9 @@ class HalfYearChecksTest {
 
     @Test
     void theHalfYearFollowsTheFiscalYear() {
-        assertThat(HalfYearChecks.halfYearEnd(FY)).isEqualTo(H1);
-        assertThat(HalfYearChecks.halfYearEnd(LocalDate.of(2025, 6, 30))).isEqualTo(LocalDate.of(2025, 12, 31));
-        assertThat(HalfYearChecks.halfYearEnd(LocalDate.of(2025, 8, 31))).isEqualTo(LocalDate.of(2026, 2, 28));
+        assertThat(HalfYearChecks.computeHalfYearEnd(FY)).isEqualTo(H1);
+        assertThat(HalfYearChecks.computeHalfYearEnd(LocalDate.of(2025, 6, 30))).isEqualTo(LocalDate.of(2025, 12, 31));
+        assertThat(HalfYearChecks.computeHalfYearEnd(LocalDate.of(2025, 8, 31))).isEqualTo(LocalDate.of(2026, 2, 28));
     }
 
     @Test
@@ -52,7 +52,7 @@ class HalfYearChecksTest {
         var checked = HalfYearChecks.check(reading, OREAL_2025);
         assertThat(checked.rejected()).isEmpty();
         var report = new HalfYearReport(H1, LocalDate.of(2026, 7, 31), "RFS 2026", "url", "m", Instant.EPOCH, checked.lines());
-        var ttm = HalfYearChecks.ttm(report, OREAL_2025);
+        var ttm = HalfYearChecks.computeTtm(report, OREAL_2025);
 
         assertThat(ttm).extracting(t -> t.item()).containsExactly(Item.REVENUE, Item.NET_INCOME_GROUP, Item.EPS_BASIC);
         assertThat(ttm.get(0).value()).isEqualByComparingTo("45354800000"); // 44 052,0 + 23 776,1 − 22 473,3

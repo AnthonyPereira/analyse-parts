@@ -22,7 +22,7 @@ class FilingRecordedAnalysisListener {
     }
 
     @ApplicationModuleListener
-    void on(FilingRecorded filing) {
-        analyses.onNewFiling(filing.companyId(), filing.sourceId());
+    void handleFilingRecorded(FilingRecorded filing) {
+        analyses.handleNewFiling(filing.companyId(), filing.sourceId());
     }
 }

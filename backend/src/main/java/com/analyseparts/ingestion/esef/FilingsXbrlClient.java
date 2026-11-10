@@ -93,11 +93,11 @@ public class FilingsXbrlClient {
      * L'ancienne devinette ({@code …/nom/reports/nom.xhtml}) ne sert que si l'index ne connaît pas le dépôt.
      */
     public byte[] downloadReport(String jsonUrl) {
-        String reportUrl = reportUrlOf(jsonUrl);
+        String reportUrl = resolveReportUrl(jsonUrl);
         return call(() -> restClient.get().uri(reportUrl).retrieve().body(byte[].class));
     }
 
-    String reportUrlOf(String jsonUrl) {
+    String resolveReportUrl(String jsonUrl) {
         String lei = jsonUrl.substring(1, jsonUrl.indexOf('/', 1));
         return listFilings(lei).stream()
                 .filter(f -> jsonUrl.equals(f.jsonUrl()) && f.reportUrl() != null)

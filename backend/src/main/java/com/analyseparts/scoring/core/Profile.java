@@ -45,29 +45,29 @@ import static com.analyseparts.scoring.core.Ratio.ROE;
 public enum Profile {
 
     QUALITY("Qualité", "Des entreprises très rentables, solides, dont les bénéfices sont du vrai argent.",
-            weights(ROE, 20, OPERATING_MARGIN, 15, NET_MARGIN, 10, ROA, 5,
+            getWeights(ROE, 20, OPERATING_MARGIN, 15, NET_MARGIN, 10, ROA, 5,
                     CASH_CONVERSION, 10, FCF_MARGIN, 10,
                     NET_DEBT_TO_EQUITY, 10, EQUITY_RATIO, 5, CURRENT_RATIO, 5,
                     PROFITABLE_YEARS, 10),
-            weights(ROE, 25, COST_INCOME_RATIO, 20, COST_OF_RISK_RATIO, 15, ROA, 10, NET_MARGIN, 10,
+            getWeights(ROE, 25, COST_INCOME_RATIO, 20, COST_OF_RISK_RATIO, 15, ROA, 10, NET_MARGIN, 10,
                     PROFITABLE_YEARS, 20),
-            weights(ROE, 30, NET_MARGIN, 20, ROA, 15, PROFITABLE_YEARS, 25, EPS_GROWTH, 10)),
+            getWeights(ROE, 30, NET_MARGIN, 20, ROA, 15, PROFITABLE_YEARS, 25, EPS_GROWTH, 10)),
     GROWTH("Croissance", "Des entreprises dont les ventes et les bénéfices augmentent vite, sans s'endetter pour cela.",
-            weights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 15, OPERATING_MARGIN, 10, NET_DEBT_TO_EQUITY, 10),
-            weights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 20, COST_INCOME_RATIO, 15),
-            weights(REVENUE_GROWTH, 35, EPS_GROWTH, 35, ROE, 20, NET_MARGIN, 10)),
+            getWeights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 15, OPERATING_MARGIN, 10, NET_DEBT_TO_EQUITY, 10),
+            getWeights(REVENUE_GROWTH, 35, EPS_GROWTH, 30, ROE, 20, COST_INCOME_RATIO, 15),
+            getWeights(REVENUE_GROWTH, 35, EPS_GROWTH, 35, ROE, 20, NET_MARGIN, 10)),
     DIVIDEND("Dividende", "Des entreprises qui versent un dividende régulier, en hausse, et qu'elles peuvent se permettre.",
-            weights(DIVIDEND_YIELD, 20, PAYOUT_RATIO, 20, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 10,
+            getWeights(DIVIDEND_YIELD, 20, PAYOUT_RATIO, 20, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 10,
                     NET_DEBT_TO_EQUITY, 10, FCF_MARGIN, 10, CASH_CONVERSION, 10),
-            weights(DIVIDEND_YIELD, 25, PAYOUT_RATIO, 20, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 15,
+            getWeights(DIVIDEND_YIELD, 25, PAYOUT_RATIO, 20, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 15,
                     COST_OF_RISK_RATIO, 10, ROE, 10),
-            weights(DIVIDEND_YIELD, 25, PAYOUT_RATIO, 25, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 20, ROE, 10)),
+            getWeights(DIVIDEND_YIELD, 25, PAYOUT_RATIO, 25, DIVIDEND_GROWTH, 20, PROFITABLE_YEARS, 20, ROE, 10)),
     VALUE("Value", "Des entreprises bon marché par rapport à ce qu'elles gagnent, sans dette excessive "
             + "(pour éviter les « pièges à value » : pas chères parce qu'en mauvaise santé).",
-            weights(PER, 25, EV_TO_EBIT, 25, FCF_YIELD, 20, PRICE_TO_BOOK, 10, DIVIDEND_YIELD, 10,
+            getWeights(PER, 25, EV_TO_EBIT, 25, FCF_YIELD, 20, PRICE_TO_BOOK, 10, DIVIDEND_YIELD, 10,
                     NET_DEBT_TO_EQUITY, 10),
-            weights(PER, 35, PRICE_TO_BOOK, 30, DIVIDEND_YIELD, 20, COST_OF_RISK_RATIO, 15),
-            weights(PER, 40, PRICE_TO_BOOK, 30, DIVIDEND_YIELD, 30));
+            getWeights(PER, 35, PRICE_TO_BOOK, 30, DIVIDEND_YIELD, 20, COST_OF_RISK_RATIO, 15),
+            getWeights(PER, 40, PRICE_TO_BOOK, 30, DIVIDEND_YIELD, 30));
 
     /** Comment une société est notée : les poids généraux, ceux des banques ou ceux des assurances. */
     public enum Book {
@@ -89,29 +89,29 @@ public enum Profile {
         this.insurerWeights = insurerWeights;
     }
 
-    public String label() {
+    public String getLabel() {
         return label;
     }
 
-    public String description() {
+    public String getDescription() {
         return description;
     }
 
-    public Map<Ratio, Integer> weights() {
+    public Map<Ratio, Integer> getWeights() {
         return weights;
     }
 
     /** Les poids appliqués aux banques. */
-    public Map<Ratio, Integer> bankWeights() {
+    public Map<Ratio, Integer> getBankWeights() {
         return bankWeights;
     }
 
     /** Les poids appliqués aux assurances. */
-    public Map<Ratio, Integer> insurerWeights() {
+    public Map<Ratio, Integer> getInsurerWeights() {
         return insurerWeights;
     }
 
-    public Map<Ratio, Integer> weights(Book book) {
+    public Map<Ratio, Integer> getWeights(Book book) {
         return switch (book) {
             case STANDARD -> weights;
             case BANK -> bankWeights;
@@ -119,7 +119,7 @@ public enum Profile {
         };
     }
 
-    private static Map<Ratio, Integer> weights(Object... ratioWeightPairs) {
+    private static Map<Ratio, Integer> getWeights(Object... ratioWeightPairs) {
         Map<Ratio, Integer> weights = new EnumMap<>(Ratio.class);
         for (int i = 0; i < ratioWeightPairs.length; i += 2) {
             weights.put((Ratio) ratioWeightPairs[i], (Integer) ratioWeightPairs[i + 1]);

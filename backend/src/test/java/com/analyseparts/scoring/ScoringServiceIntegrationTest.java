@@ -85,17 +85,17 @@ class ScoringServiceIntegrationTest {
 
         // Historique : à la clôture de l'exercice, le cours était de 40 € = 50 $ → PER 5
         market.recordCloses(company.getId(), List.of(new PricePoint.Close(end, new BigDecimal("40"), null)));
-        var history = scoring.ratioHistory("FR0000000001").orElseThrow();
+        var history = scoring.computeRatioHistory("FR0000000001").orElseThrow();
         assertThat(history).hasSize(1);
         assertThat(history.getFirst().price()).isEqualByComparingTo("40");
         assertThat(history.getFirst().values().get(Ratio.PER)).isCloseTo(5.0, within(1e-6));
         assertThat(history.getFirst().values()).containsKey(Ratio.NET_MARGIN);
 
         // Mode avancé : un seul ratio suffit
-        var custom = scoring.ranking(Map.of(Ratio.PER, 1));
+        var custom = scoring.computeRanking(Map.of(Ratio.PER, 1));
         assertThat(custom).anySatisfy(e -> assertThat(e.isin()).isEqualTo("FR0000000001"));
 
-        assertThat(scoring.universe()).anySatisfy(u -> {
+        assertThat(scoring.buildUniverse()).anySatisfy(u -> {
             assertThat(u.isin()).isEqualTo("FR0000000001");
             assertThat(u.supersector()).isEqualTo("Energy");
             assertThat(u.ratios().get(Ratio.PER)).isCloseTo(10.0, within(1e-6));

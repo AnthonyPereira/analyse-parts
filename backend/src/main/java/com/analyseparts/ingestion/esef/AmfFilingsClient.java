@@ -45,8 +45,8 @@ public class AmfFilingsClient {
     }
 
     /** Les rapports annuels ESEF d'une société publiés depuis {@code since}, du plus récent au plus ancien. */
-    public List<AmfFiling> annualReports(String isin, String lei, LocalDate since) {
-        return filings(isin, lei, ANNUAL_TYPES + " and " + ESEF_FILES, since);
+    public List<AmfFiling> findAnnualReports(String isin, String lei, LocalDate since) {
+        return findFilings(isin, lei, ANNUAL_TYPES + " and " + ESEF_FILES, since);
     }
 
     private static final String HALF_YEAR_TYPE =
@@ -57,11 +57,11 @@ public class AmfFilingsClient {
      * ancien. On y trouve aussi les avis de mise à disposition et la version anglaise : au lecteur
      * de choisir celui qui contient les comptes.
      */
-    public List<AmfFiling> halfYearReports(String isin, String lei, LocalDate since) {
-        return filings(isin, lei, HALF_YEAR_TYPE + " and fichierdecontenu_inf_fic_nom like \"*.pdf\"", since);
+    public List<AmfFiling> findHalfYearReports(String isin, String lei, LocalDate since) {
+        return findFilings(isin, lei, HALF_YEAR_TYPE + " and fichierdecontenu_inf_fic_nom like \"*.pdf\"", since);
     }
 
-    private List<AmfFiling> filings(String isin, String lei, String what, LocalDate since) {
+    private List<AmfFiling> findFilings(String isin, String lei, String what, LocalDate since) {
         String who = lei == null ? "identificationsociete_iso_cd_isi=\"" + isin + "\""
                 : "(identificationsociete_iso_cd_isi=\"" + isin + "\" or identificationsociete_iso_cd_lei=\"" + lei + "\")";
         String where = who + " and " + what + " and informationdeposee_inf_dat_emt>=\"" + since + "\"";

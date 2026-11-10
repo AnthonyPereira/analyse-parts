@@ -19,17 +19,17 @@ class EuronextFactsheetParserTest {
 
     @Test
     void readsTheFourIcbLevels() throws IOException {
-        Icb icb = EuronextFactsheetParser.icb(fixture("factsheet-icb-lvmh.html")).orElseThrow();
+        Icb icb = EuronextFactsheetParser.parseIcb(fixture("factsheet-icb-lvmh.html")).orElseThrow();
 
         assertThat(icb).isEqualTo(new Icb("40204020", "Consumer Discretionary", "Consumer Products and Services",
                 "Personal Goods", "Clothing and Accessories"));
-        assertThat(icb.industryCode()).isEqualTo("40");
-        assertThat(icb.supersectorCode()).isEqualTo("4020");
+        assertThat(icb.extractIndustryCode()).isEqualTo("40");
+        assertThat(icb.extractSupersectorCode()).isEqualTo("4020");
     }
 
     @Test
     void readsABank() throws IOException {
-        Icb icb = EuronextFactsheetParser.icb(fixture("factsheet-icb-bnp.html")).orElseThrow();
+        Icb icb = EuronextFactsheetParser.parseIcb(fixture("factsheet-icb-bnp.html")).orElseThrow();
 
         assertThat(icb.supersector()).isEqualTo("Banks");
         assertThat(icb.industry()).isEqualTo("Financials");
@@ -37,12 +37,12 @@ class EuronextFactsheetParserTest {
 
     @Test
     void readsAdmittedShares() throws IOException {
-        assertThat(EuronextFactsheetParser.admittedShares(fixture("factsheet-trading-lvmh.html"))).contains(494_606_080L);
+        assertThat(EuronextFactsheetParser.parseAdmittedShares(fixture("factsheet-trading-lvmh.html"))).contains(494_606_080L);
     }
 
     @Test
     void emptyBlocks() {
-        assertThat(EuronextFactsheetParser.icb("<div></div>")).isEmpty();
-        assertThat(EuronextFactsheetParser.admittedShares("<div></div>")).isEmpty();
+        assertThat(EuronextFactsheetParser.parseIcb("<div></div>")).isEmpty();
+        assertThat(EuronextFactsheetParser.parseAdmittedShares("<div></div>")).isEmpty();
     }
 }

@@ -99,13 +99,13 @@ public final class ScoreCalculator {
             }
             RatioValue rv = value.get();
             Adjustment adjustment = adjustments.apply(ratio).orElse(null);
-            Scale scale = adjustment == null ? ratio.scale() : ratio.scale().scaled(adjustment.factor());
-            double points = scale.points(rv.value());
+            Scale scale = adjustment == null ? ratio.getScale() : ratio.getScale().scaleBy(adjustment.factor());
+            double points = scale.computePoints(rv.value());
             double share = (double) weight / availableWeight;
             total += points * share;
             contributions.add(new Contribution(ratio, rv.value(), (int) Math.round(points), weight, share,
                     points * share, adjustment, rv.inputs()));
-            double[] f = families.computeIfAbsent(ratio.family(), _ -> new double[2]);
+            double[] f = families.computeIfAbsent(ratio.getFamily(), _ -> new double[2]);
             f[0] += points * weight;
             f[1] += weight;
         }

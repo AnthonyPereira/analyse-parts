@@ -16,7 +16,7 @@ class SourceStatusController {
     }
 
     @GetMapping("/api/sources")
-    List<SourceHealth.Status> sources() {
-        return health.all();
+    List<SourceHealth.Status> listSources() {
+        return health.listAll();
     }
 }

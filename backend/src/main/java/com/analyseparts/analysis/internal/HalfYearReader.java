@@ -75,22 +75,22 @@ public class HalfYearReader {
      */
     public Optional<Reading> read(String company, byte[] pdf, LocalDate halfYearEnd, LocalDate fiscalYearEnd)
             throws IOException {
-        List<String> pages = pages(pdf);
-        List<Integer> chosen = incomeStatementPages(pages);
+        List<String> pages = extractPages(pdf);
+        List<Integer> chosen = findIncomeStatementPages(pages);
         if (chosen.isEmpty()) {
             log.info("Semestriel {} : aucune page ne ressemble à un compte de résultat ({} pages)", company, pages.size());
             return Optional.empty();
         }
         String text = String.join("\n\n", chosen.stream().map(pages::get).toList());
         Answer answer = LocalModel.ask(chat, json, model, contextTokens, 2500, SYSTEM,
-                prompt(company, chosen, pages), SCHEMA, Answer.class);
+                buildPrompt(company, chosen, pages), SCHEMA, Answer.class);
         log.info("Semestriel {} : pages {} lues, colonnes {}", company, chosen.stream().map(i -> i + 1).toList(),
                 answer.colonnes());
         return Optional.of(check(answer, text, halfYearEnd, fiscalYearEnd));
     }
 
     /** Le texte de chaque page, dans l'ordre d'écriture du PDF. */
-    static List<String> pages(byte[] pdf) throws IOException {
+    static List<String> extractPages(byte[] pdf) throws IOException {
         try (PDDocument document = Loader.loadPDF(pdf)) {
             PDFTextStripper stripper = new PDFTextStripper(); // sortByPosition = false : l'ordre du PDF
             List<String> pages = new ArrayList<>();
@@ -120,17 +120,17 @@ public class HalfYearReader {
      * loin devant la suivante (10 à 13) ; envoyer celle-ci aussi (l'état du résultat global chez
      * LVMH) ne ferait que tenter le modèle avec d'autres « résultat net ».
      */
-    static List<Integer> incomeStatementPages(List<String> pages) {
+    static List<Integer> findIncomeStatementPages(List<String> pages) {
         // Le titre du tableau suivi de son unité désigne la page à coup sûr : l'envoyer seule, avec
         // la suivante si le bénéfice par action y a glissé.
         Optional<Integer> titled = IntStream.range(0, pages.size()).boxed()
-                .filter(i -> titled(pages.get(i)) && score(pages.get(i)) >= MIN_SCORE)
+                .filter(i -> hasStatementTitle(pages.get(i)) && score(pages.get(i)) >= MIN_SCORE)
                 .min(Comparator.comparingInt((Integer i) -> -score(pages.get(i))).thenComparingInt(i -> i));
         if (titled.isPresent()) {
             int best = titled.get();
             boolean continued = best + 1 < pages.size() && !PER_SHARE.matcher(pages.get(best)).find()
                     && PER_SHARE.matcher(pages.get(best + 1)).find()
-                    && !OTHER_STATEMENT.matcher(head(pages.get(best + 1))).find();
+                    && !OTHER_STATEMENT.matcher(extractHead(pages.get(best + 1))).find();
             return continued ? List.of(best, best + 1) : List.of(best);
         }
         List<Integer> ranked = IntStream.range(0, pages.size()).boxed()
@@ -172,7 +172,7 @@ public class HalfYearReader {
      * « Consolidated income statement ») : « Autres éléments du compte de résultat (en millions
      * d'euros) », dans les commentaires de LVMH, n'en est pas un.
      */
-    static boolean titled(String page) {
+    static boolean hasStatementTitle(String page) {
         Matcher m = TITLE.matcher(collapse(page));
         while (m.find()) {
             if (Character.isUpperCase(m.group().charAt(0))) {
@@ -182,19 +182,19 @@ public class HalfYearReader {
         return false;
     }
 
-    private static String head(String page) {
+    private static String extractHead(String page) {
         return page.substring(0, Math.min(HEAD, page.length()));
     }
 
     static int score(String page) {
         long amounts = AMOUNT.matcher(page).results().count();
-        String head = head(page);
-        return 3 * found(STATEMENT, page) + 2 * found(HALF, page) + 2 * found(NET, page) + 2 * found(TOP_LINE, page)
+        String head = extractHead(page);
+        return 3 * countMatch(STATEMENT, page) + 2 * countMatch(HALF, page) + 2 * countMatch(NET, page) + 2 * countMatch(TOP_LINE, page)
                 + (int) Math.min(3, amounts / 15)
-                + 3 * found(STATEMENT, head) - 5 * found(OTHER_STATEMENT, head);
+                + 3 * countMatch(STATEMENT, head) - 5 * countMatch(OTHER_STATEMENT, head);
     }
 
-    private static int found(Pattern p, String s) {
+    private static int countMatch(Pattern p, String s) {
         return p.matcher(s).find() ? 1 : 0;
     }
 
@@ -217,7 +217,7 @@ public class HalfYearReader {
 
     static final Map<String, Object> SCHEMA = Map.of(
             "type", "object",
-            "properties", ReportAnalyst.ordered(
+            "properties", ReportAnalyst.buildOrderedMap(
                     "fin_du_semestre", Map.of("type", "string"),
                     "unite", Map.of("type", "string", "enum", List.of("millions", "milliers", "unités")),
                     "colonnes", Map.of("type", "array", "items", Map.of("type", "string")),
@@ -225,7 +225,7 @@ public class HalfYearReader {
                             "type", "array",
                             "items", Map.of(
                                     "type", "object",
-                                    "properties", ReportAnalyst.ordered(
+                                    "properties", ReportAnalyst.buildOrderedMap(
                                             "indicateur", Map.of("type", "string", "enum",
                                                     List.of("CHIFFRE_AFFAIRES", "RESULTAT_OPERATIONNEL",
                                                             "RESULTAT_NET_PART_DU_GROUPE", "BPA_DE_BASE")),
@@ -258,7 +258,7 @@ public class HalfYearReader {
      * Un en-tête de semestre porte l'année et « semestre » ou le mois de fin du semestre ; celui de
      * l'exercice porte l'année de clôture, sans marque de semestre.
      */
-    static Columns columns(List<String> headers, LocalDate halfYearEnd, LocalDate fiscalYearEnd) {
+    static Columns mapColumns(List<String> headers, LocalDate halfYearEnd, LocalDate fiscalYearEnd) {
         int current = -1, previous = -1, fullYear = -1;
         for (int i = 0; i < headers.size(); i++) {
             String h = headers.get(i) == null ? "" : headers.get(i).toLowerCase();
@@ -316,7 +316,7 @@ public class HalfYearReader {
         return false;
     }
 
-    static String prompt(String company, List<Integer> chosen, List<String> pages) {
+    static String buildPrompt(String company, List<Integer> chosen, List<String> pages) {
         StringBuilder sb = new StringBuilder("Société : ").append(company).append(".\n");
         for (int i : chosen) {
             String page = pages.get(i);
@@ -355,14 +355,14 @@ public class HalfYearReader {
         List<Line> lines = new ArrayList<>();
         List<String> rejected = new ArrayList<>();
         List<String> headers = answer.colonnes() == null ? List.of() : answer.colonnes();
-        Columns columns = columns(headers, halfYearEnd, fiscalYearEnd);
+        Columns columns = mapColumns(headers, halfYearEnd, fiscalYearEnd);
         if (columns.current() < 0 || columns.previous() < 0) {
             rejected.add("colonnes non reconnues : " + headers);
-            return new Reading(date(answer.fin_du_semestre()), lines, rejected);
+            return new Reading(parseDate(answer.fin_du_semestre()), lines, rejected);
         }
         for (AnswerLine l : answer.lignes() == null ? List.<AnswerLine>of() : answer.lignes()) {
             String label = l.libelle() == null ? "" : l.libelle().strip();
-            Item item = PER_SHARE.matcher(label).find() ? Item.EPS_BASIC : item(l.indicateur());
+            Item item = PER_SHARE.matcher(label).find() ? Item.EPS_BASIC : parseItem(l.indicateur());
             if (item == null || (item == Item.EPS_BASIC && DILUTED.matcher(label).find())
                     || lines.stream().anyMatch(x -> x.item() == item)) {
                 continue;
@@ -378,10 +378,10 @@ public class HalfYearReader {
             }
             String cur = amounts.get(columns.current()), prev = amounts.get(columns.previous());
             String year = columns.fullYear() < 0 ? null : amounts.get(columns.fullYear());
-            BigDecimal current = number(cur), previous = number(prev);
-            BigDecimal fullYear = blank(year) ? null : number(year);
-            if (current == null || previous == null || !onPage(cur, page) || !onPage(prev, page)
-                    || (fullYear != null && !onPage(year, page))) {
+            BigDecimal current = parseNumber(cur), previous = parseNumber(prev);
+            BigDecimal fullYear = isBlank(year) ? null : parseNumber(year);
+            if (current == null || previous == null || !isOnPage(cur, page) || !isOnPage(prev, page)
+                    || (fullYear != null && !isOnPage(year, page))) {
                 rejected.add(item + " : nombre absent de la page (" + cur + " / " + prev + ")");
                 continue;
             }
@@ -389,10 +389,10 @@ public class HalfYearReader {
             lines.add(new Line(item, label, current.multiply(scale), previous.multiply(scale),
                     fullYear == null ? null : fullYear.multiply(scale)));
         }
-        return new Reading(date(answer.fin_du_semestre()), lines, rejected);
+        return new Reading(parseDate(answer.fin_du_semestre()), lines, rejected);
     }
 
-    private static Item item(String indicateur) {
+    private static Item parseItem(String indicateur) {
         return switch (indicateur == null ? "" : indicateur) {
             case "CHIFFRE_AFFAIRES" -> Item.REVENUE;
             case "RESULTAT_OPERATIONNEL" -> Item.OPERATING_INCOME;
@@ -403,8 +403,8 @@ public class HalfYearReader {
     }
 
     /** Le nombre tel qu'il est écrit doit être sur la page (espaces normalisés). */
-    static boolean onPage(String written, String collapsedPage) {
-        return !blank(written) && collapsedPage.contains(collapse(written));
+    static boolean isOnPage(String written, String collapsedPage) {
+        return !isBlank(written) && collapsedPage.contains(collapse(written));
     }
 
     private static String collapse(String s) {
@@ -415,8 +415,8 @@ public class HalfYearReader {
      * Un nombre à la française : « 23 776,1 », « (4 272) », « - 5 998,8 », « 8714 », « 11,52 ».
      * Les parenthèses et le signe moins donnent un nombre négatif. Vide si ce n'est pas un nombre.
      */
-    static BigDecimal number(String written) {
-        if (blank(written)) {
+    static BigDecimal parseNumber(String written) {
+        if (isBlank(written)) {
             return null;
         }
         String s = collapse(written);
@@ -440,15 +440,15 @@ public class HalfYearReader {
         }
     }
 
-    private static LocalDate date(String s) {
+    private static LocalDate parseDate(String s) {
         try {
-            return blank(s) ? null : LocalDate.parse(s.strip());
+            return isBlank(s) ? null : LocalDate.parse(s.strip());
         } catch (DateTimeParseException e) {
             return null;
         }
     }
 
-    private static boolean blank(String s) {
+    private static boolean isBlank(String s) {
         return s == null || s.isBlank();
     }
 }

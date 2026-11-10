@@ -21,8 +21,8 @@ public class AnalysisController {
 
     /** Le dernier rapport semestriel lu et les chiffres sur 12 mois glissants. */
     @GetMapping("/api/companies/{isin}/half-year")
-    public ResponseEntity<HalfYearView> halfYear(@PathVariable String isin) {
-        return ResponseEntity.of(halfYears.view(isin));
+    public ResponseEntity<HalfYearView> getHalfYear(@PathVariable String isin) {
+        return ResponseEntity.of(halfYears.findView(isin));
     }
 
     /** Relit le rapport semestriel d'une société (réponse immédiate, lecture en arrière-plan). */
@@ -40,8 +40,8 @@ public class AnalysisController {
 
     /** La dernière lecture du rapport annuel d'une société, et l'état de la file. */
     @GetMapping("/api/companies/{isin}/analysis")
-    public ResponseEntity<AnalysisView> analysis(@PathVariable String isin) {
-        return ResponseEntity.of(analyses.view(isin));
+    public ResponseEntity<AnalysisView> getAnalysis(@PathVariable String isin) {
+        return ResponseEntity.of(analyses.findView(isin));
     }
 
     /** Relit le dernier rapport d'une société (réponse immédiate, lecture en arrière-plan). */

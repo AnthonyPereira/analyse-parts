@@ -45,7 +45,7 @@ public class ReportAnalysisRunner {
 
     public ReportAnalysis run(String company, FilingRef filing) throws IOException {
         long start = clock.millis();
-        List<String> passages = ReportText.passages(new ByteArrayInputStream(documents.xhtml(filing)));
+        List<String> passages = ReportText.extractPassages(new ByteArrayInputStream(documents.downloadXhtml(filing)));
         if (passages.size() < MIN_PASSAGES) {
             throw new IOException("Texte du rapport presque vide (" + passages.size()
                     + " passages) : rapport sans texte lisible ?");
@@ -55,7 +55,7 @@ public class ReportAnalysisRunner {
         ReportAnalyst.Result result;
         long embedded;
         try {
-            index = search.index(passages);
+            index = search.buildIndex(passages);
             embedded = clock.millis();
             result = analyst.analyse(company, filing.periodEnd(), index);
         } catch (RuntimeException e) {
@@ -64,7 +64,7 @@ public class ReportAnalysisRunner {
             log.warn("Lecture du rapport de {} interrompue ({}), nouvel essai dans {} s",
                     company, e.getMessage(), RETRY_DELAY.toSeconds());
             pause();
-            index = search.index(passages);
+            index = search.buildIndex(passages);
             embedded = clock.millis();
             result = analyst.analyse(company, filing.periodEnd(), index);
         }

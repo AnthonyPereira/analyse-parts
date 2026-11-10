@@ -79,7 +79,7 @@ class ScoreCalculatorTest {
     @Test
     void everyProfileHasWeightsSummingTo100() {
         for (Profile p : Profile.values()) {
-            assertThat(p.weights().values().stream().mapToInt(Integer::intValue).sum()).as(p.name()).isEqualTo(100);
+            assertThat(p.getWeights().values().stream().mapToInt(Integer::intValue).sum()).as(p.name()).isEqualTo(100);
         }
     }
 }

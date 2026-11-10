@@ -47,7 +47,7 @@ class MarketDataIntegrationTest {
                 .isEqualTo(1);
 
         assertThat(events.stream(MarketDataService.QuotesUpdated.class)).hasSize(2);
-        assertThat(market.latestQuote(id).orElseThrow().previousClose()).isEqualByComparingTo("9.50");
+        assertThat(market.findLatestQuote(id).orElseThrow().previousClose()).isEqualByComparingTo("9.50");
     }
 
     @Test
@@ -59,9 +59,9 @@ class MarketDataIntegrationTest {
                 new PricePoint.Close(LocalDate.of(2026, 1, 2), new BigDecimal("52"), null)));
 
         // le 31/12/2026 n'existe pas encore, le 03/01/2026 est un samedi
-        assertThat(market.closeOn(id, LocalDate.of(2026, 1, 3)).orElseThrow().close()).isEqualByComparingTo("52");
-        assertThat(market.closeOn(id, LocalDate.of(2025, 12, 31)).orElseThrow().close()).isEqualByComparingTo("51");
-        assertThat(market.closeOn(id, LocalDate.of(2024, 12, 31))).isEmpty();
-        assertThat(market.closes(id, LocalDate.of(2025, 12, 31))).hasSize(2);
+        assertThat(market.findCloseOn(id, LocalDate.of(2026, 1, 3)).orElseThrow().close()).isEqualByComparingTo("52");
+        assertThat(market.findCloseOn(id, LocalDate.of(2025, 12, 31)).orElseThrow().close()).isEqualByComparingTo("51");
+        assertThat(market.findCloseOn(id, LocalDate.of(2024, 12, 31))).isEmpty();
+        assertThat(market.findCloses(id, LocalDate.of(2025, 12, 31))).hasSize(2);
     }
 }

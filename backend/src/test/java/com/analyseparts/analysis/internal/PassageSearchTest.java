@@ -23,7 +23,7 @@ class PassageSearchTest {
         when(embeddings.embed("risques")).thenReturn(new float[]{1, 0});
         when(embeddings.embed("vigilance")).thenReturn(new float[]{0, 1});
 
-        var index = new PassageSearch(embeddings).index(List.of("a", "b", "c"));
+        var index = new PassageSearch(embeddings).buildIndex(List.of("a", "b", "c"));
 
         assertThat(index.search(List.of("risques"), 3, 3)).containsExactly(0, 1, 2);
         assertThat(index.search(List.of("risques"), List.of("vigilance"), 3, 3)).containsExactly(0, 2);
@@ -48,19 +48,19 @@ class PassageSearchTest {
         when(embeddings.embed("activité")).thenReturn(new float[]{1, 0, 0});
         when(embeddings.embed("sommaire")).thenReturn(new float[]{0, 0, 1});
 
-        var index = new PassageSearch(embeddings).index(List.of("a", "b", "c", "d", "e", "f", "g"));
+        var index = new PassageSearch(embeddings).buildIndex(List.of("a", "b", "c", "d", "e", "f", "g"));
 
-        assertThat(index.chapter(List.of("activité"), List.of("sommaire"), 3)).containsExactly(3, 4, 5);
+        assertThat(index.findChapter(List.of("activité"), List.of("sommaire"), 3)).containsExactly(3, 4, 5);
         // limité au début du rapport : le chapitre doit commencer dans les 3 premiers passages
-        assertThat(index.chapter(List.of("activité"), List.of("sommaire"), 3, 0.15)).containsExactly(1, 2, 3);
+        assertThat(index.findChapter(List.of("activité"), List.of("sommaire"), 3, 0.15)).containsExactly(1, 2, 3);
         // complété par la recherche : les passages les plus proches qui ne sont pas déjà lus
         assertThat(index.search(List.of("activité"), List.of("sommaire"), List.of(3, 4, 5), 5, 4)).containsExactly(1, 3, 4, 5);
     }
 
     @Test
     void densestFindsTheStretchWithTheLargestSum() {
-        assertThat(PassageSearch.Index.densest(new double[]{0.9, 0, 0.5, 0.5, 0.5, 0}, 3)).isEqualTo(2);
-        assertThat(PassageSearch.Index.densest(new double[]{0.9, 0.1}, 5)).isZero(); // rapport plus court que le chapitre
+        assertThat(PassageSearch.Index.findDensestStart(new double[]{0.9, 0, 0.5, 0.5, 0.5, 0}, 3)).isEqualTo(2);
+        assertThat(PassageSearch.Index.findDensestStart(new double[]{0.9, 0.1}, 5)).isZero(); // rapport plus court que le chapitre
     }
 
     /** Vu chez Nexans : le sommaire, lu comme un chapitre, ne donnait que des titres. */

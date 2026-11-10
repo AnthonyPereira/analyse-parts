@@ -65,12 +65,12 @@ public class QuoteStream {
     }
 
     @EventListener
-    void onQuotesUpdated(MarketDataService.QuotesUpdated event) {
+    void handleQuotesUpdated(MarketDataService.QuotesUpdated event) {
         if (emitters.isEmpty()) {
             return;
         }
         List<QuoteEvent> payload = event.quotes().stream()
-                .map(q -> new QuoteEvent(isin(q.companyId()), q.price(), q.currency(), q.asOf(), q.source(),
+                .map(q -> new QuoteEvent(findIsin(q.companyId()), q.price(), q.currency(), q.asOf(), q.source(),
                         q.previousClose()))
                 .filter(e -> e.isin() != null)
                 .toList();
@@ -82,11 +82,11 @@ public class QuoteStream {
      * et c'est ainsi qu'on détecte les onglets fermés.
      */
     @Scheduled(fixedDelay = 25_000)
-    void heartbeat() {
+    void sendHeartbeat() {
         send(SseEmitter.event().comment("ping"));
     }
 
-    public int connections() {
+    public int countConnections() {
         return emitters.size();
     }
 
@@ -102,7 +102,7 @@ public class QuoteStream {
         }
     }
 
-    private String isin(long companyId) {
+    private String findIsin(long companyId) {
         return isinById.computeIfAbsent(companyId, id -> companies.findById(id).map(Company::getIsin).orElse(null));
     }
 }

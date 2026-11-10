@@ -54,8 +54,8 @@ public class YahooQuoteClient {
         }
     }
 
-    public List<YahooQuote> quotes(List<String> symbols) {
-        return spark(symbols).usable();
+    public List<YahooQuote> fetchQuotes(List<String> symbols) {
+        return fetchSpark(symbols).usable();
     }
 
     /**
@@ -75,7 +75,7 @@ public class YahooQuoteClient {
         }
     }
 
-    public SparkBatch spark(List<String> symbols) {
+    public SparkBatch fetchSpark(List<String> symbols) {
         if (symbols.size() > MAX_SYMBOLS) {
             throw new IllegalArgumentException("Au plus " + MAX_SYMBOLS + " symboles par requête");
         }
@@ -91,7 +91,7 @@ public class YahooQuoteClient {
                 .map(r -> r.response().getFirst().meta())
                 .filter(m -> m != null && m.regularMarketPrice() != null && m.regularMarketTime() != null)
                 .map(m -> new YahooQuote(m.symbol(), m.regularMarketPrice(), m.currency(), m.exchangeName(),
-                        Instant.ofEpochSecond(m.regularMarketTime()), m.previousCloseOrChart()))
+                        Instant.ofEpochSecond(m.regularMarketTime()), m.resolvePreviousClose()))
                 .toList();
         return new SparkBatch(response.spark().result().size(), usable);
     }
@@ -100,7 +100,7 @@ public class YahooQuoteClient {
      * @param range    période Yahoo : 1d, 5d, 1mo, 1y, 5y, max…
      * @param interval pas : 5m pour la séance, 1d pour l'historique
      */
-    public Optional<YahooChart> chart(String symbol, String range, String interval) {
+    public Optional<YahooChart> fetchChart(String symbol, String range, String interval) {
         ChartResponse response = http.get()
                 .uri("/v8/finance/chart/{symbol}?range={range}&interval={interval}", symbol, range, interval)
                 .retrieve()
@@ -115,9 +115,9 @@ public class YahooQuoteClient {
                 && !r.indicators().quote().isEmpty()) {
             Indicator q = r.indicators().quote().getFirst();
             for (int i = 0; i < r.timestamp().size(); i++) {
-                BigDecimal close = at(q.close(), i);
+                BigDecimal close = getOrNull(q.close(), i);
                 if (close != null) { // pas d'échange sur ce créneau
-                    Long volume = at(q.volume(), i);
+                    Long volume = getOrNull(q.volume(), i);
                     points.add(new YahooChart.Point(Instant.ofEpochSecond(r.timestamp().get(i)), close, volume));
                 }
             }
@@ -127,10 +127,10 @@ public class YahooQuoteClient {
             // la réponse ne ressemble plus à ce qu'on attend : une erreur claire plutôt qu'un NullPointerException
             throw new IllegalStateException("réponse Yahoo inattendue pour " + symbol + " (bloc meta absent)");
         }
-        return Optional.of(new YahooChart(m.symbol(), m.currency(), m.exchangeName(), m.previousCloseOrChart(), points));
+        return Optional.of(new YahooChart(m.symbol(), m.currency(), m.exchangeName(), m.resolvePreviousClose(), points));
     }
 
-    private static <T> T at(List<T> values, int i) {
+    private static <T> T getOrNull(List<T> values, int i) {
         return values != null && i < values.size() ? values.get(i) : null;
     }
 
@@ -174,7 +174,7 @@ public class YahooQuoteClient {
     record Meta(String symbol, String currency, String exchangeName, BigDecimal regularMarketPrice,
                 Long regularMarketTime, BigDecimal previousClose, BigDecimal chartPreviousClose) {
 
-        BigDecimal previousCloseOrChart() {
+        BigDecimal resolvePreviousClose() {
             return previousClose != null ? previousClose : chartPreviousClose;
         }
     }

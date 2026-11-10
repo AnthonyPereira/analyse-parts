@@ -63,7 +63,7 @@ public class EsefImportService {
 
         static final ImportResult EMPTY = new ImportResult(0, 0, 0, 0, 0);
 
-        ImportResult plus(ImportResult o) {
+        ImportResult add(ImportResult o) {
             return new ImportResult(companies + o.companies, filingsImported + o.filingsImported,
                     filingsSkipped + o.filingsSkipped, factCount + o.factCount, errors + o.errors);
         }
@@ -88,7 +88,7 @@ public class EsefImportService {
      * Un rapport dont on n'a tiré aucun chiffre IFRS : le fichier a été lu, mais plus rien n'y
      * est reconnu. Le signe d'un changement de format, à signaler plutôt qu'à ignorer.
      */
-    static boolean noIfrsFacts(List<ReportedFact> facts) {
+    static boolean hasNoIfrsFacts(List<ReportedFact> facts) {
         return facts.stream().noneMatch(f -> f.concept().startsWith("ifrs-full:"));
     }
 
@@ -107,7 +107,7 @@ public class EsefImportService {
         ImportResult total = ImportResult.EMPTY;
         Checks checks = new Checks();
         for (Company company : companies.findByLeiIsNotNullAndEsefCheckedAtIsNullOrderByName().stream().limit(limit).toList()) {
-            total = total.plus(importCompany(company, true, checks));
+            total = total.add(importCompany(company, true, checks));
         }
         report(checks);
         log.info("Import ESEF : {}", total);
@@ -127,7 +127,7 @@ public class EsefImportService {
     /** @param useFilingsXbrlOrg false : seulement l'AMF (filings.xbrl.org limite fortement le nombre de requêtes) */
     public ImportResult refresh(int limit, boolean ignoreRecentCheck, boolean useFilingsXbrlOrg) {
         Instant now = Instant.now();
-        Map<Long, LocalDate> latest = financials.latestPeriodEnds();
+        Map<Long, LocalDate> latest = financials.findLatestPeriodEnds();
         List<Company> due = companies.findByLeiIsNotNullOrderByName().stream()
                 .filter(c -> EsefRefreshPolicy.isDue(c.getEsefCheckedAt(), latest.get(c.getId()), now, ignoreRecentCheck))
                 .limit(limit)
@@ -136,7 +136,7 @@ public class EsefImportService {
         ImportResult total = ImportResult.EMPTY;
         Checks checks = new Checks();
         for (Company company : due) {
-            total = total.plus(importCompany(company, useFilingsXbrlOrg, checks));
+            total = total.add(importCompany(company, useFilingsXbrlOrg, checks));
         }
         report(checks);
         log.info("Rafraîchissement ESEF : {}", total);
@@ -151,7 +151,7 @@ public class EsefImportService {
      */
     public ImportResult refreshFromAmf() {
         Instant now = Instant.now();
-        Map<Long, LocalDate> latest = financials.latestPeriodEnds();
+        Map<Long, LocalDate> latest = financials.findLatestPeriodEnds();
         List<Company> due = companies.findByLeiIsNotNullOrderByName().stream()
                 .filter(c -> EsefRefreshPolicy.isReportExpected(latest.get(c.getId()), now))
                 .toList();
@@ -162,7 +162,7 @@ public class EsefImportService {
         ImportResult total = ImportResult.EMPTY;
         Checks checks = new Checks();
         for (Company company : due) {
-            total = total.plus(importFromAmf(company, checks.amf()));
+            total = total.add(importFromAmf(company, checks.amf()));
         }
         report(checks);
         log.info("Vérification AMF du jour : {}", total);
@@ -195,12 +195,12 @@ public class EsefImportService {
             throw new IllegalArgumentException("Le paquet est balisé avec le LEI " + parsed.lei()
                     + ", pas celui de " + company.getName() + " (" + company.getLei() + ")");
         }
-        if (noIfrsFacts(parsed.facts())) {
+        if (hasNoIfrsFacts(parsed.facts())) {
             throw new IllegalArgumentException("Aucun chiffre IFRS reconnu dans " + url);
         }
         LocalDate periodEnd = parsed.facts().stream().filter(f -> !f.isInstant())
                 .map(ReportedFact::periodEnd).max(LocalDate::compareTo).orElseThrow();
-        if (isKnown(new HashSet<>(financials.periodEnds(company.getId())), periodEnd)) {
+        if (isKnown(new HashSet<>(financials.findPeriodEnds(company.getId())), periodEnd)) {
             return new ImportResult(1, 0, 1, 0, 0);
         }
         // l'adresse sert d'identifiant ; commençant par http, le rapport est relu depuis le paquet
@@ -227,7 +227,7 @@ public class EsefImportService {
             return new ImportResult(1, 0, 0, 0, 0);
         }
         ImportResult amfResult = amf == null ? ImportResult.EMPTY : importFromAmf(company, checks.amf());
-        Set<LocalDate> known = new HashSet<>(financials.periodEnds(company.getId()));
+        Set<LocalDate> known = new HashSet<>(financials.findPeriodEnds(company.getId()));
         ImportResult xbrlOrg = useFilingsXbrlOrg && needsComplement(known, LocalDate.now(), filingsPerCompany)
                 ? importFromFilingsXbrlOrg(company, known, checks.filingsXbrl()) : ImportResult.EMPTY;
         ImportResult total = new ImportResult(1, xbrlOrg.filingsImported() + amfResult.filingsImported(),
@@ -247,14 +247,14 @@ public class EsefImportService {
      * {@code filingsPerCompany} nouveaux exercices.
      */
     private ImportResult importFromAmf(Company company, Tally tally) {
-        Set<LocalDate> known = new HashSet<>(financials.periodEnds(company.getId()));
+        Set<LocalDate> known = new HashSet<>(financials.findPeriodEnds(company.getId()));
         LocalDate since = known.stream().max(LocalDate::compareTo).map(d -> d.plusMonths(1))
                 .orElse(LocalDate.now().minusYears(4));
         int imported = 0, skipped = 0, factCount = 0, errors = 0;
         List<AmfFilingsClient.AmfFiling> reports;
         try {
-            reports = amf.annualReports(company.getIsin(), company.getLei(), since);
-            tally.ok();
+            reports = amf.findAnnualReports(company.getIsin(), company.getLei(), since);
+            tally.recordSuccess();
         } catch (RestClientException e) {
             log.warn("AMF {} : flux indisponible : {}", company.getName(), e.getMessage());
             tally.fail("flux de l'AMF indisponible ou illisible : " + e.getMessage());
@@ -269,14 +269,14 @@ public class EsefImportService {
             try {
                 InlineXbrlParser.ParsedReport parsed =
                         InlineXbrlParser.parsePackage(new ByteArrayInputStream(amf.download(report.url())));
-                if (noIfrsFacts(parsed.facts())) {
+                if (hasNoIfrsFacts(parsed.facts())) {
                     log.warn("AMF {} : aucun chiffre IFRS reconnu dans {}", company.getName(), report.fileName());
                     tally.fail("rapport " + report.fileName() + " lu, mais aucun chiffre IFRS reconnu : "
                             + "format du paquet ESEF changé ?");
                     skipped++; // comptes non consolidés possibles : pas une erreur d'import, mais signalé à SourceHealth
                     continue;
                 }
-                tally.ok();
+                tally.recordSuccess();
                 // Un rapport balisé avec un autre LEI est écarté, sauf si l'AMF l'a enregistré sous le LEI
                 // de la société : OPmobility balise ses rapports avec l'ancien LEI de Plastic Omnium.
                 if (parsed.lei() != null && !parsed.lei().equals(company.getLei())
@@ -330,23 +330,23 @@ public class EsefImportService {
         try {
             List<FilingInfo> selected = FilingSelector.select(
                     client.listFilings(company.getLei()), company.getCountry(), filingsPerCompany);
-            tally.ok();
+            tally.recordSuccess();
             for (FilingInfo filing : selected) {
                 if (financials.isImported(filing.fxoId()) || isKnown(known, LocalDate.parse(filing.periodEnd()))) {
                     skipped++; // déjà importé, ou exercice déjà fourni par l'AMF
                     continue;
                 }
                 try {
-                    List<ReportedFact> facts = XbrlJsonParser.totals(client.download(filing.jsonUrl()));
-                    if (noIfrsFacts(facts)) {
+                    List<ReportedFact> facts = XbrlJsonParser.extractTotals(client.download(filing.jsonUrl()));
+                    if (hasNoIfrsFacts(facts)) {
                         log.warn("ESEF {} : aucun chiffre IFRS reconnu dans {}", company.getName(), filing.jsonUrl());
                         tally.fail("rapport " + filing.fxoId() + " lu, mais aucun chiffre IFRS reconnu : "
                                 + "format xBRL-JSON changé ?");
                         skipped++; // comptes non consolidés possibles : pas une erreur d'import, mais signalé à SourceHealth
                         continue;
                     }
-                    tally.ok();
-                    LocalDate periodEnd = periodEnd(company, filing, facts);
+                    tally.recordSuccess();
+                    LocalDate periodEnd = resolvePeriodEnd(company, filing, facts);
                     if (isKnown(known, periodEnd)) {
                         skipped++;
                         continue;
@@ -377,7 +377,7 @@ public class EsefImportService {
      * de flux. L'index de la source se trompe parfois (rapports 2025 de Carrefour, Hermès et
      * Rubis déclarés au 31/12/2026) : les faits font foi.
      */
-    static LocalDate periodEnd(Company company, FilingInfo filing, List<ReportedFact> facts) {
+    static LocalDate resolvePeriodEnd(Company company, FilingInfo filing, List<ReportedFact> facts) {
         LocalDate declared = LocalDate.parse(filing.periodEnd());
         LocalDate fromFacts = facts.stream()
                 .filter(f -> !f.isInstant())

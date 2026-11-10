@@ -187,8 +187,8 @@ class RatioCalculatorTest {
     @Test
     void everyProfileHasBankWeightsWithoutIndustrialRatios() {
         for (Profile p : Profile.values()) {
-            assertThat(p.bankWeights().values().stream().mapToInt(Integer::intValue).sum()).isEqualTo(100);
-            assertThat(p.bankWeights()).doesNotContainKeys(Ratio.NET_DEBT_TO_EQUITY, Ratio.EV_TO_EBIT,
+            assertThat(p.getBankWeights().values().stream().mapToInt(Integer::intValue).sum()).isEqualTo(100);
+            assertThat(p.getBankWeights()).doesNotContainKeys(Ratio.NET_DEBT_TO_EQUITY, Ratio.EV_TO_EBIT,
                     Ratio.CURRENT_RATIO, Ratio.EQUITY_RATIO, Ratio.FCF_MARGIN, Ratio.FCF_YIELD);
         }
     }
@@ -196,8 +196,8 @@ class RatioCalculatorTest {
     @Test
     void everyProfileHasInsurerWeightsWithoutIndustrialOrBankRatios() {
         for (Profile p : Profile.values()) {
-            assertThat(p.insurerWeights().values().stream().mapToInt(Integer::intValue).sum()).isEqualTo(100);
-            assertThat(p.insurerWeights()).doesNotContainKeys(Ratio.NET_DEBT_TO_EQUITY, Ratio.EV_TO_EBIT,
+            assertThat(p.getInsurerWeights().values().stream().mapToInt(Integer::intValue).sum()).isEqualTo(100);
+            assertThat(p.getInsurerWeights()).doesNotContainKeys(Ratio.NET_DEBT_TO_EQUITY, Ratio.EV_TO_EBIT,
                     Ratio.CURRENT_RATIO, Ratio.EQUITY_RATIO, Ratio.FCF_MARGIN, Ratio.FCF_YIELD,
                     Ratio.OPERATING_MARGIN, Ratio.CASH_CONVERSION, Ratio.COST_INCOME_RATIO, Ratio.COST_OF_RISK_RATIO);
         }
@@ -237,6 +237,6 @@ class RatioCalculatorTest {
 
         double payout = r.get(Ratio.PAYOUT_RATIO).orElseThrow().value();
         assertThat(payout).isNegative();
-        assertThat(Ratio.PAYOUT_RATIO.scale().points(payout)).isZero();
+        assertThat(Ratio.PAYOUT_RATIO.getScale().computePoints(payout)).isZero();
     }
 }

@@ -31,7 +31,7 @@ class MarketClientsTest {
                             "regularMarketPrice":196.54,"regularMarketTime":1793973278}}]}]}}
                         """, MediaType.APPLICATION_JSON));
 
-        var quotes = new YahooQuoteClient(builder, "https://yahoo.test").quotes(List.of("MC.PA", "AIR.PA"));
+        var quotes = new YahooQuoteClient(builder, "https://yahoo.test").fetchQuotes(List.of("MC.PA", "AIR.PA"));
 
         assertThat(quotes).hasSize(2);
         assertThat(quotes.getFirst()).isEqualTo(new YahooQuoteClient.YahooQuote("MC.PA", new BigDecimal("403.75"),
@@ -53,7 +53,7 @@ class MarketClientsTest {
                             "lastPrice":196.54,"regularMarketTime":1793973278}}]}]}}
                         """, MediaType.APPLICATION_JSON));
 
-        var batch = new YahooQuoteClient(builder, "https://yahoo.test").spark(List.of("MC.PA", "AIR.PA"));
+        var batch = new YahooQuoteClient(builder, "https://yahoo.test").fetchSpark(List.of("MC.PA", "AIR.PA"));
 
         assertThat(batch.results()).isEqualTo(2);
         assertThat(batch.usable()).isEmpty();
@@ -71,7 +71,7 @@ class MarketClientsTest {
 
         var client = new YahooQuoteClient(builder, "https://yahoo.test");
 
-        assertThatThrownBy(() -> client.chart("MC.PA", "5d", "1d"))
+        assertThatThrownBy(() -> client.fetchChart("MC.PA", "5d", "1d"))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("meta absent");
     }
 
@@ -87,7 +87,7 @@ class MarketClientsTest {
                           "indicators":{"quote":[{"close":[417.1,null,416.4],"volume":[1200,null,800]}]}}]}}
                         """, MediaType.APPLICATION_JSON));
 
-        var chart = new YahooQuoteClient(builder, "https://yahoo.test").chart("MC.PA", "1d", "5m").orElseThrow();
+        var chart = new YahooQuoteClient(builder, "https://yahoo.test").fetchChart("MC.PA", "1d", "5m").orElseThrow();
 
         assertThat(chart.previousClose()).isEqualByComparingTo("418.65");
         assertThat(chart.points()).extracting(YahooQuoteClient.YahooChart.Point::close)

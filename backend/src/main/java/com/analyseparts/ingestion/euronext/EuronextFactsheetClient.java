@@ -23,7 +23,7 @@ public class EuronextFactsheetClient {
     }
 
     /** {@code block} : fs_icb_block (secteur) ou fs_tradinginfo_block (nombre d'actions). */
-    public String block(String isin, String mic, String block) {
+    public String fetchBlock(String isin, String mic, String block) {
         return http.get()
                 .uri("/en/ajax/getFactsheetInfoBlock/STOCK/{isin}-{mic}/{block}", isin, mic, block)
                 .retrieve()

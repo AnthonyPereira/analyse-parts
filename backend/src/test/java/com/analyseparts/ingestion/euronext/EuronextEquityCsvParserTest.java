@@ -45,7 +45,7 @@ class EuronextEquityCsvParserTest {
     void isinCountryIsTheIsinPrefix() throws IOException {
         ListedEquity airbus = EuronextEquityCsvParser.parse(sample()).get(2);
 
-        assertThat(airbus.isinCountry()).isEqualTo("NL"); // Airbus SE est de droit néerlandais
+        assertThat(airbus.extractIsinCountry()).isEqualTo("NL"); // Airbus SE est de droit néerlandais
     }
 
     @Test

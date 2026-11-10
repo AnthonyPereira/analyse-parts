@@ -42,15 +42,15 @@ public final class ReportText {
     record Block(String text, boolean inTable) {
     }
 
-    public static List<String> passages(InputStream xhtml) throws IOException {
-        List<Block> blocks = blocks(xhtml);
+    public static List<String> extractPassages(InputStream xhtml) throws IOException {
+        List<Block> blocks = readBlocks(xhtml);
         long all = blocks.stream().mapToLong(b -> b.text().length()).sum();
         long outside = blocks.stream().filter(b -> !b.inTable()).mapToLong(b -> b.text().length()).sum();
         boolean keepTables = all > 0 && outside < all * 0.3;
         List<String> texts = new ArrayList<>();
         for (int i = 0; i < blocks.size(); i++) {
             Block b = blocks.get(i);
-            if (keepTables || !b.inTable() || prose(b) || label(b) && proseNear(blocks, i)) {
+            if (keepTables || !b.inTable() || isProse(b) || isLabel(b) && isNearProse(blocks, i)) {
                 texts.add(b.text());
             }
         }
@@ -62,14 +62,14 @@ public final class ReportText {
      * risque en tableau (« Identification du risque » | « Gestion du risque »). Les cellules de
      * chiffres, elles, sont courtes.
      */
-    static boolean prose(Block b) {
-        return b.text().length() >= 150 && letters(b.text()) >= b.text().length() * 0.6;
+    static boolean isProse(Block b) {
+        return b.text().length() >= 150 && countLetters(b.text()) >= b.text().length() * 0.6;
     }
 
     /** Un paragraphe de tableau juste avant, ou dans les trois blocs qui suivent (après l'en-tête de colonnes). */
-    private static boolean proseNear(List<Block> blocks, int i) {
+    private static boolean isNearProse(List<Block> blocks, int i) {
         for (int j = i - 1; j <= i + 3; j++) {
-            if (j != i && j >= 0 && j < blocks.size() && blocks.get(j).inTable() && prose(blocks.get(j))) {
+            if (j != i && j >= 0 && j < blocks.size() && blocks.get(j).inTable() && isProse(blocks.get(j))) {
                 return true;
             }
         }
@@ -77,15 +77,15 @@ public final class ReportText {
     }
 
     /** Un intitulé court (« Risques liés à l'activité/Crise sanitaire ») : gardé à côté d'un paragraphe. */
-    private static boolean label(Block b) {
-        return b.text().length() >= 15 && letters(b.text()) >= b.text().length() * 0.7;
+    private static boolean isLabel(Block b) {
+        return b.text().length() >= 15 && countLetters(b.text()) >= b.text().length() * 0.7;
     }
 
-    private static long letters(String s) {
+    private static long countLetters(String s) {
         return s.chars().filter(Character::isLetter).count();
     }
 
-    static List<Block> blocks(InputStream xhtml) throws IOException {
+    static List<Block> readBlocks(InputStream xhtml) throws IOException {
         XMLInputFactory factory = XMLInputFactory.newFactory();
         factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
         factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);

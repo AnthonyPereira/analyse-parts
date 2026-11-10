@@ -30,7 +30,7 @@ public final class XbrlJsonParser {
     private XbrlJsonParser() {
     }
 
-    public static List<ReportedFact> totals(XbrlJson json) {
+    public static List<ReportedFact> extractTotals(XbrlJson json) {
         if (json == null || json.facts() == null) {
             return List.of();
         }
@@ -49,13 +49,13 @@ public final class XbrlJsonParser {
             }
             Period period = Period.parse(dims.get("period"));
             ReportedFact rf = new ReportedFact(dims.get("concept"), period.start(), period.end(),
-                    dims.get("unit"), value, decimals(fact.decimals()));
+                    dims.get("unit"), value, parseDecimals(fact.decimals()));
             unique.putIfAbsent(rf.concept() + '|' + rf.periodStart() + '|' + rf.periodEnd() + '|' + rf.unit(), rf);
         }
         return new ArrayList<>(unique.values());
     }
 
-    private static Integer decimals(Object raw) {
+    private static Integer parseDecimals(Object raw) {
         if (raw instanceof Number n) {
             return n.intValue();
         }
@@ -72,16 +72,16 @@ public final class XbrlJsonParser {
         static Period parse(String raw) {
             int slash = raw.indexOf('/');
             if (slash < 0) {
-                return new Period(null, endDate(raw));
+                return new Period(null, parseEndDate(raw));
             }
-            return new Period(startDate(raw.substring(0, slash)), endDate(raw.substring(slash + 1)));
+            return new Period(parseStartDate(raw.substring(0, slash)), parseEndDate(raw.substring(slash + 1)));
         }
 
-        private static LocalDate startDate(String s) {
+        private static LocalDate parseStartDate(String s) {
             return s.length() == 10 ? LocalDate.parse(s) : LocalDateTime.parse(s).toLocalDate();
         }
 
-        private static LocalDate endDate(String s) {
+        private static LocalDate parseEndDate(String s) {
             if (s.length() == 10) {
                 return LocalDate.parse(s);
             }

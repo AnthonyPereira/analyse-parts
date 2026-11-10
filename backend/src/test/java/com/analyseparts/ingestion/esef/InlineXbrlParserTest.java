@@ -146,10 +146,10 @@ class InlineXbrlParserTest {
 
     @Test
     void numberFormats() {
-        assertThat(InlineXbrlParser.number("1,234.5", "ixt:num-dot-decimal")).isEqualByComparingTo("1234.5");
-        assertThat(InlineXbrlParser.number("1.234,5", "ixt:numdotcomma")).isEqualByComparingTo("1234.5");
-        assertThat(InlineXbrlParser.number("-", "ixt:zerodash")).isEqualByComparingTo("0");
-        assertThat(InlineXbrlParser.number("douze", "ixt-sec:numwordsen")).isNull();
+        assertThat(InlineXbrlParser.parseNumber("1,234.5", "ixt:num-dot-decimal")).isEqualByComparingTo("1234.5");
+        assertThat(InlineXbrlParser.parseNumber("1.234,5", "ixt:numdotcomma")).isEqualByComparingTo("1234.5");
+        assertThat(InlineXbrlParser.parseNumber("-", "ixt:zerodash")).isEqualByComparingTo("0");
+        assertThat(InlineXbrlParser.parseNumber("douze", "ixt-sec:numwordsen")).isNull();
     }
 
     /** Vérification sur un vrai rapport : ESEF_PACKAGE=chemin/vers/rapport.xbri */

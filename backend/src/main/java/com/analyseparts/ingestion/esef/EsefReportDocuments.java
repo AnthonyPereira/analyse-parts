@@ -23,10 +23,10 @@ public class EsefReportDocuments implements ReportDocuments {
     }
 
     @Override
-    public byte[] xhtml(FilingRef filing) throws IOException {
+    public byte[] downloadXhtml(FilingRef filing) throws IOException {
         String url = filing.url();
         if (url.startsWith("http")) { // paquet de l'AMF (.zip ou .xbri)
-            return InlineXbrlParser.reportOf(new ByteArrayInputStream(amf.download(url)));
+            return InlineXbrlParser.extractReport(new ByteArrayInputStream(amf.download(url)));
         }
         if (url.endsWith(".json")) {
             return filingsXbrl.downloadReport(url);

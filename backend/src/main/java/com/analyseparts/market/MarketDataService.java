@@ -51,7 +51,7 @@ public class MarketDataService {
         return changed.size();
     }
 
-    public Optional<Quote> latestQuote(long companyId) {
+    public Optional<Quote> findLatestQuote(long companyId) {
         return repository.findQuote(companyId);
     }
 
@@ -60,21 +60,21 @@ public class MarketDataService {
     }
 
     /** Clôtures quotidiennes depuis {@code from}, de la plus ancienne à la plus récente. */
-    public List<PricePoint.Close> closes(long companyId, LocalDate from) {
+    public List<PricePoint.Close> findCloses(long companyId, LocalDate from) {
         return repository.findCloses(companyId, from);
     }
 
     /** Le cours de clôture à une date (ou le dernier jour de bourse avant), ex. à la clôture d'un exercice. */
-    public Optional<PricePoint.Close> closeOn(long companyId, LocalDate day) {
+    public Optional<PricePoint.Close> findCloseOn(long companyId, LocalDate day) {
         return repository.findCloseOnOrBefore(companyId, day);
     }
 
-    public Map<Long, LocalDate> latestCloseDays() {
+    public Map<Long, LocalDate> findLatestCloseDays() {
         return repository.findLatestCloseDays();
     }
 
     /** La courbe de la dernière séance, avec un cache d'une minute. */
-    public Optional<IntradaySource.Intraday> intraday(long companyId) {
+    public Optional<IntradaySource.Intraday> fetchIntraday(long companyId) {
         IntradaySource source = intradaySource.getIfAvailable();
         if (source == null) {
             return Optional.empty();
@@ -83,7 +83,7 @@ public class MarketDataService {
         if (cached != null && cached.fetchedAt().plus(INTRADAY_CACHE).isAfter(Instant.now())) {
             return cached.value();
         }
-        Optional<IntradaySource.Intraday> value = source.intraday(companyId);
+        Optional<IntradaySource.Intraday> value = source.fetchIntraday(companyId);
         intradayCache.put(companyId, new CachedIntraday(Instant.now(), value));
         return value;
     }

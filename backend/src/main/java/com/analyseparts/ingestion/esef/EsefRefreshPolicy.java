@@ -38,10 +38,10 @@ final class EsefRefreshPolicy {
             return true;
         }
         if (latestPeriodEnd == null) {
-            return ignoreRecentCheck || checkedBefore(lastChecked, now, RECHECK_WITHOUT_FILING);
+            return ignoreRecentCheck || wasCheckedBefore(lastChecked, now, RECHECK_WITHOUT_FILING);
         }
         return isReportExpected(latestPeriodEnd, now)
-                && (ignoreRecentCheck || checkedBefore(lastChecked, now, RECHECK_WHEN_EXPECTED));
+                && (ignoreRecentCheck || wasCheckedBefore(lastChecked, now, RECHECK_WHEN_EXPECTED));
     }
 
     /** Un nouveau rapport annuel est attendu : {@value #NEXT_REPORT_MONTHS} mois ont passé depuis la dernière clôture connue. */
@@ -53,7 +53,7 @@ final class EsefRefreshPolicy {
         return !latestPeriodEnd.plusMonths(NEXT_REPORT_MONTHS).isAfter(today);
     }
 
-    private static boolean checkedBefore(Instant lastChecked, Instant now, Duration delay) {
+    private static boolean wasCheckedBefore(Instant lastChecked, Instant now, Duration delay) {
         return !lastChecked.plus(delay).isAfter(now);
     }
 }

@@ -110,11 +110,11 @@ public class ReportAnalyst {
          * risque en décrit souvent plus, et le modèle laissait de côté des risques réels (chez
          * L'Oréal, les tensions géopolitiques et les droits de douane, pourtant écrits en toutes lettres).
          */
-        int pointsPerBatch() {
+        int getPointsPerBatch() {
             return this == RISKS ? 7 : POINTS_PER_BATCH;
         }
         final List<String> searches;
-        /** Ce dont parle le chapitre à lire d'un seul tenant (voir {@link PassageSearch.Index#chapter}). */
+        /** Ce dont parle le chapitre à lire d'un seul tenant (voir {@link PassageSearch.Index#findChapter}). */
         final List<String> chapters;
 
         /** Les passages plus proches d'une de ces recherches que des recherches du thème sont écartés. */
@@ -145,15 +145,15 @@ public class ReportAnalyst {
         }
 
         /** Les passages à lire : le chapitre d'abord, complété par les recherches. */
-        List<Integer> passages(PassageSearch.Index index) {
+        List<Integer> selectPassages(PassageSearch.Index index) {
             int max = BATCH * batches;
             // la présentation ouvre le rapport ; les facteurs de risques peuvent être plus loin
             double within = this == BUSINESS ? 0.25 : 1;
-            List<Integer> read = index.chapter(chapters, AVOID, Math.min(CHAPTER_LENGTH, max), within);
+            List<Integer> read = index.findChapter(chapters, AVOID, Math.min(CHAPTER_LENGTH, max), within);
             if (!read.isEmpty()) {
                 log.info("{} : chapitre lu, passages {} à {} : {}", this, read.get(0), read.get(read.size() - 1), read.stream()
                         .filter(i -> !read.contains(i - 1))
-                        .map(i -> "[" + i + "] " + index.passage(i).substring(0, Math.min(80, index.passage(i).length())))
+                        .map(i -> "[" + i + "] " + index.getPassage(i).substring(0, Math.min(80, index.getPassage(i).length())))
                         .toList());
             }
             return index.search(searches, AVOID, read, max, max);
@@ -193,7 +193,7 @@ public class ReportAnalyst {
                     "type", "array",
                     "items", Map.of(
                             "type", "object",
-                            "properties", ordered(
+                            "properties", buildOrderedMap(
                                     "extrait", Map.of("type", "integer"),
                                     "citation", Map.of("type", "string"),
                                     "titre", Map.of("type", "string"),
@@ -202,7 +202,7 @@ public class ReportAnalyst {
             "required", List.of("points"));
 
     /** Une table qui garde l'ordre de ses clés (clé, valeur, clé, valeur…). */
-    static Map<String, Object> ordered(Object... keysAndValues) {
+    static Map<String, Object> buildOrderedMap(Object... keysAndValues) {
         Map<String, Object> map = new java.util.LinkedHashMap<>();
         for (int i = 0; i < keysAndValues.length; i += 2) {
             map.put((String) keysAndValues[i], keysAndValues[i + 1]);
@@ -238,7 +238,7 @@ public class ReportAnalyst {
         this.json = json;
         this.contextTokens = contextTokens;
         this.model = model;
-        this.reviewed = reviewedTopics(review);
+        this.reviewed = parseReviewedTopics(review);
     }
 
     ReportAnalyst(ChatModel chat, JsonMapper json, int contextTokens, String model) {
@@ -246,7 +246,7 @@ public class ReportAnalyst {
     }
 
     /** « true » : tous les thèmes ; « false » ou vide : aucun ; sinon la liste des thèmes (BUSINESS,ADVANTAGES). */
-    static java.util.Set<Topic> reviewedTopics(String setting) {
+    static java.util.Set<Topic> parseReviewedTopics(String setting) {
         String s = setting == null ? "" : setting.strip();
         if (s.equalsIgnoreCase("true")) {
             return java.util.EnumSet.allOf(Topic.class);
@@ -268,14 +268,14 @@ public class ReportAnalyst {
         List<String> usedQuotes = new ArrayList<>();
         for (Topic topic : Topic.values()) {
             // dans l'ordre du rapport : un lot couvre des passages voisins, donc une même section
-            List<Integer> chosen = topic.passages(index);
+            List<Integer> chosen = topic.selectPassages(index);
             List<Point> candidates = new ArrayList<>();
             for (int from = 0; from < chosen.size(); from += BATCH) {
                 List<String> passages = chosen.subList(from, Math.min(chosen.size(), from + BATCH))
-                        .stream().map(index::passage).toList();
+                        .stream().map(index::getPassage).toList();
                 Answer answer;
                 try {
-                    answer = ask(SYSTEM, prompt(company, periodEnd, topic, passages), SCHEMA, Answer.class);
+                    answer = ask(SYSTEM, buildPrompt(company, periodEnd, topic, passages), SCHEMA, Answer.class);
                 } catch (tools.jackson.core.JacksonException e) {
                     // réponse coupée par la limite de longueur : on perd ce lot, pas toute la lecture
                     log.warn("Lot de passages ignoré ({}), réponse illisible : {}", topic, e.getOriginalMessage());
@@ -328,13 +328,13 @@ public class ReportAnalyst {
     static Outcome check(AnswerPoint p, List<String> passages) {
         int preferred = p.extrait() == null ? -1 : p.extrait() - 1; // numérotés à partir de 1
         var match = Quotes.find(p.citation(), passages, preferred);
-        if (blank(p.titre())) {
+        if (isBlank(p.titre())) {
             return new Outcome(null, "sans titre", false);
         }
         if (match.isEmpty()) {
             return new Outcome(null, "citation introuvable", preferred >= 0 && preferred < passages.size());
         }
-        String weakness = weakness(match.get().text(), p.explication());
+        String weakness = findWeakness(match.get().text(), p.explication());
         if (weakness != null) {
             return new Outcome(null, weakness, weakness.startsWith("citation trop courte"));
         }
@@ -373,7 +373,7 @@ public class ReportAnalyst {
                     "type", "array",
                     "items", Map.of(
                             "type", "object",
-                            "properties", ordered(
+                            "properties", buildOrderedMap(
                                     "point", Map.of("type", "integer"),
                                     "citation", Map.of("type", "string")),
                             "required", List.of("point", "citation")))),
@@ -396,14 +396,14 @@ public class ReportAnalyst {
         }
         Retry retry;
         try {
-            retry = ask(RETRY_SYSTEM, retryPrompt(passages, points), RETRY_SCHEMA, Retry.class);
+            retry = ask(RETRY_SYSTEM, buildRetryPrompt(passages, points), RETRY_SCHEMA, Retry.class);
         } catch (tools.jackson.core.JacksonException e) {
             log.warn("Nouvel essai de citation illisible ({}) : {}", topic, e.getOriginalMessage());
             retry = new Retry(List.of());
         }
         Map<Integer, String> quotes = new java.util.HashMap<>();
         for (RetryQuote q : retry.citations() == null ? List.<RetryQuote>of() : retry.citations()) {
-            if (q.point() != null && !blank(q.citation())) {
+            if (q.point() != null && !isBlank(q.citation())) {
                 quotes.putIfAbsent(q.point() - 1, q.citation()); // numérotés à partir de 1
             }
         }
@@ -416,7 +416,7 @@ public class ReportAnalyst {
         return result;
     }
 
-    static String retryPrompt(List<String> passages, List<AnswerPoint> points) {
+    static String buildRetryPrompt(List<String> passages, List<AnswerPoint> points) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < points.size(); i++) {
             AnswerPoint p = points.get(i);
@@ -453,7 +453,7 @@ public class ReportAnalyst {
                     "type", "array",
                     "items", Map.of(
                             "type", "object",
-                            "properties", ordered(
+                            "properties", buildOrderedMap(
                                     "point", Map.of("type", "integer"),
                                     "raison", Map.of("type", "string"),
                                     "soutenu", Map.of("type", "boolean")),
@@ -479,7 +479,7 @@ public class ReportAnalyst {
             List<Point> batch = candidates.subList(from, Math.min(candidates.size(), from + REVIEW_BATCH));
             Map<Integer, Verdict> verdicts = new java.util.HashMap<>();
             try {
-                Review review = ask(REVIEW_SYSTEM, reviewPrompt(topic, batch), REVIEW_SCHEMA, Review.class);
+                Review review = ask(REVIEW_SYSTEM, buildReviewPrompt(topic, batch), REVIEW_SCHEMA, Review.class);
                 for (Verdict v : review.avis() == null ? List.<Verdict>of() : review.avis()) {
                     if (v.point() != null) {
                         verdicts.putIfAbsent(v.point() - 1, v); // numérotés à partir de 1
@@ -500,7 +500,7 @@ public class ReportAnalyst {
         return supported;
     }
 
-    static String reviewPrompt(Topic topic, List<Point> points) {
+    static String buildReviewPrompt(Topic topic, List<Point> points) {
         StringBuilder sb = new StringBuilder("Question posée à l'analyste : ").append(topic.question).append('\n');
         for (int i = 0; i < points.size(); i++) {
             Point p = points.get(i);
@@ -542,7 +542,7 @@ public class ReportAnalyst {
         }
         List<float[]> titles = index.embed(candidates.stream().map(Point::title).toList());
         List<float[]> texts = index.embed(candidates.stream().map(p -> p.title() + " : " + p.explanation()).toList());
-        return merge(candidates, titles, texts, duplicateGroups(topic, candidates), topic.maxPoints);
+        return merge(candidates, titles, texts, findDuplicateGroups(topic, candidates), topic.maxPoints);
     }
 
     static List<Point> merge(List<Point> candidates, List<float[]> titles, List<float[]> texts, int max) {
@@ -566,8 +566,8 @@ public class ReportAnalyst {
             List<Integer> members = group.stream().filter(i -> i >= 0 && i < candidates.size()).distinct().sorted().toList();
             for (int j = 1; j < members.size(); j++) {
                 int first = members.get(0), other = members.get(j);
-                if (PassageSearch.dot(titles.get(first), titles.get(other)) >= RELATED_TITLES
-                        || PassageSearch.dot(texts.get(first), texts.get(other)) >= RELATED_TEXTS) {
+                if (PassageSearch.computeDotProduct(titles.get(first), titles.get(other)) >= RELATED_TITLES
+                        || PassageSearch.computeDotProduct(texts.get(first), texts.get(other)) >= RELATED_TEXTS) {
                     removed.add(other);
                 }
             }
@@ -577,8 +577,8 @@ public class ReportAnalyst {
             int candidate = i;
             String title = Quotes.Normalized.of(candidates.get(i).title()).text;
             boolean duplicate = removed.contains(i) || kept.stream().anyMatch(k ->
-                    PassageSearch.dot(titles.get(k), titles.get(candidate)) >= SAME_MEANING
-                            && PassageSearch.dot(texts.get(k), texts.get(candidate)) >= SAME_MEANING
+                    PassageSearch.computeDotProduct(titles.get(k), titles.get(candidate)) >= SAME_MEANING
+                            && PassageSearch.computeDotProduct(texts.get(k), texts.get(candidate)) >= SAME_MEANING
                             || Quotes.Normalized.of(candidates.get(k).title()).text.equals(title));
             if (!duplicate) {
                 kept.add(i);
@@ -607,7 +607,7 @@ public class ReportAnalyst {
                     "type", "array",
                     "items", Map.of(
                             "type", "object",
-                            "properties", ordered(
+                            "properties", buildOrderedMap(
                                     "points", Map.of("type", "array", "items", Map.of("type", "integer")),
                                     "raison", Map.of("type", "string"),
                                     "doublon", Map.of("type", "boolean")),
@@ -626,7 +626,7 @@ public class ReportAnalyst {
     }
 
     /** Les groupes de doublons selon le modèle (indices à partir de 0) ; vide si sa réponse est illisible. */
-    private List<List<Integer>> duplicateGroups(Topic topic, List<Point> candidates) {
+    private List<List<Integer>> findDuplicateGroups(Topic topic, List<Point> candidates) {
         StringBuilder sb = new StringBuilder("Thème : ").append(topic.title).append('\n');
         for (int i = 0; i < candidates.size(); i++) {
             sb.append("\nPoint ").append(i + 1).append(" : ").append(candidates.get(i).title())
@@ -648,7 +648,7 @@ public class ReportAnalyst {
         }
     }
 
-    static String prompt(String company, LocalDate periodEnd, Topic topic, List<String> passages) {
+    static String buildPrompt(String company, LocalDate periodEnd, Topic topic, List<String> passages) {
         StringBuilder sb = new StringBuilder();
         sb.append("Société : ").append(company).append(". Rapport annuel de l'exercice clos le ")
                 .append(periodEnd).append(".\n\nExtraits du rapport :\n");
@@ -656,7 +656,7 @@ public class ReportAnalyst {
             sb.append("\n[").append(i + 1).append("] ").append(passages.get(i)).append('\n');
         }
         sb.append("\nQuestion : ").append(topic.question)
-                .append("\nDonne au plus ").append(topic.pointsPerBatch())
+                .append("\nDonne au plus ").append(topic.getPointsPerBatch())
                 .append(" points, du plus important au moins important. Si les extraits ne permettent pas de répondre, renvoie une liste vide.");
         return sb.toString();
     }
@@ -685,26 +685,26 @@ public class ReportAnalyst {
      * Un point dont la citation existe peut quand même être inutile : une citation trop courte (un
      * titre) ou une explication qui ne fait que la répéter. Renvoie la raison, ou {@code null}.
      */
-    static String weakness(String quote, String explanation) {
-        int length = words(quote, 2).size();
+    static String findWeakness(String quote, String explanation) {
+        int length = extractWords(quote, 2).size();
         // un intitulé chiffré est une information (« Bureaux : 49% du patrimoine de Covivio »)
         boolean figure = quote.matches("(?s).*\\d\\s*(%|Md|M€|€|millions?|milliards?).*");
         if (length < MIN_QUOTE_WORDS && !(figure && length >= MIN_FIGURE_QUOTE_WORDS)) {
             return "citation trop courte (un titre ?)";
         }
-        java.util.Set<String> quoted = new java.util.HashSet<>(words(quote, 4));
-        long added = words(explanation == null ? "" : explanation, 4).stream()
+        java.util.Set<String> quoted = new java.util.HashSet<>(extractWords(quote, 4));
+        long added = extractWords(explanation == null ? "" : explanation, 4).stream()
                 .distinct().filter(w -> !quoted.contains(w)).count();
         return added < MIN_NEW_WORDS ? "explication qui répète la citation" : null;
     }
 
     /** Les mots d'au moins {@code minLetters} lettres, simplifiés (minuscules, sans accents). */
-    private static List<String> words(String text, int minLetters) {
+    private static List<String> extractWords(String text, int minLetters) {
         return java.util.Arrays.stream(Quotes.Normalized.of(text).text.split("[^\\p{L}\\p{N}]+"))
                 .filter(w -> w.length() >= minLetters).toList();
     }
 
-    private static boolean blank(String s) {
+    private static boolean isBlank(String s) {
         return s == null || s.isBlank();
     }
 }

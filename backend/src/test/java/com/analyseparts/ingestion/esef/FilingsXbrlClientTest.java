@@ -72,7 +72,7 @@ class FilingsXbrlClientTest {
                 {"data":[]}
                 """, MediaType.valueOf("application/vnd.api+json")));
 
-        assertThat(client.reportUrlOf("/LEI1/2025-12-31/ESEF/FR/0/x-fr.json"))
+        assertThat(client.resolveReportUrl("/LEI1/2025-12-31/ESEF/FR/0/x-fr.json"))
                 .isEqualTo("/LEI1/2025-12-31/ESEF/FR/0/x-fr/reports/x-fr.xhtml");
     }
 

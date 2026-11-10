@@ -36,7 +36,7 @@ class XbrlJsonParserTest {
         for (int i = 0; i < facts.length; i++) {
             map.put("f" + i, facts[i]);
         }
-        return XbrlJsonParser.totals(new XbrlJson(map));
+        return XbrlJsonParser.extractTotals(new XbrlJson(map));
     }
 
     @Test

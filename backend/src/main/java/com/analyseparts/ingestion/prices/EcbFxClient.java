@@ -31,7 +31,7 @@ public class EcbFxClient {
     public record FxRates(LocalDate date, Map<String, BigDecimal> ratePerEur) {
     }
 
-    public FxRates daily() {
+    public FxRates fetchDailyRates() {
         return parse(http.get().uri("/stats/eurofxref/eurofxref-daily.xml").retrieve().body(String.class));
     }
 

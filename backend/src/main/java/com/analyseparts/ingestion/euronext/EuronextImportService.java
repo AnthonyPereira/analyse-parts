@@ -64,11 +64,11 @@ public class EuronextImportService {
         try {
             equities = client.fetchEquities(mic);
         } catch (RuntimeException e) {
-            health.down(Source.EURONEXT_LIST, "fichier des actions Euronext indisponible ou illisible : " + e.getMessage());
+            health.markDown(Source.EURONEXT_LIST, "fichier des actions Euronext indisponible ou illisible : " + e.getMessage());
             throw e;
         }
         if (equities.size() < MIN_EQUITIES) {
-            health.down(Source.EURONEXT_LIST, "seulement " + equities.size()
+            health.markDown(Source.EURONEXT_LIST, "seulement " + equities.size()
                     + " actions reconnues dans le fichier Euronext : ses colonnes ont probablement changé");
         } else {
             health.report(Source.EURONEXT_LIST, 1, 1, null);
@@ -100,7 +100,7 @@ public class EuronextImportService {
                 } else {
                     // Pays provisoire = pays de l'ISIN ; GLEIF donnera ensuite le pays du siège.
                     company = companies.save(new Company(equity.isin(), equity.name(), equity.symbol(),
-                            equity.isinCountry(), equity.market()));
+                            equity.extractIsinCountry(), equity.market()));
                     created++;
                 }
                 if (equity.hasClosingPrice()) {

@@ -64,7 +64,7 @@ public class ScoreHistoryService {
      * l'historique reconstitué avec le nouvel exercice.
      */
     public void recordFiling(FilingRecorded filing) {
-        Optional<ProfileScores> scores = scoring.currentScores(filing.isin());
+        Optional<ProfileScores> scores = scoring.computeCurrentScores(filing.isin());
         if (scores.isEmpty()) {
             log.warn("Rapport {} : société {} inconnue, événement ignoré", filing.sourceId(), filing.isin());
             return;
@@ -81,7 +81,7 @@ public class ScoreHistoryService {
     public int recordDaily() {
         LocalDate today = LocalDate.now(clock);
         Instant now = Instant.now(clock);
-        List<ProfileScores> all = scoring.allCurrentScores();
+        List<ProfileScores> all = scoring.computeAllCurrentScores();
         all.forEach(s -> repository.upsert(s.companyId(), today, Origin.DAILY, s.scores(), s.fiscalYearEnd(), null, now));
         log.info("Historique des notes : photo du {} pour {} sociétés", today, all.size());
         return all.size();
@@ -90,7 +90,7 @@ public class ScoreHistoryService {
     /** Reconstitue les notes des exercices passés d'une société (une ligne par exercice). */
     public int backfill(String isin) {
         Instant now = Instant.now(clock);
-        List<ProfileScores> past = scoring.pastScores(isin);
+        List<ProfileScores> past = scoring.findPastScores(isin);
         past.forEach(s -> repository.upsert(s.companyId(), s.fiscalYearEnd(), Origin.BACKFILL, s.scores(),
                 s.fiscalYearEnd(), null, now));
         return past.size();
@@ -103,8 +103,8 @@ public class ScoreHistoryService {
             return;
         }
         Thread.ofVirtual().name("historique-notes").start(() -> {
-            Set<Long> done = new HashSet<>(repository.companiesWithBackfill());
-            List<String> todo = scoring.scoredIsins().stream()
+            Set<Long> done = new HashSet<>(repository.findCompaniesWithBackfill());
+            List<String> todo = scoring.findScoredIsins().stream()
                     .filter(isin -> companies.findByIsin(isin).map(c -> !done.contains(c.getId())).orElse(false))
                     .toList();
             if (todo.isEmpty()) {
@@ -131,7 +131,7 @@ public class ScoreHistoryService {
      * L'historique d'une société, un point par jour. Si un jour a plusieurs origines (un rapport
      * arrivé un soir de photo quotidienne), on garde la plus précise : FILING, puis DAILY, puis BACKFILL.
      */
-    public Optional<List<Point>> history(String isin) {
+    public Optional<List<Point>> findHistory(String isin) {
         return companies.findByIsin(isin).map(company -> {
             Map<LocalDate, Map<Origin, List<Entry>>> byDay = new LinkedHashMap<>();
             for (Entry e : repository.findByCompany(company.getId())) {

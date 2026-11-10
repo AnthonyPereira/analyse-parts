@@ -126,11 +126,11 @@ public enum Metric {
         this.concepts = List.of(concepts);
     }
 
-    public Kind kind() {
+    public Kind getKind() {
         return kind;
     }
 
-    public List<String> concepts() {
+    public List<String> getConcepts() {
         return concepts;
     }
 }

@@ -27,8 +27,8 @@ public class AmfHalfYearDocuments implements HalfYearDocuments {
     }
 
     @Override
-    public List<HalfYearDocument> reports(String isin, String lei, LocalDate since) {
-        return amf.halfYearReports(isin, lei, since).stream()
+    public List<HalfYearDocument> findReports(String isin, String lei, LocalDate since) {
+        return amf.findHalfYearReports(isin, lei, since).stream()
                 .filter(f -> f.title() == null || !NOTICE.matcher(f.title()).find())
                 .map(f -> new HalfYearDocument(f.publishedOn(), f.title(), f.url()))
                 .toList();

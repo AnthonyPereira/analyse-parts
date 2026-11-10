@@ -50,12 +50,12 @@ public class AnalysisService {
     }
 
     /** Où en est la lecture du rapport d'une société ; vide si la société est inconnue. */
-    public Optional<AnalysisView> view(String isin) {
-        return companies.findByIsin(isin).map(c -> view(c.getId()));
+    public Optional<AnalysisView> findView(String isin) {
+        return companies.findByIsin(isin).map(c -> findView(c.getId()));
     }
 
-    private AnalysisView view(long companyId) {
-        Optional<ReportAnalysis> last = repository.latest(companyId);
+    private AnalysisView findView(long companyId) {
+        Optional<ReportAnalysis> last = repository.findLatest(companyId);
         State state = pending.getOrDefault(companyId,
                 errors.containsKey(companyId) ? State.FAILED : last.isPresent() ? State.DONE : State.NONE);
         return new AnalysisView(state, errors.get(companyId), last.orElse(null));
@@ -65,16 +65,16 @@ public class AnalysisService {
     public Optional<AnalysisView> request(String isin) {
         return companies.findByIsin(isin).map(c -> {
             enqueue(c);
-            return view(c.getId());
+            return findView(c.getId());
         });
     }
 
     /** Met dans la file chaque société dont le dernier rapport n'a pas encore été lu. */
     public int requestMissing() {
-        Set<String> done = repository.analysedSourceIds();
+        Set<String> done = repository.findAnalysedSourceIds();
         int queued = 0;
         for (Company company : companies.findAll()) {
-            Optional<FilingRef> latest = financials.latestFiling(company.getId());
+            Optional<FilingRef> latest = financials.findLatestFiling(company.getId());
             if (latest.isPresent() && !done.contains(latest.get().sourceId()) && enqueue(company)) {
                 queued++;
             }
@@ -84,8 +84,8 @@ public class AnalysisService {
     }
 
     /** Un nouveau rapport : on le lit s'il est le plus récent de la société (pas un exercice passé). */
-    public void onNewFiling(long companyId, String sourceId) {
-        boolean latest = financials.latestFiling(companyId).map(f -> f.sourceId().equals(sourceId)).orElse(false);
+    public void handleNewFiling(long companyId, String sourceId) {
+        boolean latest = financials.findLatestFiling(companyId).map(f -> f.sourceId().equals(sourceId)).orElse(false);
         if (latest) {
             companies.findById(companyId).ifPresent(this::enqueue);
         }
@@ -104,7 +104,7 @@ public class AnalysisService {
         long id = company.getId();
         pending.put(id, State.RUNNING);
         try {
-            FilingRef filing = financials.latestFiling(id)
+            FilingRef filing = financials.findLatestFiling(id)
                     .orElseThrow(() -> new IllegalStateException("Aucun rapport annuel enregistré"));
             ReportAnalysis analysis = runner.run(company.getName(), filing);
             repository.save(id, analysis);

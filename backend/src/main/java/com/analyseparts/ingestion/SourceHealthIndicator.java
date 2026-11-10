@@ -35,7 +35,7 @@ class SourceHealthIndicator implements HealthIndicator {
     public Health health() {
         boolean problem = false;
         Map<String, Object> details = new LinkedHashMap<>();
-        for (Status s : health.all()) {
+        for (Status s : health.listAll()) {
             details.put(s.source().name(), s.state() == State.UP || s.state() == State.UNKNOWN
                     ? s.state().name()
                     : s.state().name() + " depuis " + s.problemSince() + " : " + s.problem());

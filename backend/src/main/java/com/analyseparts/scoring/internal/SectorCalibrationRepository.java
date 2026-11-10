@@ -24,12 +24,12 @@ public class SectorCalibrationRepository {
     /** Remplace la calibration précédente (en une transaction : jamais de calibration à moitié écrite). */
     @Transactional
     public void replace(SectorCalibration calibration) {
-        Instant at = calibration.calibratedAt().orElseThrow();
+        Instant at = calibration.getCalibratedAt().orElseThrow();
         jdbc.update("DELETE FROM sector_calibration");
         jdbc.batchUpdate("""
                 INSERT INTO sector_calibration (level, code, label, ratio, median, sample_size, calibrated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, calibration.medians(), 200, (ps, m) -> {
+                """, calibration.getMedians(), 200, (ps, m) -> {
             ps.setString(1, m.level());
             ps.setString(2, m.code());
             ps.setString(3, m.label());
@@ -52,6 +52,6 @@ public class SectorCalibrationRepository {
             }
             at[0] = rs.getTimestamp("calibrated_at").toInstant();
         });
-        return medians.isEmpty() ? SectorCalibration.none() : SectorCalibration.of(medians, at[0]);
+        return medians.isEmpty() ? SectorCalibration.createEmpty() : SectorCalibration.of(medians, at[0]);
     }
 }

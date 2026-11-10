@@ -45,7 +45,7 @@ public class FactsheetEnrichmentService {
 
     /** Tous les jours à 4 h : ne traite que les fiches jamais lues ou lues il y a plus d'un mois. */
     @Scheduled(cron = "${analyse-parts.euronext.factsheet-cron:0 0 4 * * *}")
-    void scheduled() {
+    void enrichOnSchedule() {
         enrichDue();
     }
 
@@ -57,10 +57,10 @@ public class FactsheetEnrichmentService {
         SourceHealth.Tally tally = new SourceHealth.Tally();
         for (Company company : due) {
             try {
-                Icb icb = EuronextFactsheetParser.icb(client.block(company.getIsin(), company.getMic(), "fs_icb_block"))
+                Icb icb = EuronextFactsheetParser.parseIcb(client.fetchBlock(company.getIsin(), company.getMic(), "fs_icb_block"))
                         .orElse(null);
-                Long admitted = EuronextFactsheetParser.admittedShares(
-                        client.block(company.getIsin(), company.getMic(), "fs_tradinginfo_block")).orElse(null);
+                Long admitted = EuronextFactsheetParser.parseAdmittedShares(
+                        client.fetchBlock(company.getIsin(), company.getMic(), "fs_tradinginfo_block")).orElse(null);
                 company.applyFactsheet(icb, admitted, Instant.now());
                 companies.save(company);
                 if (icb != null) sector++;
@@ -70,7 +70,7 @@ public class FactsheetEnrichmentService {
                     tally.fail("fiche Euronext de " + company.getName()
                             + " lue, mais ni secteur ni nombre d'actions reconnus : format changé ?");
                 } else {
-                    tally.ok();
+                    tally.recordSuccess();
                 }
             } catch (RestClientException e) {
                 log.warn("Fiche Euronext {} : {}", company.getName(), e.getMessage());

@@ -36,7 +36,7 @@ public class PassageSearch {
     }
 
     /** Les passages d'un rapport, avec leurs embeddings, prêts à être interrogés. */
-    public Index index(List<String> passages) {
+    public Index buildIndex(List<String> passages) {
         return new Index(passages, embed(passages));
     }
 
@@ -59,7 +59,7 @@ public class PassageSearch {
             this.vectors = vectors;
         }
 
-        public int size() {
+        public int countPassages() {
             return passages.size();
         }
 
@@ -85,7 +85,7 @@ public class PassageSearch {
         public List<Integer> search(List<String> queries, List<String> avoid, List<Integer> already, int perQuery, int max) {
             Set<Integer> chosen = new LinkedHashSet<>(already);
             List<float[]> wanted = embedQueries(queries);
-            Set<Integer> excluded = excluded(wanted, embedQueries(avoid));
+            Set<Integer> excluded = findExcluded(wanted, embedQueries(avoid));
             List<List<Integer>> rankings = wanted.stream()
                     .map(q -> rank(q).stream().filter(i -> !excluded.contains(i)).toList()).toList();
             // tour à tour : le meilleur de chaque question, puis le 2e de chaque question…
@@ -115,27 +115,27 @@ public class PassageSearch {
          * Nexans, L'Oréal et Covivio) ; sans limite, chez BNP Paribas, l'information sectorielle des
          * notes annexes, au passage 1 775 sur 2 067, l'emportait.
          */
-        public List<Integer> chapter(List<String> queries, List<String> avoid, int length, double within) {
+        public List<Integer> findChapter(List<String> queries, List<String> avoid, int length, double within) {
             if (queries.isEmpty() || vectors.isEmpty()) {
                 return List.of();
             }
             List<float[]> wanted = embedQueries(queries);
-            Set<Integer> excluded = excluded(wanted, embedQueries(avoid));
+            Set<Integer> excluded = findExcluded(wanted, embedQueries(avoid));
             int end = Math.max(Math.min(length, vectors.size()), (int) Math.ceil(vectors.size() * within));
             double[] score = new double[Math.min(vectors.size(), end + length - 1)];
             for (int i = 0; i < score.length; i++) {
-                score[i] = excluded.contains(i) ? -1 : best(vectors.get(i), wanted);
+                score[i] = excluded.contains(i) ? -1 : computeBestSimilarity(vectors.get(i), wanted);
             }
-            int start = densest(score, length);
+            int start = findDensestStart(score, length);
             return IntStream.range(start, Math.min(score.length, start + length)).boxed().toList();
         }
 
-        public List<Integer> chapter(List<String> queries, List<String> avoid, int length) {
-            return chapter(queries, avoid, length, 1);
+        public List<Integer> findChapter(List<String> queries, List<String> avoid, int length) {
+            return findChapter(queries, avoid, length, 1);
         }
 
         /** Le début de la suite de {@code length} cases dont la somme est la plus grande. */
-        static int densest(double[] score, int length) {
+        static int findDensestStart(double[] score, int length) {
             int n = Math.min(length, score.length);
             double sum = 0;
             for (int i = 0; i < n; i++) {
@@ -158,10 +158,10 @@ public class PassageSearch {
         }
 
         /** Les passages plus proches d'une recherche à éviter que de toutes les recherches voulues. */
-        private Set<Integer> excluded(List<float[]> wanted, List<float[]> unwanted) {
+        private Set<Integer> findExcluded(List<float[]> wanted, List<float[]> unwanted) {
             Set<Integer> excluded = new java.util.HashSet<>();
             for (int i = 0; i < vectors.size(); i++) {
-                if (isContents(passages.get(i)) || best(vectors.get(i), unwanted) > best(vectors.get(i), wanted)) {
+                if (isContents(passages.get(i)) || computeBestSimilarity(vectors.get(i), unwanted) > computeBestSimilarity(vectors.get(i), wanted)) {
                     excluded.add(i);
                 }
             }
@@ -195,17 +195,17 @@ public class PassageSearch {
             return PassageSearch.this.embed(texts);
         }
 
-        public String passage(int i) {
+        public String getPassage(int i) {
             return passages.get(i);
         }
 
         /** La meilleure proximité entre un passage et une liste de recherches (-1 si la liste est vide). */
-        private static double best(float[] passage, List<float[]> queries) {
-            return queries.stream().mapToDouble(q -> dot(passage, q)).max().orElse(-1);
+        private static double computeBestSimilarity(float[] passage, List<float[]> queries) {
+            return queries.stream().mapToDouble(q -> computeDotProduct(passage, q)).max().orElse(-1);
         }
 
         private List<Integer> rank(float[] query) {
-            double[] scores = vectors.stream().mapToDouble(v -> dot(v, query)).toArray();
+            double[] scores = vectors.stream().mapToDouble(v -> computeDotProduct(v, query)).toArray();
             return IntStream.range(0, scores.length).boxed()
                     .sorted(Comparator.comparingDouble((Integer i) -> scores[i]).reversed())
                     .toList();
@@ -226,7 +226,7 @@ public class PassageSearch {
         return out;
     }
 
-    static double dot(float[] a, float[] b) {
+    static double computeDotProduct(float[] a, float[] b) {
         double sum = 0;
         for (int i = 0; i < a.length; i++) {
             sum += a[i] * b[i];

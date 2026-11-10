@@ -25,10 +25,10 @@ class YahooIntradaySource implements IntradaySource {
     }
 
     @Override
-    public Optional<Intraday> intraday(long companyId) {
+    public Optional<Intraday> fetchIntraday(long companyId) {
         try {
             return companies.findById(companyId)
-                    .flatMap(prices::intraday)
+                    .flatMap(prices::fetchIntraday)
                     .map(chart -> new Intraday(chart.currency(), chart.previousClose(), chart.points().stream()
                             .map(p -> new PricePoint(p.time(), p.close(), p.volume()))
                             .toList()));

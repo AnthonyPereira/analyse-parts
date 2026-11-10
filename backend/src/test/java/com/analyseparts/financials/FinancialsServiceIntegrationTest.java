@@ -35,7 +35,7 @@ class FinancialsServiceIntegrationTest {
                         new ReportedFact("ifrs-full:Assets", null, end,
                                 "iso4217:USD", new BigDecimal("291055000000.0"), null)));
 
-        FinancialHistory history = financials.history(company.getId());
+        FinancialHistory history = financials.getHistory(company.getId());
 
         assertThat(financials.isImported("tte-2025-FR")).isTrue();
         assertThat(financials.hasFilings(company.getId())).isTrue();

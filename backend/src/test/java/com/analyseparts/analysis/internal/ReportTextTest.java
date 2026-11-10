@@ -16,7 +16,7 @@ class ReportTextTest {
                 <head><title>Rapport</title><style>p { color: red }</style></head>
                 <body><div style="display:none"><ix:header><ix:hidden>FAIT CACHE</ix:hidden></ix:header></div>
                 %s</body></html>""".formatted(body);
-        return ReportText.passages(new ByteArrayInputStream(xhtml.getBytes(StandardCharsets.UTF_8)));
+        return ReportText.extractPassages(new ByteArrayInputStream(xhtml.getBytes(StandardCharsets.UTF_8)));
     }
 
     private static String sentence(int i) {

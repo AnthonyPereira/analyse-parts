@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 class SpaForwardController {
 
     @GetMapping({"/", "/societe/{isin}", "/secteurs", "/secteurs/{code}", "/avance", "/lexique"})
-    String index() {
+    String forwardToIndex() {
         return "forward:/index.html";
     }
 }

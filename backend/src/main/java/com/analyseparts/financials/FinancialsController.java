@@ -19,9 +19,9 @@ public class FinancialsController {
     }
 
     @GetMapping("/api/companies/{isin}/financials")
-    public ResponseEntity<FinancialHistory> history(@PathVariable String isin) {
+    public ResponseEntity<FinancialHistory> getHistory(@PathVariable String isin) {
         return companies.findByIsin(isin)
-                .map(c -> ResponseEntity.ok(financials.history(c.getId())))
+                .map(c -> ResponseEntity.ok(financials.getHistory(c.getId())))
                 .orElse(ResponseEntity.notFound().build());
     }
 }

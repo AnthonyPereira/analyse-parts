@@ -92,12 +92,12 @@ public class Company {
     }
 
     @PrePersist
-    void onCreate() {
+    void initializeTimestamps() {
         createdAt = updatedAt = Instant.now();
     }
 
     @PreUpdate
-    void onUpdate() {
+    void refreshUpdatedAt() {
         updatedAt = Instant.now();
     }
 

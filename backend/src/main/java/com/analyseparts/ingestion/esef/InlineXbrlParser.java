@@ -58,11 +58,11 @@ final class InlineXbrlParser {
 
     /** Ouvre un paquet ESEF (.zip ou .xbri) et lit son rapport XHTML. */
     static ParsedReport parsePackage(InputStream zip) throws IOException {
-        return parse(new java.io.ByteArrayInputStream(reportOf(zip)));
+        return parse(new java.io.ByteArrayInputStream(extractReport(zip)));
     }
 
     /** Le rapport XHTML d'un paquet ESEF (.zip ou .xbri), tel quel. */
-    static byte[] reportOf(InputStream zip) throws IOException {
+    static byte[] extractReport(InputStream zip) throws IOException {
         java.nio.file.Path file = java.nio.file.Files.createTempFile("esef-", ".zip");
         try {
             java.nio.file.Files.copy(zip, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -161,7 +161,7 @@ final class InlineXbrlParser {
                     String ns = r.getNamespaceURI();
                     String local = r.getLocalName();
                     if (IX.equals(ns) && "nonFraction".equals(local)) {
-                        open.push(rawFact(r));
+                        open.push(readRawFact(r));
                         texts.push(new StringBuilder());
                     } else if (XBRLI.equals(ns) && "context".equals(local)) {
                         String id = r.getAttributeValue(null, "id");
@@ -195,7 +195,7 @@ final class InlineXbrlParser {
             if (ctx == null || unit == null || ctx.hasAxis() || ctx.end() == null) {
                 continue;
             }
-            BigDecimal number = number(f.text(), f.format());
+            BigDecimal number = parseNumber(f.text(), f.format());
             if (number == null) {
                 continue;
             }
@@ -212,7 +212,7 @@ final class InlineXbrlParser {
         return new ParsedReport(lei, new ArrayList<>(unique.values()));
     }
 
-    private static RawFact rawFact(XMLStreamReader r) {
+    private static RawFact readRawFact(XMLStreamReader r) {
         String scale = r.getAttributeValue(null, "scale");
         String decimals = r.getAttributeValue(null, "decimals");
         Integer dec = null;
@@ -230,8 +230,8 @@ final class InlineXbrlParser {
         Map<String, String> values = new HashMap<>();
         boolean axis = readUntilEnd(r, values, java.util.Set.of("startDate", "endDate", "instant", "identifier"),
                 java.util.Set.of("segment", "scenario"));
-        return new Context(date(values.get("startDate")),
-                date(values.getOrDefault("endDate", values.get("instant"))), axis, values.get("identifier"));
+        return new Context(parseDate(values.get("startDate")),
+                parseDate(values.getOrDefault("endDate", values.get("instant"))), axis, values.get("identifier"));
     }
 
     /** Lit un {@code xbrli:unit} : {@code iso4217:EUR} ou {@code iso4217:EUR/xbrli:shares}. */
@@ -299,7 +299,7 @@ final class InlineXbrlParser {
     }
 
     /** {@code 2025-12-31} (une date-heure éventuelle est tronquée au jour). */
-    private static LocalDate date(String s) {
+    private static LocalDate parseDate(String s) {
         return s == null || s.length() < 10 ? null : LocalDate.parse(s.substring(0, 10));
     }
 
@@ -309,7 +309,7 @@ final class InlineXbrlParser {
      * point décimal (« 1,234.5 »), {@code fixed-zero} / {@code zerodash} = zéro (« - »).
      * Les noms des versions 1 à 4 du registre de transformations sont acceptés.
      */
-    static BigDecimal number(String text, String format) {
+    static BigDecimal parseNumber(String text, String format) {
         String f = format == null ? "" : format.substring(format.indexOf(':') + 1).toLowerCase();
         if (f.equals("fixed-zero") || f.equals("fixedzero") || f.equals("zerodash")) {
             return BigDecimal.ZERO;

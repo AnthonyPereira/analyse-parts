@@ -66,16 +66,16 @@ public final class MetricExtractor {
     }
 
     static Optional<FinancialHistory.Value> find(List<SourcedFact> facts, Metric metric, LocalDate yearEnd) {
-        for (String concept : metric.concepts()) {
+        for (String concept : metric.getConcepts()) {
             Optional<SourcedFact> best = facts.stream()
                     .filter(f -> matchesConcept(f.fact().concept(), concept))
                     .filter(f -> f.fact().periodEnd().equals(yearEnd))
-                    .filter(f -> matchesKind(f.fact(), metric.kind()))
+                    .filter(f -> matchesKind(f.fact(), metric.getKind()))
                     .max(Comparator.comparing(SourcedFact::filingPeriodEnd));
             if (best.isPresent()) {
                 SourcedFact f = best.get();
                 return Optional.of(new FinancialHistory.Value(
-                        f.fact().value(), currencyOf(f.fact().unit()), f.fact().concept(), f.filing()));
+                        f.fact().value(), extractCurrency(f.fact().unit()), f.fact().concept(), f.filing()));
             }
         }
         return Optional.empty();
@@ -106,7 +106,7 @@ public final class MetricExtractor {
     }
 
     /** {@code iso4217:EUR} → {@code EUR} ; {@code iso4217:EUR/xbrli:shares} → {@code EUR}. */
-    static String currencyOf(String unit) {
+    static String extractCurrency(String unit) {
         String u = unit.startsWith("iso4217:") ? unit.substring("iso4217:".length()) : unit;
         int slash = u.indexOf('/');
         return slash < 0 ? u : u.substring(0, slash);

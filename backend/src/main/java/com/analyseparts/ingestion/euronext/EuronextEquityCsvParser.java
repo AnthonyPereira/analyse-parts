@@ -51,13 +51,13 @@ public final class EuronextEquityCsvParser {
                 continue;
             }
             equities.add(new ListedEquity(name, isin, fields.get(2).trim(), fields.get(3).trim(),
-                    field(fields, CURRENCY), decimal(field(fields, CLOSING_PRICE)), date(field(fields, CLOSING_DATE))));
+                    getField(fields, CURRENCY), parseDecimal(getField(fields, CLOSING_PRICE)), parseDate(getField(fields, CLOSING_DATE))));
         }
         return equities;
     }
 
     /** Valeur d'une colonne, ou null si absente ou vide ("-" dans le fichier). */
-    private static String field(List<String> fields, int index) {
+    private static String getField(List<String> fields, int index) {
         if (index >= fields.size()) {
             return null;
         }
@@ -65,7 +65,7 @@ public final class EuronextEquityCsvParser {
         return v.isEmpty() || v.equals("-") ? null : v;
     }
 
-    private static BigDecimal decimal(String v) {
+    private static BigDecimal parseDecimal(String v) {
         try {
             return v == null ? null : new BigDecimal(v);
         } catch (NumberFormatException e) {
@@ -73,7 +73,7 @@ public final class EuronextEquityCsvParser {
         }
     }
 
-    private static LocalDate date(String v) {
+    private static LocalDate parseDate(String v) {
         try {
             return v == null ? null : LocalDate.parse(v.substring(0, Math.min(10, v.length())), DAY);
         } catch (DateTimeParseException e) {

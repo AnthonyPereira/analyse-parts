@@ -11,5 +11,5 @@ import java.io.IOException;
 public interface ReportDocuments {
 
     /** Télécharge le rapport XHTML d'un dépôt (plusieurs dizaines de Mo). */
-    byte[] xhtml(FilingRef filing) throws IOException;
+    byte[] downloadXhtml(FilingRef filing) throws IOException;
 }

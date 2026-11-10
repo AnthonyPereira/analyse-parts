@@ -90,24 +90,24 @@ public class ScoringService {
                 .map(c -> new CompanyScore(c.getIsin(), c.getName(), c.getIcb().orElse(null), profile, score(c, profile)));
     }
 
-    public Optional<RatioSet> ratios(String isin) {
-        return companies.findByIsin(isin).map(this::ratios);
+    public Optional<RatioSet> computeRatios(String isin) {
+        return companies.findByIsin(isin).map(this::computeRatios);
     }
 
     /** Les sociétés notées, de la meilleure à la moins bonne ; celles sans score sont à la fin. */
-    public List<RankingEntry> ranking(Profile profile) {
-        return ranking(c -> weightsFor(c, profile));
+    public List<RankingEntry> computeRanking(Profile profile) {
+        return computeRanking(c -> findWeights(c, profile));
     }
 
     /** Classement avec des poids choisis librement (mode avancé), les mêmes pour toutes les sociétés. */
-    public List<RankingEntry> ranking(Map<Ratio, Integer> weights) {
-        return ranking(_ -> weights);
+    public List<RankingEntry> computeRanking(Map<Ratio, Integer> weights) {
+        return computeRanking(_ -> weights);
     }
 
-    private List<RankingEntry> ranking(java.util.function.Function<Company, Map<Ratio, Integer>> weightsOf) {
-        return scoredCompanies().stream()
+    private List<RankingEntry> computeRanking(java.util.function.Function<Company, Map<Ratio, Integer>> weightsOf) {
+        return findScoredCompanies().stream()
                 .map(c -> {
-                    Score s = score(c, ratios(c), weightsOf.apply(c));
+                    Score s = score(c, computeRatios(c), weightsOf.apply(c));
                     return new RankingEntry(c.getIsin(), c.getName(), c.getTicker(),
                             c.getIcb().map(Icb::supersector).orElse(null), s.score(), s.coverage(),
                             s.fiscalYearEnd(), s.freshness(), s.familyScore());
@@ -118,11 +118,11 @@ public class ScoringService {
     }
 
     /** La calibration en vigueur (calculée au premier besoin si aucune n'est enregistrée). */
-    public SectorCalibration calibration() {
+    public SectorCalibration getCalibration() {
         SectorCalibration current = calibration;
         if (current == null) {
             current = calibrations.load();
-            if (current.calibratedAt().isEmpty()) {
+            if (current.getCalibratedAt().isEmpty()) {
                 current = recalibrate();
             }
             calibration = current;
@@ -135,14 +135,14 @@ public class ScoringService {
      * puis les fige jusqu'au prochain calibrage.
      */
     public synchronized SectorCalibration recalibrate() {
-        List<SectorCalibration.Sample> samples = scoredCompanies().stream()
-                .map(c -> new SectorCalibration.Sample(c.getIcb().orElse(null), ratios(c)))
+        List<SectorCalibration.Sample> samples = findScoredCompanies().stream()
+                .map(c -> new SectorCalibration.Sample(c.getIcb().orElse(null), computeRatios(c)))
                 .toList();
         SectorCalibration computed = SectorCalibration.compute(samples, Instant.now(clock));
-        if (!computed.medians().isEmpty()) {
+        if (!computed.getMedians().isEmpty()) {
             calibrations.replace(computed);
         }
-        log.info("Calibration sectorielle : {} médianes sur {} sociétés", computed.medians().size(), samples.size());
+        log.info("Calibration sectorielle : {} médianes sur {} sociétés", computed.getMedians().size(), samples.size());
         calibration = computed;
         return computed;
     }
@@ -157,38 +157,38 @@ public class ScoringService {
     public static final String INSURANCE_SUPERSECTOR = "3030";
 
     /** Banques et assurances sont notées avec leurs propres poids dans chaque profil (voir {@link Profile}). */
-    static Profile.Book bookOf(Company company) {
-        String supersector = company.getIcb().map(icb -> icb.supersectorCode()).orElse(null);
+    static Profile.Book findBook(Company company) {
+        String supersector = company.getIcb().map(icb -> icb.extractSupersectorCode()).orElse(null);
         if (BANKS_SUPERSECTOR.equals(supersector)) {
             return Profile.Book.BANK;
         }
         return INSURANCE_SUPERSECTOR.equals(supersector) ? Profile.Book.INSURER : Profile.Book.STANDARD;
     }
 
-    private static Map<Ratio, Integer> weightsFor(Company company, Profile profile) {
-        return profile.weights(bookOf(company));
+    private static Map<Ratio, Integer> findWeights(Company company, Profile profile) {
+        return profile.getWeights(findBook(company));
     }
 
     /** Les ISIN des sociétés notées (celles qui ont au moins un rapport). */
-    public List<String> scoredIsins() {
-        return scoredCompanies().stream().map(Company::getIsin).toList();
+    public List<String> findScoredIsins() {
+        return findScoredCompanies().stream().map(Company::getIsin).toList();
     }
 
-    private List<Company> scoredCompanies() {
-        Set<Long> withFilings = financials.companiesWithFilings();
+    private List<Company> findScoredCompanies() {
+        Set<Long> withFilings = financials.findCompaniesWithFilings();
         return companies.findAll().stream()
                 .filter(c -> c.getId() != null && withFilings.contains(c.getId()))
                 .toList();
     }
 
     private Score score(Company company, Profile profile) {
-        return score(company, ratios(company), weightsFor(company, profile));
+        return score(company, computeRatios(company), findWeights(company, profile));
     }
 
     private Score score(Company company, RatioSet ratios, Map<Ratio, Integer> weights) {
-        SectorCalibration cal = calibration();
+        SectorCalibration cal = getCalibration();
         Icb icb = company.getIcb().orElse(null);
-        return ScoreCalculator.score(ratios, weights, LocalDate.now(clock), ratio -> cal.adjustment(ratio, icb));
+        return ScoreCalculator.score(ratios, weights, LocalDate.now(clock), ratio -> cal.findAdjustment(ratio, icb));
     }
 
     /**
@@ -207,24 +207,24 @@ public class ScoringService {
     void warmUp() {
         Thread.ofVirtual().name("prechauffage-scores").start(() -> {
             long start = System.nanoTime();
-            int size = universe().size();
+            int size = buildUniverse().size();
             log.info("Préchauffage : {} sociétés en {} ms", size, (System.nanoTime() - start) / 1_000_000);
         });
     }
 
-    public List<UniverseEntry> universe() {
-        return scoredCompanies().stream()
+    public List<UniverseEntry> buildUniverse() {
+        return findScoredCompanies().stream()
                 .map(c -> {
-                    RatioSet ratios = ratios(c);
+                    RatioSet ratios = computeRatios(c);
                     Map<Ratio, Double> values = new EnumMap<>(Ratio.class);
                     ratios.values().forEach((r, v) -> values.put(r, v.value()));
                     Map<Profile, Integer> scores = new EnumMap<>(Profile.class);
                     for (Profile p : Profile.values()) {
-                        scores.put(p, score(c, ratios, weightsFor(c, p)).score());
+                        scores.put(p, score(c, ratios, findWeights(c, p)).score());
                     }
                     Icb icb = c.getIcb().orElse(null);
                     return new UniverseEntry(c.getIsin(), c.getName(), c.getTicker(),
-                            icb == null ? null : icb.supersectorCode(), icb == null ? null : icb.supersector(),
+                            icb == null ? null : icb.extractSupersectorCode(), icb == null ? null : icb.supersector(),
                             Freshness.of(ratios.fiscalYearEnd(), LocalDate.now(clock)), values, scores);
                 })
                 .sorted(Comparator.comparing(UniverseEntry::name))
@@ -245,8 +245,8 @@ public class ScoringService {
      * à cette date, et le cours de ce jour-là pour le PER, le rendement… Le nombre d'actions est
      * celui de l'époque (résultat net ÷ BPA), pas celui d'aujourd'hui.
      */
-    public Optional<List<YearRatios>> ratioHistory(String isin) {
-        return companies.findByIsin(isin).map(company -> yearRatioSets(company).stream()
+    public Optional<List<YearRatios>> computeRatioHistory(String isin) {
+        return companies.findByIsin(isin).map(company -> computeYearRatioSets(company).stream()
                 .map(y -> {
                     Map<Ratio, Double> values = new EnumMap<>(Ratio.class);
                     y.ratios().values().forEach((r, v) -> values.put(r, v.value()));
@@ -261,39 +261,39 @@ public class ScoringService {
     }
 
     /** Les notes d'aujourd'hui, avec le dernier cours : ce que montre la fiche. */
-    public Optional<ProfileScores> currentScores(String isin) {
+    public Optional<ProfileScores> computeCurrentScores(String isin) {
         return companies.findByIsin(isin).map(company -> {
-            RatioSet ratios = ratios(company);
-            return profileScores(company, ratios, LocalDate.now(clock));
+            RatioSet ratios = computeRatios(company);
+            return computeProfileScores(company, ratios, LocalDate.now(clock));
         });
     }
 
     /** Les notes d'aujourd'hui de toutes les sociétés notées (photo quotidienne). */
-    public List<ProfileScores> allCurrentScores() {
-        return scoredCompanies().stream().map(c -> profileScores(c, ratios(c), LocalDate.now(clock))).toList();
+    public List<ProfileScores> computeAllCurrentScores() {
+        return findScoredCompanies().stream().map(c -> computeProfileScores(c, computeRatios(c), LocalDate.now(clock))).toList();
     }
 
     /**
      * Les notes qu'aurait eues la société à la clôture de chaque exercice passé, du plus ancien au
-     * plus récent : mêmes calculs que {@link #ratioHistory}, puis les poids de chaque profil.
+     * plus récent : mêmes calculs que {@link #computeRatioHistory}, puis les poids de chaque profil.
      * <p>
      * Approximation assumée : la calibration sectorielle est celle d'aujourd'hui.
      */
-    public List<ProfileScores> pastScores(String isin) {
+    public List<ProfileScores> findPastScores(String isin) {
         return companies.findByIsin(isin)
-                .map(company -> yearRatioSets(company).stream()
-                        .map(y -> profileScores(company, y.ratios(), y.fiscalYearEnd()))
+                .map(company -> computeYearRatioSets(company).stream()
+                        .map(y -> computeProfileScores(company, y.ratios(), y.fiscalYearEnd()))
                         .toList())
                 .orElse(List.of());
     }
 
-    private ProfileScores profileScores(Company company, RatioSet ratios, LocalDate asOf) {
-        SectorCalibration cal = calibration();
+    private ProfileScores computeProfileScores(Company company, RatioSet ratios, LocalDate asOf) {
+        SectorCalibration cal = getCalibration();
         Icb icb = company.getIcb().orElse(null);
         Map<Profile, Integer> scores = new EnumMap<>(Profile.class);
         LocalDate fiscalYearEnd = null;
         for (Profile p : Profile.values()) {
-            Score s = ScoreCalculator.score(ratios, weightsFor(company, p), asOf, ratio -> cal.adjustment(ratio, icb));
+            Score s = ScoreCalculator.score(ratios, findWeights(company, p), asOf, ratio -> cal.findAdjustment(ratio, icb));
             scores.put(p, s.score());
             fiscalYearEnd = s.fiscalYearEnd();
         }
@@ -304,15 +304,15 @@ public class ScoringService {
     private record YearRatioSet(LocalDate fiscalYearEnd, Valuation valuation, RatioSet ratios) {
     }
 
-    private List<YearRatioSet> yearRatioSets(Company company) {
-        FinancialHistory history = history(company);
-        String quoted = market.latestQuote(company.getId()).map(Quote::currency).orElse("EUR");
-        String reporting = reportingCurrency(history).orElse(quoted);
+    private List<YearRatioSet> computeYearRatioSets(Company company) {
+        FinancialHistory history = loadHistory(company);
+        String quoted = market.findLatestQuote(company.getId()).map(Quote::currency).orElse("EUR");
+        String reporting = findReportingCurrency(history).orElse(quoted);
         List<YearRatioSet> result = new ArrayList<>();
         for (int i = history.years().size() - 1; i >= 0; i--) { // du plus ancien au plus récent
             FinancialHistory upToYear = new FinancialHistory(history.years().subList(i, history.years().size()));
             LocalDate end = history.years().get(i).fiscalYearEnd();
-            Valuation valuation = company.isCooperativeCertificate() ? null : market.closeOn(company.getId(), end)
+            Valuation valuation = company.isCooperativeCertificate() ? null : market.findCloseOn(company.getId(), end)
                     .flatMap(close -> market.convert(close.close(), quoted, reporting)
                             .map(price -> new Valuation(price, reporting, close.close(), quoted,
                                     close.day().atStartOfDay(clock.getZone()).toInstant(), "CLOSE", null)))
@@ -323,9 +323,9 @@ public class ScoringService {
         return result;
     }
 
-    private FinancialHistory history(Company company) {
-        FinancialHistory history = financials.history(company.getId());
-        return bookOf(company) == Profile.Book.INSURER ? withInsuranceRevenue(history) : history;
+    private FinancialHistory loadHistory(Company company) {
+        FinancialHistory history = financials.getHistory(company.getId());
+        return findBook(company) == Profile.Book.INSURER ? addInsuranceRevenue(history) : history;
     }
 
     /**
@@ -333,7 +333,7 @@ public class ScoringService {
      * contrats d'assurance (IFRS 17) en tient lieu. Réservé aux assurances : les banques publient
      * aussi ce revenu pour leur filiale d'assurance, et leur équivalent est le PNB.
      */
-    static FinancialHistory withInsuranceRevenue(FinancialHistory history) {
+    static FinancialHistory addInsuranceRevenue(FinancialHistory history) {
         List<FinancialHistory.Year> years = history.years().stream().map(year -> {
             Optional<FinancialHistory.Value> insurance = year.get(Metric.INSURANCE_REVENUE);
             if (year.get(Metric.REVENUE).isPresent() || insurance.isEmpty()) {
@@ -347,12 +347,12 @@ public class ScoringService {
         return new FinancialHistory(years);
     }
 
-    private RatioSet ratios(Company company) {
-        FinancialHistory history = history(company);
+    private RatioSet computeRatios(Company company) {
+        FinancialHistory history = loadHistory(company);
         if (company.isCooperativeCertificate()) {
             return RatioCalculator.compute(history, null, COOPERATIVE_CERTIFICATE);
         }
-        Optional<Quote> quote = market.latestQuote(company.getId());
+        Optional<Quote> quote = market.findLatestQuote(company.getId());
         if (quote.isEmpty()) {
             return RatioCalculator.compute(history, null, "Cours de bourse indisponible");
         }
@@ -361,7 +361,7 @@ public class ScoringService {
             return RatioCalculator.compute(history, null,
                     "Dernier cours trop ancien (" + LocalDate.ofInstant(q.asOf(), clock.getZone()) + ")");
         }
-        String reporting = reportingCurrency(history).orElse(q.currency());
+        String reporting = findReportingCurrency(history).orElse(q.currency());
         Optional<BigDecimal> price = market.convert(q.price(), q.currency(), reporting);
         if (price.isEmpty()) {
             return RatioCalculator.compute(history, null,
@@ -372,7 +372,7 @@ public class ScoringService {
     }
 
     /** Devise des comptes : celle des chiffres du dernier exercice. */
-    private static Optional<String> reportingCurrency(FinancialHistory history) {
+    private static Optional<String> findReportingCurrency(FinancialHistory history) {
         return history.years().stream().findFirst()
                 .flatMap(y -> y.metrics().values().stream().map(FinancialHistory.Value::currency).findFirst());
     }

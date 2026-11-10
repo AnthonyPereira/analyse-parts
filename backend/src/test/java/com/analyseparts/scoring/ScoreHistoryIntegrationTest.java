@@ -68,7 +68,7 @@ class ScoreHistoryIntegrationTest {
                    AND listener_id LIKE '%scoring%'
                 """, Integer.class, FilingRecorded.class.getName())).isEqualTo(1));
 
-        var points = history.history("FR0000000088").orElseThrow();
+        var points = history.findHistory("FR0000000088").orElseThrow();
         assertThat(points).extracting(ScoreHistoryService.Point::origin).contains(Origin.FILING, Origin.BACKFILL);
     }
 

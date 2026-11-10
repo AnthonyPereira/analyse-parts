@@ -84,19 +84,19 @@ public class QuoteRefreshService {
     }
 
     @Scheduled(fixedDelayString = "${analyse-parts.prices.live-interval-ms:60000}", initialDelay = 30_000)
-    void liveQuotes() {
+    void refreshLiveQuotes() {
         if (isMarketHours(ZonedDateTime.now(PARIS))) {
             refreshQuotes();
         }
     }
 
     @Scheduled(cron = "${analyse-parts.prices.history-cron:0 15 18 * * MON-FRI}", zone = "Europe/Paris")
-    void scheduledHistory() {
+    void refreshHistoryOnSchedule() {
         refreshHistory(false);
     }
 
     @Scheduled(cron = "${analyse-parts.fx.cron:0 30 16 * * MON-FRI}", zone = "Europe/Paris")
-    void scheduledFx() {
+    void refreshFxOnSchedule() {
         refreshFxRates();
     }
 
@@ -107,7 +107,7 @@ public class QuoteRefreshService {
     }
 
     public RefreshResult refreshQuotes() {
-        Map<String, Company> bySymbol = yahooCompanies();
+        Map<String, Company> bySymbol = findYahooCompanies();
         List<String> symbols = List.copyOf(bySymbol.keySet());
         List<Quote> quotes = new ArrayList<>();
         int received = 0, errors = 0, results = 0;
@@ -115,7 +115,7 @@ public class QuoteRefreshService {
         for (int i = 0; i < symbols.size(); i += YahooQuoteClient.MAX_SYMBOLS) {
             List<String> batch = symbols.subList(i, Math.min(i + YahooQuoteClient.MAX_SYMBOLS, symbols.size()));
             try {
-                SparkBatch answer = yahoo.spark(batch);
+                SparkBatch answer = yahoo.fetchSpark(batch);
                 results += answer.results();
                 if (answer.looksLikeFormatChange() && problem == null) {
                     problem = "Yahoo répond, mais aucun cours n'est exploitable (prix ou heure absents) : "
@@ -155,14 +155,14 @@ public class QuoteRefreshService {
      * @param full true : recharge 5 ans pour toutes les sociétés
      */
     public HistoryResult refreshHistory(boolean full) {
-        Map<Long, LocalDate> latest = market.latestCloseDays();
+        Map<Long, LocalDate> latest = market.findLatestCloseDays();
         int done = 0, closes = 0, errors = 0;
         SourceHealth.Tally tally = new SourceHealth.Tally();
-        for (Map.Entry<String, Company> e : yahooCompanies().entrySet()) {
+        for (Map.Entry<String, Company> e : findYahooCompanies().entrySet()) {
             Company company = e.getValue();
             String range = full || !latest.containsKey(company.getId()) ? "5y" : "5d";
             try {
-                Optional<YahooChart> chart = yahoo.chart(e.getKey(), range, "1d");
+                Optional<YahooChart> chart = yahoo.fetchChart(e.getKey(), range, "1d");
                 if (chart.isPresent() && YAHOO_MARKETS.get(company.getMic()).exchange().equals(chart.get().exchange())) {
                     List<PricePoint.Close> points = chart.get().points().stream()
                             .map(p -> new PricePoint.Close(LocalDate.ofInstant(p.time(), PARIS), p.close(), p.volume()))
@@ -174,7 +174,7 @@ public class QuoteRefreshService {
                     if (points.isEmpty()) {
                         tally.fail("Yahoo ne renvoie aucune clôture (" + e.getKey() + ") : format changé ?");
                     } else {
-                        tally.ok();
+                        tally.recordSuccess();
                     }
                 } else if (chart.isEmpty()) {
                     tally.fail("Yahoo ne renvoie pas d'historique pour " + e.getKey());
@@ -197,11 +197,11 @@ public class QuoteRefreshService {
     }
 
     /** La séance du jour d'une société (pour le graphique « 1 jour »). */
-    Optional<YahooChart> intraday(Company company) {
+    Optional<YahooChart> fetchIntraday(Company company) {
         if (company.getTicker() == null || !YAHOO_MARKETS.containsKey(company.getMic())) {
             return Optional.empty();
         }
-        return yahoo.chart(yahooSymbol(company), "1d", "5m");
+        return yahoo.fetchChart(toYahooSymbol(company), "1d", "5m");
     }
 
     /** Moins de devises que cela, ou pas de dollar : le fichier de la BCE n'a plus la forme attendue. */
@@ -210,13 +210,13 @@ public class QuoteRefreshService {
     public int refreshFxRates() {
         EcbFxClient.FxRates rates;
         try {
-            rates = ecb.daily();
+            rates = ecb.fetchDailyRates();
         } catch (RuntimeException e) {
-            health.down(Source.ECB_FX, "fichier de la BCE indisponible ou illisible : " + e.getMessage());
+            health.markDown(Source.ECB_FX, "fichier de la BCE indisponible ou illisible : " + e.getMessage());
             throw e;
         }
         if (rates.ratePerEur().size() < MIN_FX_RATES || !rates.ratePerEur().containsKey("USD")) {
-            health.down(Source.ECB_FX, "seulement " + rates.ratePerEur().size()
+            health.markDown(Source.ECB_FX, "seulement " + rates.ratePerEur().size()
                     + " devises lues dans le fichier de la BCE : son format a probablement changé");
             return 0;
         }
@@ -226,13 +226,13 @@ public class QuoteRefreshService {
         return rates.ratePerEur().size();
     }
 
-    private Map<String, Company> yahooCompanies() {
+    private Map<String, Company> findYahooCompanies() {
         return companies.findAll().stream()
                 .filter(c -> c.getTicker() != null && YAHOO_MARKETS.containsKey(c.getMic()))
-                .collect(Collectors.toMap(QuoteRefreshService::yahooSymbol, Function.identity(), (a, _) -> a));
+                .collect(Collectors.toMap(QuoteRefreshService::toYahooSymbol, Function.identity(), (a, _) -> a));
     }
 
-    static String yahooSymbol(Company company) {
+    static String toYahooSymbol(Company company) {
         return company.getTicker() + YAHOO_MARKETS.get(company.getMic()).suffix();
     }
 }

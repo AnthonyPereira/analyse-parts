@@ -30,9 +30,9 @@ public class QuoteController {
 
     /** Ex. : GET /api/companies/FR0000121014/quote */
     @GetMapping("/api/companies/{isin}/quote")
-    public ResponseEntity<QuoteView> quote(@PathVariable String isin) {
+    public ResponseEntity<QuoteView> getQuote(@PathVariable String isin) {
         return ResponseEntity.of(companies.findByIsin(isin)
-                .flatMap(c -> market.latestQuote(c.getId()))
+                .flatMap(c -> market.findLatestQuote(c.getId()))
                 .map(q -> new QuoteView(q.price(), q.currency(), q.asOf(), q.source(), q.previousClose())));
     }
 
@@ -49,15 +49,15 @@ public class QuoteController {
 
     /** Clôtures quotidiennes. Ex. : GET /api/companies/FR0000121014/prices?range=Y1 */
     @GetMapping("/api/companies/{isin}/prices")
-    public ResponseEntity<List<PricePoint.Close>> prices(@PathVariable String isin,
+    public ResponseEntity<List<PricePoint.Close>> getPrices(@PathVariable String isin,
                                                          @RequestParam(defaultValue = "Y1") Range range) {
         return ResponseEntity.of(companies.findByIsin(isin)
-                .map(c -> market.closes(c.getId(), LocalDate.now().minus(range.period))));
+                .map(c -> market.findCloses(c.getId(), LocalDate.now().minus(range.period))));
     }
 
     /** La séance du jour, un point toutes les 5 minutes. */
     @GetMapping("/api/companies/{isin}/prices/intraday")
-    public ResponseEntity<IntradaySource.Intraday> intraday(@PathVariable String isin) {
-        return ResponseEntity.of(companies.findByIsin(isin).flatMap(c -> market.intraday(c.getId())));
+    public ResponseEntity<IntradaySource.Intraday> getIntraday(@PathVariable String isin) {
+        return ResponseEntity.of(companies.findByIsin(isin).flatMap(c -> market.fetchIntraday(c.getId())));
     }
 }
