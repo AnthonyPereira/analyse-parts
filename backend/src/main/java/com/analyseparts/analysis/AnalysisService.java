@@ -8,14 +8,19 @@ import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.financials.FilingRef;
 import com.analyseparts.financials.FinancialsService;
+import com.analyseparts.financials.CompanySize;
+import com.analyseparts.market.MarketDataService;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,14 +56,18 @@ public class AnalysisService {
     private final List<Unsaved> buffer = new ArrayList<>();
     private final int saveBatch;
 
+    private final MarketDataService market;
+
     public AnalysisService(CompanyRepository companies, FinancialsService financials, AnalysisRepository repository,
                            ReportAnalysisRunner runner, ReportAnalyst analyst,
+                           MarketDataService market,
                            @Value("${analyse-parts.analysis.save-batch:1}") int saveBatch) {
         this.companies = companies;
         this.financials = financials;
         this.repository = repository;
         this.runner = runner;
         this.analyst = analyst;
+        this.market = market;
         this.saveBatch = saveBatch;
     }
 
@@ -86,7 +95,8 @@ public class AnalysisService {
      * Met dans la file chaque société dont le dernier rapport n'a pas encore été lu (une requête
      * pour tous les derniers rapports). Une société en échec depuis le démarrage n'est pas reprise,
      * sinon le lecteur local la relancerait à chaque tour ; une demande explicite ({@link #request})
-     * la relance.
+     * la relance. Les plus grosses sociétés passent d'abord (chiffre d'affaires en euros, ou total du
+     * bilan) : avec plus d'un millier de rapports à lire, la démo a vite ceux des sociétés connues.
      */
     public int requestMissing() {
         Set<String> done = new HashSet<>(repository.findAnalysedSourceIds());
@@ -95,7 +105,7 @@ public class AnalysisService {
         }
         Map<Long, FilingRef> latest = financials.findLatestFilings();
         int queued = 0;
-        for (Company company : companies.findAll()) {
+        for (Company company : bySizeDescending(companies.findAll())) {
             FilingRef filing = latest.get(company.getId());
             if (filing != null && !done.contains(filing.sourceId()) && !errors.containsKey(company.getId())
                     && enqueue(company)) {
@@ -104,6 +114,17 @@ public class AnalysisService {
         }
         log.info("{} rapports mis dans la file de lecture", queued);
         return queued;
+    }
+
+    private List<Company> bySizeDescending(List<Company> all) {
+        Map<Long, CompanySize> sizes = financials.findLatestSizes();
+        Map<String, Double> eurPerUnit = new HashMap<>();
+        Map<Long, Double> eur = new HashMap<>();
+        sizes.forEach((id, s) -> eur.put(id, s.amount().doubleValue() * eurPerUnit.computeIfAbsent(s.currency(),
+                c -> market.convert(BigDecimal.ONE, c, "EUR").map(BigDecimal::doubleValue).orElse(0.0))));
+        return all.stream()
+                .sorted(Comparator.comparingDouble((Company c) -> eur.getOrDefault(c.getId(), 0.0)).reversed())
+                .toList();
     }
 
     /** Vrai quand aucune lecture n'est en attente ni en cours. */

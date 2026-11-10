@@ -7,6 +7,7 @@ import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.financials.FilingRef;
 import com.analyseparts.financials.FinancialsService;
+import com.analyseparts.market.MarketDataService;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -61,7 +62,8 @@ class AnalysisServiceTest {
         }
         when(financials.findLatestFilings()).thenReturn(latest);
         when(runner.run(anyString(), any())).thenAnswer(call -> analysis(call.<FilingRef>getArgument(1).sourceId()));
-        return new AnalysisService(companies, financials, repository, runner, mock(ReportAnalyst.class), saveBatch);
+        return new AnalysisService(companies, financials, repository, runner, mock(ReportAnalyst.class),
+                mock(MarketDataService.class), saveBatch);
     }
 
     static void awaitIdle(AnalysisService service) throws InterruptedException {

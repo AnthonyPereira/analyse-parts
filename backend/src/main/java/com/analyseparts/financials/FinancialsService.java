@@ -102,6 +102,12 @@ public class FinancialsService {
                 f -> new FilingRef(f.getSourceId(), f.getPeriodEnd(), f.getJsonUrl()), (a, b) -> a));
     }
 
+    /** Taille de chaque société d'après son dernier rapport (voir {@link CompanySize}). */
+    @Transactional(readOnly = true)
+    public Map<Long, CompanySize> findLatestSizes() {
+        return facts.findLatestSizes();
+    }
+
     /** Date de clôture du rapport le plus récent de chaque société qui en a au moins un. */
     @Transactional(readOnly = true)
     public Map<Long, LocalDate> findLatestPeriodEnds() {
