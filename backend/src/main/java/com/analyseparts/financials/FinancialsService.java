@@ -94,6 +94,13 @@ public class FinancialsService {
         return filings.findPeriodEnds(companyId);
     }
 
+    /** Le rapport le plus récent de chaque société qui en a au moins un, par identifiant de société. */
+    @Transactional(readOnly = true)
+    public Map<Long, FilingRef> findLatestFilings() {
+        return filings.findLatestFilings().stream().collect(Collectors.toMap(FilingEntity::getCompanyId,
+                f -> new FilingRef(f.getSourceId(), f.getPeriodEnd(), f.getJsonUrl()), (a, b) -> a));
+    }
+
     /** Date de clôture du rapport le plus récent de chaque société qui en a au moins un. */
     @Transactional(readOnly = true)
     public Map<Long, LocalDate> findLatestPeriodEnds() {

@@ -25,6 +25,11 @@ public interface FilingRepository extends JpaRepository<FilingEntity, Long> {
     @Query("select f.periodEnd from FilingEntity f where f.companyId = :companyId")
     List<LocalDate> findPeriodEnds(Long companyId);
 
+    /** Le rapport le plus récent de chaque société (une ligne par société, une seule requête). */
+    @Query("select f from FilingEntity f where f.periodEnd = "
+            + "(select max(g.periodEnd) from FilingEntity g where g.companyId = f.companyId)")
+    List<FilingEntity> findLatestFilings();
+
     @Query("select f.companyId as companyId, max(f.periodEnd) as latest from FilingEntity f group by f.companyId")
     List<LatestPeriodEnd> findLatestPeriodEnds();
 }

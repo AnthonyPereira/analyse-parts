@@ -29,3 +29,4 @@ Règles :
 | [0016](0016-demo-publique-gratuite.md) | Démo publique gratuite : un conteneur sur Render, PostgreSQL chez Neon, sans LLM ; routes admin protégées par jeton, éveil en semaine de 6 h à 20 h | Acceptée |
 | [0017](0017-embeddings-snowflake-arctic-embed2.md) | Embeddings : snowflake-arctic-embed2, recherches précédées de « query: » (18 % de passages utiles en plus que bge-m3, mesuré sur 7 rapports) | Acceptée |
 | [0018](0018-points-classes-par-importance.md) | Points de la lecture des rapports classés par importance, par un dernier appel au modèle par thème ; lectures existantes classées sans relecture | Acceptée |
+| [0019](0019-lecteur-local-branche-sur-la-base-en-ligne.md) | Lecteur local (profil reader) : le PC avec Ollama lit les rapports pas encore lus et écrit dans la base en ligne, par paquets | Acceptée |

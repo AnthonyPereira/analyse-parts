@@ -57,6 +57,7 @@ public class FilingEntity {
     }
 
     public Long getId() { return id; }
+    public Long getCompanyId() { return companyId; }
     public String getSourceId() { return sourceId; }
     public LocalDate getPeriodEnd() { return periodEnd; }
     public String getJsonUrl() { return jsonUrl; }

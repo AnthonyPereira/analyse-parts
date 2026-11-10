@@ -201,9 +201,11 @@ public class ScoringService {
 
     /**
      * Au démarrage, calcule une fois l'univers en arrière-plan : les historiques des sociétés
-     * entrent dans le cache, et la première page affichée n'attend pas.
+     * entrent dans le cache, et la première page affichée n'attend pas. Pas dans le lecteur local
+     * ({@code analyse-parts.scoring.warm-up=false}).
      */
-    @EventListener(ApplicationReadyEvent.class)
+    @EventListener(value = ApplicationReadyEvent.class,
+            condition = "@environment.getProperty('analyse-parts.scoring.warm-up', 'true') == 'true'")
     void warmUp() {
         Thread.ofVirtual().name("prechauffage-scores").start(() -> {
             long start = System.nanoTime();

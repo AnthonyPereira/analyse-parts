@@ -11,9 +11,13 @@ import com.analyseparts.financials.FinancialsService;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -44,14 +48,18 @@ public class AnalysisService {
     private final ExecutorService queue = Executors.newSingleThreadExecutor(r -> new Thread(r, "report-analysis"));
     private final Map<Long, State> pending = new ConcurrentHashMap<>();
     private final Map<Long, String> errors = new ConcurrentHashMap<>();
+    private final List<Unsaved> buffer = new ArrayList<>();
+    private final int saveBatch;
 
     public AnalysisService(CompanyRepository companies, FinancialsService financials, AnalysisRepository repository,
-                           ReportAnalysisRunner runner, ReportAnalyst analyst) {
+                           ReportAnalysisRunner runner, ReportAnalyst analyst,
+                           @Value("${analyse-parts.analysis.save-batch:1}") int saveBatch) {
         this.companies = companies;
         this.financials = financials;
         this.repository = repository;
         this.runner = runner;
         this.analyst = analyst;
+        this.saveBatch = saveBatch;
     }
 
     /** Où en est la lecture du rapport d'une société ; vide si la société est inconnue. */
@@ -74,18 +82,33 @@ public class AnalysisService {
         });
     }
 
-    /** Met dans la file chaque société dont le dernier rapport n'a pas encore été lu. */
+    /**
+     * Met dans la file chaque société dont le dernier rapport n'a pas encore été lu (une requête
+     * pour tous les derniers rapports). Une société en échec depuis le démarrage n'est pas reprise,
+     * sinon le lecteur local la relancerait à chaque tour ; une demande explicite ({@link #request})
+     * la relance.
+     */
     public int requestMissing() {
-        Set<String> done = repository.findAnalysedSourceIds();
+        Set<String> done = new HashSet<>(repository.findAnalysedSourceIds());
+        synchronized (buffer) {
+            buffer.forEach(b -> done.add(b.analysis().sourceId()));
+        }
+        Map<Long, FilingRef> latest = financials.findLatestFilings();
         int queued = 0;
         for (Company company : companies.findAll()) {
-            Optional<FilingRef> latest = financials.findLatestFiling(company.getId());
-            if (latest.isPresent() && !done.contains(latest.get().sourceId()) && enqueue(company)) {
+            FilingRef filing = latest.get(company.getId());
+            if (filing != null && !done.contains(filing.sourceId()) && !errors.containsKey(company.getId())
+                    && enqueue(company)) {
                 queued++;
             }
         }
         log.info("{} rapports mis dans la file de lecture", queued);
         return queued;
+    }
+
+    /** Vrai quand aucune lecture n'est en attente ni en cours. */
+    public boolean isIdle() {
+        return pending.isEmpty();
     }
 
     /**
@@ -137,7 +160,7 @@ public class AnalysisService {
             FilingRef filing = financials.findLatestFiling(id)
                     .orElseThrow(() -> new IllegalStateException("Aucun rapport annuel enregistré"));
             ReportAnalysis analysis = runner.run(company.getName(), filing);
-            repository.save(id, analysis);
+            save(id, analysis);
             errors.remove(id);
         } catch (Exception e) {
             String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
@@ -148,9 +171,43 @@ public class AnalysisService {
         }
     }
 
+    /**
+     * Enregistre une lecture. Avec {@code analyse-parts.analysis.save-batch} supérieur à 1 (lecteur
+     * local, ADR 0019), les lectures attendent en mémoire et sont écrites par paquets : la base en
+     * ligne peut s'endormir entre deux écritures. Le dernier paquet est écrit quand la file se vide
+     * ou à l'arrêt ; un arrêt brutal le perd, et ces rapports seront relus.
+     */
+    private void save(long companyId, ReportAnalysis analysis) {
+        if (saveBatch <= 1) {
+            repository.save(companyId, analysis);
+            return;
+        }
+        synchronized (buffer) {
+            buffer.add(new Unsaved(companyId, analysis));
+            if (buffer.size() >= saveBatch || pending.size() <= 1) {
+                flush();
+            }
+        }
+    }
+
+    private record Unsaved(long companyId, ReportAnalysis analysis) {
+    }
+
+    private void flush() {
+        synchronized (buffer) {
+            if (buffer.isEmpty()) {
+                return;
+            }
+            buffer.forEach(b -> repository.save(b.companyId(), b.analysis()));
+            log.info("{} lectures enregistrées", buffer.size());
+            buffer.clear();
+        }
+    }
+
     @PreDestroy
     void stop() {
         queue.shutdownNow();
+        flush();
     }
 
 }
