@@ -70,6 +70,7 @@ public class EsefIssuerImportService {
     private final GleifClient gleif;
     private final YahooQuoteClient yahoo;
     private final YahooSectorMapping sectors;
+    private final NasdaqNordicClient nasdaqNordic;
     private final CompanyRepository companies;
     private final JdbcTemplate jdbc;
     private final ApplicationEventPublisher events;
@@ -77,13 +78,15 @@ public class EsefIssuerImportService {
     private final Clock clock = Clock.systemUTC();
 
     public EsefIssuerImportService(FilingsXbrlClient index, GleifClient gleif, YahooQuoteClient yahoo,
-                                   YahooSectorMapping sectors, CompanyRepository companies, JdbcTemplate jdbc,
+                                   YahooSectorMapping sectors, NasdaqNordicClient nasdaqNordic,
+                                   CompanyRepository companies, JdbcTemplate jdbc,
                                    ApplicationEventPublisher events,
                                    @Value("${analyse-parts.esef.issuer-pause:1s}") Duration pause) {
         this.index = index;
         this.gleif = gleif;
         this.yahoo = yahoo;
         this.sectors = sectors;
+        this.nasdaqNordic = nasdaqNordic;
         this.companies = companies;
         this.jdbc = jdbc;
         this.events = events;
@@ -165,8 +168,11 @@ public class EsefIssuerImportService {
 
     /** L'action cotée de l'émetteur sur une place suivie hors Euronext, créée en base ; vide sinon. */
     private Optional<Company> findListedCompany(Issuer issuer) {
-        List<String> isins = orderIsins(gleif.findIsins(issuer.lei()), issuer.country());
+        List<String> isins = new java.util.ArrayList<>(orderIsins(gleif.findIsins(issuer.lei()), issuer.country()));
         sleep();
+        // GLEIF ne connaît pas les ISIN des sociétés finlandaises (et d'une partie des suédoises et
+        // danoises) : on les cherche par le nom dans la liste de Nasdaq Nordic
+        nasdaqNordic.findIsin(issuer.name(), issuer.country()).filter(i -> !isins.contains(i)).ifPresent(isins::add);
         for (String isin : isins) {
             if (companies.findByIsin(isin).isPresent()) {
                 return Optional.empty(); // déjà suivie (par exemple cotée aussi sur Euronext)

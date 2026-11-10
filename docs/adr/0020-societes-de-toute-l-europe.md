@@ -31,7 +31,9 @@ Growth et Access ne sont pas suivis. Les places et leurs symboles Yahoo sont dan
 1. l'index de filings.xbrl.org donne les émetteurs et leur LEI (7 221, dont 4 078 avec un rapport
    depuis mi-2024) ; ceux des pays d'Euronext et d'Ukraine (plus de 1 000 émetteurs non cotés) sont
    écartés ;
-2. GLEIF donne les codes ISIN du LEI (actions, obligations, ADR) ;
+2. GLEIF donne les codes ISIN du LEI (actions, obligations, ADR) ; il n'en connaît aucun pour les sociétés
+   finlandaises (et pour une partie des suédoises et danoises) : leur ISIN est alors cherché par le nom
+   dans la liste du marché principal de Nasdaq Helsinki, Stockholm ou Copenhague (`NasdaqNordicClient`) ;
 3. la recherche de Yahoo dit lequel est une action, sur quelle place ; si la place est suivie
    (Stockholm, Copenhague, Helsinki, Madrid, Athènes, Vienne, Londres, Vilnius, Riga, Tallinn,
    Budapest), la société est créée avec son LEI ; ses rapports suivent par l'import ESEF habituel.
