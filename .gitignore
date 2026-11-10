@@ -4,3 +4,6 @@
 target/
 node_modules/
 .env
+
+# Copie du front compilé (build sans Docker, voir README)
+backend/src/main/resources/static/
