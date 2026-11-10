@@ -1,6 +1,8 @@
 package com.analyseparts.analysis.internal;
 
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -14,9 +16,13 @@ import java.util.stream.IntStream;
  * Recherche <b>sémantique</b> dans un rapport : retrouver les passages qui parlent d'un sujet, même
  * sans les mots exacts de la question (« risques de change » trouve « fluctuations des devises »).
  * <p>
- * Chaque passage est transformé par le modèle {@code bge-m3} en <b>embedding</b> : une liste de
- * 1 024 nombres qui résume son sens. Deux textes de sens proche ont des embeddings proches ; on
- * mesure cette proximité par le <b>cosinus</b> de l'angle entre les deux listes (1 = même sens).
+ * Chaque passage est transformé par le modèle {@code snowflake-arctic-embed2} en <b>embedding</b> :
+ * une liste de 1 024 nombres qui résume son sens. Deux textes de sens proche ont des embeddings
+ * proches ; on mesure cette proximité par le <b>cosinus</b> de l'angle entre les deux listes
+ * (1 = même sens).
+ * <p>
+ * Les <b>recherches</b> (pas les passages) sont précédées de « query: » : le modèle a été entraîné
+ * ainsi, et il trouve alors plus de passages utiles (ADR 0017).
  * <p>
  * Pas de base vectorielle (pgvector) : on ne cherche que dans <b>un</b> rapport à la fois, soit
  * environ 1 000 passages, et comparer 1 000 listes de nombres prend moins d'une milliseconde. Les
@@ -30,9 +36,22 @@ public class PassageSearch {
     private static final int BATCH = 32;
 
     private final EmbeddingModel embeddings;
+    private final String queryPrefix;
 
-    public PassageSearch(EmbeddingModel embeddings) {
+    /**
+     * @param queryPrefix texte ajouté devant chaque recherche ; propre au modèle d'embedding
+     *                    (« query: » pour snowflake-arctic-embed2, rien pour bge-m3)
+     */
+    @Autowired
+    public PassageSearch(EmbeddingModel embeddings,
+                         @Value("${analyse-parts.analysis.query-prefix:query: }") String queryPrefix) {
         this.embeddings = embeddings;
+        this.queryPrefix = queryPrefix;
+    }
+
+    /** Sans préfixe : pour les tests, dont les faux embeddings ne dépendent que du texte. */
+    PassageSearch(EmbeddingModel embeddings) {
+        this(embeddings, "");
     }
 
     /** Les passages d'un rapport, avec leurs embeddings, prêts à être interrogés. */
@@ -154,7 +173,7 @@ public class PassageSearch {
         }
 
         private List<float[]> embedQueries(List<String> queries) {
-            return queries.stream().map(q -> normalize(embeddings.embed(q))).toList();
+            return queries.stream().map(q -> normalize(embeddings.embed(queryPrefix + q))).toList();
         }
 
         /** Les passages plus proches d'une recherche à éviter que de toutes les recherches voulues. */

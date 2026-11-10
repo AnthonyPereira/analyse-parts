@@ -137,8 +137,8 @@ La lecture des rapports annuels et semestriels utilise [Ollama](https://ollama.c
 simplement. Pour l'activer :
 
 ```bash
-ollama pull qwen3:14b    # le modèle qui lit (12 Go de mémoire graphique conseillés)
-ollama pull bge-m3       # le modèle d'embeddings qui choisit les passages à lire
+ollama pull qwen3:14b                 # le modèle qui lit (12 Go de mémoire graphique conseillés)
+ollama pull snowflake-arctic-embed2   # le modèle d'embeddings qui choisit les passages à lire (ADR 0017)
 curl -X POST http://localhost:8080/api/admin/analysis/FR0000120321   # lire un rapport (ici L'Oréal)
 curl -X POST http://localhost:8080/api/admin/analysis/missing        # lire tous ceux qui manquent
 ```
@@ -264,6 +264,8 @@ Les tests d'intégration démarrent un PostgreSQL jetable avec Testcontainers : 
 | `SPRING_PROFILES_ACTIVE` | aucun (`prod` dans l'image Docker) | profil de configuration |
 | `OLLAMA_URL` | `http://localhost:11434` | adresse d'Ollama |
 | `ANALYSIS_MODEL` | `qwen3:14b` | modèle qui lit les rapports |
+| `EMBEDDING_MODEL` | `snowflake-arctic-embed2` | modèle d'embeddings qui choisit les passages |
+| `ANALYSEPARTS_ANALYSIS_QUERYPREFIX` | `query: ` | texte ajouté devant chaque recherche (vide pour bge-m3) |
 | `ANALYSIS_CONTEXT_TOKENS` | `10240` | mémoire du modèle ; au-delà, il déborde de 12 Go de mémoire graphique |
 | `ANALYSIS_REVIEW` | `BUSINESS,ADVANTAGES` | thèmes relus par le modèle |
 | `ANALYSEPARTS_ANALYSIS_AUTO` | `true` (`false` en `prod`) | lire chaque nouveau rapport automatiquement |
@@ -271,6 +273,6 @@ Les tests d'intégration démarrent un PostgreSQL jetable avec Testcontainers : 
 ## Documentation
 
 - [docs/adr](docs/adr/README.md) : les décisions d'architecture, de 0001 (monolithe modulaire) à
-  0016 (démo gratuite).
+  0017 (modèle d'embedding).
 - [docs/ratios.md](docs/ratios.md) : chaque ratio expliqué, avec sa formule et sa lecture.
 - [frontend/README.md](frontend/README.md) : l'organisation du front.
