@@ -59,6 +59,22 @@ public final class RatioCalculator {
     static final int EXCEPTIONAL_LOOKBACK = 3;
     /** En dessous, le BPA publié (arrondi au centime) ne permet pas de retrouver le nombre d'actions. */
     static final BigDecimal MIN_EPS_FOR_SHARE_COUNT = new BigDecimal("0.25");
+    /**
+     * Un cours inférieur au BPA (PER sous 1) voudrait dire que la société gagne en un an plus que
+     * sa valeur en bourse : c'est presque toujours un BPA publié dans une autre unité (en pence
+     * au lieu de livres, en milliers…). Ce BPA n'est alors utilisé ni pour le PER ni pour
+     * retrouver le nombre d'actions.
+     */
+    static final double MIN_PLAUSIBLE_PER = 1.0;
+    /**
+     * Un chiffre d'affaires multiplié ou divisé par 500 ou plus en un an, alors que le résultat net
+     * varie de moins d'un facteur 10, trahit une erreur d'unité dans le rapport (milliers saisis
+     * comme des euros, par exemple) : les ratios qui l'utilisent sont écartés.
+     */
+    static final double REVENUE_SCALE_BREAK = 500;
+    static final double INCOME_STABLE_FACTOR = 10;
+    /** Concept de dernier recours pour le chiffre d'affaires : les ventes de biens seules. */
+    static final String PARTIAL_REVENUE_CONCEPT = "ifrs-full:RevenueFromSaleOfGoods";
     private static final double DAYS_PER_YEAR = 365.25;
 
     /**
@@ -145,11 +161,11 @@ public final class RatioCalculator {
         Outcome compute(Ratio ratio) {
             return switch (ratio) {
                 // Résultat net part du groupe ÷ chiffre d'affaires (produit net bancaire pour une banque)
-                case NET_MARGIN -> divide(findFirst(latest, NET_INCOME_GROUP, NET_INCOME), findRevenue(latest),
-                        "le résultat net", "le chiffre d'affaires");
+                case NET_MARGIN -> checkRevenueScale(() -> divide(findFirst(latest, NET_INCOME_GROUP, NET_INCOME), findRevenue(latest),
+                        "le résultat net", "le chiffre d'affaires"));
                 // Résultat opérationnel ÷ chiffre d'affaires
-                case OPERATING_MARGIN -> divide(findFirst(latest, OPERATING_INCOME), findRevenue(latest),
-                        "le résultat opérationnel", "le chiffre d'affaires");
+                case OPERATING_MARGIN -> checkRevenueScale(() -> divide(findFirst(latest, OPERATING_INCOME), findRevenue(latest),
+                        "le résultat opérationnel", "le chiffre d'affaires"));
                 case COST_INCOME_RATIO -> computeCostIncome();
                 case COST_OF_RISK_RATIO -> computeCostOfRisk();
                 // Résultat net part du groupe ÷ capitaux propres part du groupe moyens
@@ -167,9 +183,9 @@ public final class RatioCalculator {
                 // Flux de trésorerie d'exploitation ÷ résultat net
                 case CASH_CONVERSION -> divide(findFirst(latest, OPERATING_CASH_FLOW), findFirst(latest, NET_INCOME),
                         "le flux de trésorerie d'exploitation", "le résultat net");
-                case FCF_MARGIN -> computeFreeCashFlow().map(fcf -> divide(Optional.of(fcf), findRevenue(latest),
-                        "le cash-flow libre", "le chiffre d'affaires"), Outcome.Missing::new);
-                case REVENUE_GROWTH -> computeGrowth(Calculation::findRevenue, "le chiffre d'affaires");
+                case FCF_MARGIN -> checkRevenueScale(() -> computeFreeCashFlow().map(fcf -> divide(Optional.of(fcf),
+                        findRevenue(latest), "le cash-flow libre", "le chiffre d'affaires"), Outcome.Missing::new));
+                case REVENUE_GROWTH -> checkRevenueScale(() -> computeGrowth(Calculation::findRevenue, "le chiffre d'affaires"));
                 case EPS_GROWTH -> computeEpsGrowth();
                 case PROFITABLE_YEARS -> countProfitableYears();
                 case PAYOUT_RATIO -> computePayoutRatio();
@@ -310,6 +326,72 @@ public final class RatioCalculator {
                 }
             }
             return divide(cost, nbi, "le coût du risque", "le produit net bancaire");
+        }
+
+        /**
+         * Écarte un ratio fondé sur le chiffre d'affaires quand celui-ci change d'échelle sans raison,
+         * ou quand seules les ventes de biens sont publiées et qu'elles ne sont qu'une petite partie
+         * de l'activité (résultat d'exploitation plus grand qu'elles : le vrai total est publié sous
+         * un concept propre à la société).
+         */
+        private Outcome checkRevenueScale(Supplier<Outcome> ratio) {
+            if (hasRevenueScaleBreak()) {
+                return new Outcome.Missing("Chiffre d'affaires incohérent avec les exercices précédents "
+                        + "(erreur d'unité probable dans le rapport)");
+            }
+            if (isPartialRevenue()) {
+                return new Outcome.Missing("Seules les ventes de biens sont publiées sous un concept standard, "
+                        + "et elles sont inférieures au résultat d'exploitation : chiffre d'affaires total inconnu");
+            }
+            return ratio.get();
+        }
+
+        private boolean isPartialRevenue() {
+            Optional<Input> revenue = findRevenue(latest);
+            Optional<Input> operating = findFirst(latest, OPERATING_INCOME);
+            return revenue.isPresent() && operating.isPresent()
+                    && PARTIAL_REVENUE_CONCEPT.equals(revenue.get().source())
+                    && operating.get().value().abs().compareTo(revenue.get().value().abs()) > 0;
+        }
+
+        /**
+         * Le dernier exercice comparé aux trois précédents : un rapport erroné réécrit souvent aussi
+         * l'exercice d'avant (chiffres comparatifs), la rupture n'apparaît alors qu'avec l'avant-dernier.
+         */
+        private boolean hasRevenueScaleBreak() {
+            Optional<Input> revenue = findRevenue(latest);
+            Optional<Input> income = findFirst(latest, NET_INCOME_GROUP, NET_INCOME);
+            if (revenue.isEmpty() || income.isEmpty() || computeSign(revenue.get()) <= 0) {
+                return false;
+            }
+            return years.stream().skip(1).limit(EXCEPTIONAL_LOOKBACK).anyMatch(earlier -> {
+                Optional<Input> earlierRevenue = findRevenue(earlier);
+                Optional<Input> earlierIncome = findFirst(earlier, NET_INCOME_GROUP, NET_INCOME);
+                return earlierRevenue.isPresent() && earlierIncome.isPresent()
+                        && computeSign(earlierRevenue.get()) > 0
+                        && computeSign(income.get()) * computeSign(earlierIncome.get()) > 0
+                        && computeFactor(revenue.get(), earlierRevenue.get()) >= REVENUE_SCALE_BREAK
+                        && computeFactor(income.get(), earlierIncome.get()) < INCOME_STABLE_FACTOR;
+            });
+        }
+
+        /** Le rapport entre deux montants de même signe, toujours supérieur ou égal à 1. */
+        private static double computeFactor(Input a, Input b) {
+            double ratio = Math.abs(a.value().doubleValue() / b.value().doubleValue());
+            return Math.max(ratio, 1 / ratio);
+        }
+
+        /**
+         * Le BPA est-il compatible avec le cours (PER d'au moins 1 en valeur absolue) ? Sans cours
+         * dans la même devise, on ne peut pas le vérifier : il est gardé.
+         */
+        private boolean isPlausibleEps(Input eps) {
+            if (eps.value().signum() == 0) {
+                return false;
+            }
+            Input price = findPriceInput();
+            return !haveSameCurrency(List.of(price, eps))
+                    || Math.abs(price.value().doubleValue() / eps.value().doubleValue()) >= MIN_PLAUSIBLE_PER;
         }
 
         /** Le chiffre d'affaires, ou pour une banque son équivalent : le produit net bancaire. */
@@ -462,6 +544,9 @@ public final class RatioCalculator {
             if (computeSign(eps.get()) <= 0) {
                 return new Outcome.Missing("Perte sur l'exercice : PER non significatif");
             }
+            if (!isPlausibleEps(eps.get())) {
+                return new Outcome.Missing("Bénéfice par action supérieur au cours : unité probablement erronée dans le rapport");
+            }
             return new Outcome.Ok(price.value().doubleValue() / eps.get().value().doubleValue(),
                     List.of(price, eps.get()));
         }
@@ -513,7 +598,8 @@ public final class RatioCalculator {
             }
             Optional<Input> income = findFirst(latest, NET_INCOME_GROUP);
             Optional<Input> eps = findFirst(latest, EPS_BASIC);
-            if (income.isEmpty() || eps.isEmpty() || eps.get().value().abs().compareTo(MIN_EPS_FOR_SHARE_COUNT) < 0) {
+            if (income.isEmpty() || eps.isEmpty() || eps.get().value().abs().compareTo(MIN_EPS_FOR_SHARE_COUNT) < 0
+                    || !isPlausibleEps(eps.get())) {
                 return Optional.empty();
             }
             BigDecimal count = income.get().value().divide(eps.get().value(), 0, java.math.RoundingMode.HALF_UP);

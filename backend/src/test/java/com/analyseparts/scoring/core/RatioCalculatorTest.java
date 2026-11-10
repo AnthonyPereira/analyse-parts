@@ -239,4 +239,69 @@ class RatioCalculatorTest {
         assertThat(payout).isNegative();
         assertThat(Ratio.PAYOUT_RATIO.getScale().computePoints(payout)).isZero();
     }
+
+    @Test
+    void epsAboveThePriceIsNotUsed() {
+        // BPA publié en centimes (242 au lieu de 2,42) : un PER de 0,1 n'a pas de sens
+        FinancialHistory history = new FinancialHistory(List.of(
+                year(2025, REVENUE, 1210, NET_INCOME_GROUP, 121, EQUITY_GROUP, 1000, EPS_BASIC, 242)));
+        Valuation valuation = new Valuation(new BigDecimal("24.20"), "EUR", new BigDecimal("24.20"), "EUR",
+                java.time.Instant.parse("2026-11-06T10:00:00Z"), "YAHOO", null);
+        RatioSet r = RatioCalculator.compute(history, valuation, null);
+
+        assertThat(r.unavailable().get(Ratio.PER)).contains("unité");
+        // le nombre d'actions ne peut pas être retrouvé : pas de capitalisation
+        assertThat(r.unavailable().get(Ratio.PRICE_TO_BOOK)).isEqualTo("Nombre d'actions inconnu");
+    }
+
+    @Test
+    void revenueScaleBreakDiscardsRevenueRatios() {
+        // Chiffre d'affaires saisi en milliers (1,21 au lieu de 1 210), résultat net stable
+        FinancialHistory history = new FinancialHistory(List.of(
+                year(2025, REVENUE, 1.21, OPERATING_INCOME, 181.5, NET_INCOME_GROUP, 121, EQUITY_GROUP, 1000),
+                year(2024, REVENUE, 1100, NET_INCOME_GROUP, 100, EQUITY_GROUP, 900),
+                year(2023, REVENUE, 1000, NET_INCOME_GROUP, 90)));
+        RatioSet r = RatioCalculator.compute(history);
+
+        assertThat(r.unavailable().get(Ratio.NET_MARGIN)).contains("erreur d'unité");
+        assertThat(r.unavailable().get(Ratio.OPERATING_MARGIN)).contains("erreur d'unité");
+        assertThat(r.unavailable().get(Ratio.REVENUE_GROWTH)).contains("erreur d'unité");
+        assertThat(r.get(Ratio.ROE)).isPresent();
+    }
+
+    @Test
+    void revenueJumpWithIncomeJumpIsKept() {
+        // Une biotech qui signe un gros contrat : ventes et résultat changent d'échelle ensemble
+        FinancialHistory history = new FinancialHistory(List.of(
+                year(2025, REVENUE, 9000, NET_INCOME_GROUP, 5000),
+                year(2024, REVENUE, 10, NET_INCOME_GROUP, 2)));
+        RatioSet r = RatioCalculator.compute(history);
+
+        assertThat(r.get(Ratio.NET_MARGIN).orElseThrow().value()).isCloseTo(5000.0 / 9000, within(1e-9));
+    }
+
+    @Test
+    void scaleBreakIsFoundWhenTheComparativeYearWasRewrittenToo() {
+        // Le rapport 2025 erroné réécrit aussi 2024 : la rupture se voit avec 2023
+        FinancialHistory history = new FinancialHistory(List.of(
+                year(2025, REVENUE, 0.188, NET_INCOME, 142),
+                year(2024, REVENUE, 0.188, NET_INCOME, 128),
+                year(2023, REVENUE, 1139, NET_INCOME, 124)));
+        RatioSet r = RatioCalculator.compute(history);
+
+        assertThat(r.unavailable().get(Ratio.NET_MARGIN)).contains("erreur d'unité");
+    }
+
+    @Test
+    void salesOfGoodsSmallerThanOperatingIncomeAreNotTheRevenue() {
+        // Le vrai total est publié sous un concept propre à la société : il ne reste que 0,5 de ventes de biens
+        Map<Metric, FinancialHistory.Value> metrics = new EnumMap<>(Metric.class);
+        metrics.put(REVENUE, new FinancialHistory.Value(new BigDecimal("0.5"), "EUR",
+                RatioCalculator.PARTIAL_REVENUE_CONCEPT, "f"));
+        metrics.put(OPERATING_INCOME, new FinancialHistory.Value(new BigDecimal("250"), "EUR", "ifrs-full:x", "f"));
+        metrics.put(NET_INCOME, new FinancialHistory.Value(new BigDecimal("160"), "EUR", "ifrs-full:x", "f"));
+        RatioSet r = RatioCalculator.compute(new FinancialHistory(List.of(new Year(LocalDate.of(2025, 12, 31), metrics))));
+
+        assertThat(r.unavailable().get(Ratio.NET_MARGIN)).contains("ventes de biens");
+    }
 }
