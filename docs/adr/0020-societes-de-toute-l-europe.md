@@ -54,7 +54,13 @@ inconnu va aux services financiers, pas aux banques.
   clôture des exercices, qui sert aux ratios des années passées) : 2,5 fois moins de lignes ;
 - résultat sur la base locale : 84 Mo deviennent 31 Mo, à couverture égale.
 
-**5. Les devises** : Londres cote en pence, ramenés en livres dès la lecture de Yahoo
+**5. Les rapports intermédiaires** : des sociétés nordiques déposent aussi leurs rapports
+trimestriels et semestriels en ESEF ; pris pour des exercices, ils faussaient les ratios (Maersk
+n'avait plus que des chiffres de bilan). Un rapport dont le plus long flux finissant à la clôture dure
+moins de 300 jours est écarté, et noté (`esef_interim_filing`, V19) pour n'être téléchargé qu'une
+fois ; V19 retire ceux déjà importés.
+
+**6. Les devises** : Londres cote en pence, ramenés en livres dès la lecture de Yahoo
 (`YahooQuoteClient.toMainUnit`) ; les autres devises (SEK, DKK, NOK…) étaient déjà converties par les
 taux de la BCE. Le classement a un filtre par pays.
 
@@ -62,7 +68,10 @@ taux de la BCE. Le classement a un filtre par pays.
 
 - Environ 1 000 sociétés sur Euronext, et plus d'un millier d'autres en Europe.
 - **Pas d'Allemagne ni de Pologne** : leurs rapports ESEF ne sont pas sur filings.xbrl.org, et le
-  registre allemand n'est pas une source automatisable gratuite. Pas d'Islande, de Malte, de Slovénie
+  registre allemand n'est pas une source automatisable gratuite. La piste d'avenir est l'ESAP
+  (European Single Access Point) : il collecte les rapports des sociétés cotées de l'UE depuis
+  juillet 2026 et doit les publier, avec une API publique gratuite, au plus tard en juillet 2027 ;
+  il couvrirait l'Allemagne et la Pologne. Les offres payantes existantes ne sont pas retenues. Pas d'Islande, de Malte, de Slovénie
   ni de Croatie non plus (Yahoo ne les connaît pas, ou seulement à Francfort).
 - Le secteur d'une société hors Euronext est une estimation (1 fois sur 6 faux au niveau du
   super-secteur) : son barème sectoriel peut être celui d'un secteur voisin.
@@ -70,4 +79,6 @@ taux de la BCE. Le classement a un filtre par pays.
   filings.xbrl.org) : il se fait en local, puis la base est recopiée vers Neon.
 - Un rapport en anglais, suédois ou italien est lu par le LLM comme les autres (les passages sont
   trouvés par le sens, ADR 0017) ; ses citations restent dans la langue du rapport.
+- Une erreur de balisage de l'émetteur passe telle quelle (Aedas Homes déclare comme capitaux
+  propres part du groupe un montant égal à son résultat : ROE de 58 %).
 - Ajouter un concept candidat à un indicateur demande de réimporter les rapports.

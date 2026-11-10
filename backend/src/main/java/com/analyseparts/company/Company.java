@@ -104,6 +104,11 @@ public class Company {
     /** Met à jour les infos de cotation venant d'Euronext. */
     /** Met à jour la cotation : nom, mnémonique, places, et code MIC du marché principal. */
     public void updateListing(String name, String ticker, String market, String mic) {
+        if (this.mic != null && !this.mic.equals(mic)) {
+            // changement de marché principal (Paris → Amsterdam pour ArcelorMittal) : la fiche lue
+            // sur l'ancienne place ne vaut plus, elle est relue au prochain passage
+            this.factsheetCheckedAt = null;
+        }
         this.name = name;
         this.ticker = ticker;
         this.market = market;

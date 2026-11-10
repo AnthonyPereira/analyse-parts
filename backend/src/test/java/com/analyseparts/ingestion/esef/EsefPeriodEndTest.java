@@ -39,4 +39,20 @@ class EsefPeriodEndTest {
         assertThat(EsefImportService.resolvePeriodEnd(HERMES, declared("2024-03-31"), facts))
                 .isEqualTo(LocalDate.of(2024, 3, 31));
     }
+
+    @Test
+    void aHalfYearReportIsInterim() {
+        LocalDate end = LocalDate.parse("2026-06-30");
+        var facts = List.of(flow(LocalDate.parse("2026-01-01"), end), flow(LocalDate.parse("2026-04-01"), end));
+        assertThat(EsefImportService.isInterim(facts, end)).isTrue();
+    }
+
+    @Test
+    void anAnnualReportIsNotInterim() {
+        LocalDate end = LocalDate.parse("2025-12-31");
+        // un rapport annuel peut aussi donner son dernier trimestre : c'est le plus long flux qui compte
+        var facts = List.of(flow(LocalDate.parse("2025-10-01"), end), flow(LocalDate.parse("2025-01-01"), end),
+                flow(LocalDate.parse("2024-01-01"), LocalDate.parse("2024-12-31")));
+        assertThat(EsefImportService.isInterim(facts, end)).isFalse();
+    }
 }

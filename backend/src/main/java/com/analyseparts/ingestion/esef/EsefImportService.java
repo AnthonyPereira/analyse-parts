@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 
@@ -37,6 +38,16 @@ public class EsefImportService {
     private static final Logger log = LoggerFactory.getLogger(EsefImportService.class);
     private static final int MAX_PERIOD_END_GAP_DAYS = 7;
 
+    /**
+     * Un exercice dure un an ; un rapport dont les chiffres de flux couvrent moins de 300 jours est
+     * un rapport trimestriel ou semestriel (déposé en ESEF par certaines sociétés nordiques, comme
+     * Maersk) : il ne donne pas un exercice comparable aux autres (ADR 0020).
+     */
+    static final int MIN_ANNUAL_DAYS = 300;
+
+    /** Rapports téléchargés au plus par société : 3 fois le nombre d'exercices voulus (intermédiaires compris). */
+    private static final int MAX_DOWNLOADS_FACTOR = 3;
+
     private final FilingsXbrlClient client;
     private final FinancialsService financials;
     private final CompanyRepository companies;
@@ -44,14 +55,16 @@ public class EsefImportService {
     /** Source complémentaire (null dans les tests qui ne la simulent pas). */
     private final AmfFilingsClient amf;
     private final SourceHealth health;
+    private final JdbcTemplate jdbc;
 
     @Autowired
     public EsefImportService(FilingsXbrlClient client, AmfFilingsClient amf, FinancialsService financials,
                              CompanyRepository companies,
                              @Value("${analyse-parts.esef.filings-per-company:3}") int filingsPerCompany,
                              @Value("${analyse-parts.amf.enabled:true}") boolean amfEnabled,
-                             SourceHealth health) {
+                             SourceHealth health, JdbcTemplate jdbc) {
         this.health = health;
+        this.jdbc = jdbc;
         this.client = client;
         this.amf = amfEnabled ? amf : null;
         this.financials = financials;
@@ -335,13 +348,23 @@ public class EsefImportService {
         int imported = 0, skipped = 0, factCount = 0, errors = 0;
         try {
             List<FilingInfo> selected = FilingSelector.select(
-                    client.listFilings(company.getLei()), company.getCountry(), filingsPerCompany);
+                    client.listFilings(company.getLei()), company.getCountry(), Integer.MAX_VALUE);
             tally.recordSuccess();
+            Set<String> interim = findInterimFilings(selected);
+            int annual = 0, downloads = 0;
             for (FilingInfo filing : selected) {
+                if (annual >= filingsPerCompany || downloads >= MAX_DOWNLOADS_FACTOR * filingsPerCompany) {
+                    break;
+                }
+                if (interim.contains(filing.fxoId())) {
+                    continue; // rapport trimestriel ou semestriel, déjà vu
+                }
                 if (financials.isImported(filing.fxoId()) || isKnown(known, LocalDate.parse(filing.periodEnd()))) {
+                    annual++;
                     skipped++; // déjà importé, ou exercice déjà fourni par l'AMF
                     continue;
                 }
+                downloads++;
                 try {
                     List<ReportedFact> facts = XbrlJsonParser.extractTotals(client.download(filing.jsonUrl()));
                     if (hasNoIfrsFacts(facts)) {
@@ -353,6 +376,13 @@ public class EsefImportService {
                     }
                     tally.recordSuccess();
                     LocalDate periodEnd = resolvePeriodEnd(company, filing, facts);
+                    if (isInterim(facts, periodEnd)) {
+                        markInterim(filing, periodEnd);
+                        log.info("ESEF {} {} : rapport intermédiaire, ignoré", company.getName(), periodEnd);
+                        skipped++;
+                        continue;
+                    }
+                    annual++;
                     if (isKnown(known, periodEnd)) {
                         skipped++;
                         continue;
@@ -376,6 +406,29 @@ public class EsefImportService {
             errors++;
         }
         return new ImportResult(1, imported, skipped, factCount, errors);
+    }
+
+    /** Vrai si le plus long des flux qui se terminent à la clôture dure moins de {@value MIN_ANNUAL_DAYS} jours. */
+    static boolean isInterim(List<ReportedFact> facts, LocalDate periodEnd) {
+        return facts.stream()
+                .filter(f -> !f.isInstant())
+                .filter(f -> Math.abs(ChronoUnit.DAYS.between(f.periodEnd(), periodEnd)) <= MAX_PERIOD_END_GAP_DAYS)
+                .mapToLong(f -> ChronoUnit.DAYS.between(f.periodStart(), f.periodEnd()))
+                .max()
+                .stream().anyMatch(days -> days < MIN_ANNUAL_DAYS);
+    }
+
+    private Set<String> findInterimFilings(List<FilingInfo> filings) {
+        if (filings.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(jdbc.queryForList("SELECT source_id FROM esef_interim_filing WHERE source_id = ANY(?)",
+                String.class, (Object) filings.stream().map(FilingInfo::fxoId).toArray(String[]::new)));
+    }
+
+    private void markInterim(FilingInfo filing, LocalDate periodEnd) {
+        jdbc.update("INSERT INTO esef_interim_filing (source_id, period_end) VALUES (?, ?) ON CONFLICT DO NOTHING",
+                filing.fxoId(), periodEnd);
     }
 
     /**
