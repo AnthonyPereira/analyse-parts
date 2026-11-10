@@ -226,7 +226,9 @@ public class EsefImportService {
         if (company.getLei() == null) {
             return new ImportResult(1, 0, 0, 0, 0);
         }
-        ImportResult amfResult = amf == null ? ImportResult.EMPTY : importFromAmf(company, checks.amf());
+        // seules les sociétés cotées à Paris déposent leurs rapports à l'AMF (ADR 0020)
+        ImportResult amfResult = amf == null || !"XPAR".equals(company.getMic())
+                ? ImportResult.EMPTY : importFromAmf(company, checks.amf());
         Set<LocalDate> known = new HashSet<>(financials.findPeriodEnds(company.getId()));
         ImportResult xbrlOrg = useFilingsXbrlOrg && needsComplement(known, LocalDate.now(), filingsPerCompany)
                 ? importFromFilingsXbrlOrg(company, known, checks.filingsXbrl()) : ImportResult.EMPTY;
@@ -235,8 +237,12 @@ public class EsefImportService {
                 xbrlOrg.errors() + amfResult.errors());
         if (total.errors() == 0) {
             // Tout s'est bien passé (y compris "aucun rapport") : pas de nouvel essai avant la date prévue
-            company.markEsefChecked(Instant.now());
-            companies.save(company);
+            // relue avant d'enregistrer : les téléchargements ont pris du temps, et une autre collecte
+            // (fiches, LEI) a pu modifier la société entre-temps
+            companies.findById(company.getId()).ifPresent(fresh -> {
+                fresh.markEsefChecked(Instant.now());
+                companies.save(fresh);
+            });
         }
         return total;
     }

@@ -65,7 +65,8 @@ public class FinancialsService {
     public void recordFiling(long companyId, FilingData filing, List<ReportedFact> reportedFacts) {
         FilingEntity saved = filings.save(new FilingEntity(companyId, filing.sourceId(), filing.periodEnd(),
                 filing.country(), filing.jsonUrl(), filing.errorCount(), reportedFacts.size()));
-        facts.insertAll(saved.getId(), reportedFacts);
+        // seuls les faits utiles aux indicateurs sont gardés ; le nombre total reste noté sur le rapport
+        facts.insertAll(saved.getId(), reportedFacts.stream().filter(f -> Metric.isUsed(f.concept())).toList());
         String isin = companies.findById(companyId).map(Company::getIsin).orElseThrow();
         events.publishEvent(new FilingRecorded(isin, companyId, filing.sourceId(), filing.periodEnd(),
                 reportedFacts.size(), Instant.now(clock)));

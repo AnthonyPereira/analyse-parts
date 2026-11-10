@@ -10,6 +10,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -77,6 +78,92 @@ public class FilingsXbrlClient {
             return List.of();
         }
         return response.data().stream().map(IndexItem::attributes).toList();
+    }
+
+    /**
+     * Un émetteur de l'index et la clôture de son rapport le plus récent.
+     *
+     * @param country pays déclaré dans l'index (celui de l'autorité de dépôt)
+     */
+    public record Issuer(String lei, String name, String country, String latestPeriodEnd) {
+    }
+
+    /**
+     * Tous les émetteurs de l'index (plus de 7 000, dont beaucoup n'ont que des obligations), par
+     * pages de 1 000 rapports : une trentaine de requêtes (ADR 0020).
+     */
+    public List<Issuer> listIssuers() {
+        Map<String, Issuer> byLei = new java.util.LinkedHashMap<>();
+        for (int page = 1; ; page++) {
+            int number = page;
+            IssuerPage response = call(() -> restClient.get()
+                    .uri(b -> b.path("/api/filings")
+                            .queryParam("page[size]", "1000")
+                            .queryParam("page[number]", number)
+                            .queryParam("include", "entity")
+                            .queryParam("fields[filing]", "country,period_end,entity")
+                            .build())
+                    .retrieve()
+                    .body(IssuerPage.class));
+            if (response == null || response.data() == null || response.data().isEmpty()) {
+                break;
+            }
+            Map<String, IssuerEntity> entities = new HashMap<>();
+            if (response.included() != null) {
+                response.included().forEach(e -> entities.put(e.id(), e));
+            }
+            for (IssuerFiling f : response.data()) {
+                IssuerEntity e = f.relationships() == null || f.relationships().entity() == null
+                        || f.relationships().entity().data() == null
+                        ? null : entities.get(f.relationships().entity().data().id());
+                if (e == null || e.attributes() == null || e.attributes().identifier() == null
+                        || f.attributes() == null || f.attributes().periodEnd() == null) {
+                    continue;
+                }
+                Issuer seen = byLei.get(e.attributes().identifier());
+                if (seen == null || seen.latestPeriodEnd().compareTo(f.attributes().periodEnd()) < 0) {
+                    byLei.put(e.attributes().identifier(), new Issuer(e.attributes().identifier(),
+                            e.attributes().name(), f.attributes().country(), f.attributes().periodEnd()));
+                }
+            }
+            if (response.data().size() < 1000) {
+                break;
+            }
+        }
+        log.info("Index ESEF : {} émetteurs", byLei.size());
+        return List.copyOf(byLei.values());
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IssuerPage(List<IssuerFiling> data, List<IssuerEntity> included) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IssuerFiling(IssuerFilingAttributes attributes, IssuerRelationships relationships) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IssuerFilingAttributes(String country, @JsonProperty("period_end") String periodEnd) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IssuerRelationships(IssuerLink entity) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IssuerLink(IssuerRef data) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IssuerRef(String id) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IssuerEntity(String id, IssuerEntityAttributes attributes) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IssuerEntityAttributes(String identifier, String name) {
     }
 
     /** Télécharge un rapport au format xBRL-JSON (souvent 5 à 25 Mo, à cause des annexes en texte). */

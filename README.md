@@ -1,8 +1,10 @@
 # Analyse Parts
 
-Analyse Parts note de 0 à 100 les sociétés cotées à Euronext Paris selon quatre profils
-d'investisseur (Qualité, Croissance, Dividende, Value) et explique chaque note ratio par ratio.
-Les chiffres viennent des rapports annuels officiels (format ESEF, déposés à l'AMF). Un modèle
+Analyse Parts note de 0 à 100 les sociétés cotées en Europe selon quatre profils d'investisseur
+(Qualité, Croissance, Dividende, Value) et explique chaque note ratio par ratio : les 7 places
+d'Euronext, et les autres places dont les rapports ESEF sont publiés (pays nordiques, Espagne,
+Royaume-Uni, Grèce, Autriche… pas l'Allemagne ; ADR 0020). Les chiffres viennent des rapports
+annuels officiels (format ESEF, déposés à l'AMF ou publiés sur filings.xbrl.org). Un modèle
 de langage local lit aussi les rapports pour résumer l'activité, les avantages et les risques ;
 cette lecture est affichée à côté de la note et n'entre jamais dans son calcul.
 
@@ -115,9 +117,10 @@ d'administration. Dans l'ordre, pour une base vide :
 
 ```bash
 API=http://localhost:8080/api/admin
-curl -X POST "$API/ingestion/euronext?mic=XPAR"         # ~330 sociétés de Paris ; les LEI (GLEIF) suivent seuls
+curl -X POST "$API/ingestion/euronext"                  # ~1 000 sociétés des 7 places Euronext (?mic=XPAR : Paris seule) ; les LEI (GLEIF) suivent seuls
 curl -X POST "$API/ingestion/factsheets"                # secteur ICB et nombre d'actions (fiches Euronext)
-curl -X POST "$API/ingestion/esef?limit=400"            # rapports annuels ESEF (AMF, puis filings.xbrl.org) : long
+curl -X POST "$API/ingestion/esef-issuers?limit=5000"   # sociétés des autres places, par leurs rapports ESEF : ~1 h 30
+curl -X POST "$API/ingestion/esef?limit=5000"          # rapports annuels ESEF (AMF, puis filings.xbrl.org) : une journée
 curl -X POST "$API/ingestion/prices"                    # derniers cours (Yahoo)
 curl -X POST "$API/ingestion/price-history?full=true"   # 5 ans de cours
 curl -X POST "$API/scoring/calibrate"                   # barèmes par secteur, à partir des sociétés notées
@@ -239,6 +242,7 @@ routes admin) et `SpaForwardController` (renvoie les adresses du site React vers
 | les barèmes adaptés au secteur | `scoring/core/SectorCalibration.java`, [ADR 0004](docs/adr/0004-baremes-par-secteur.md) |
 | quel concept XBRL donne quel indicateur | `financials/Metric.java` (concepts candidats, dans l'ordre), `MetricExtractor.java` |
 | le téléchargement des rapports ESEF | `ingestion/esef/` : `AmfFilingsClient`, `FilingsXbrlClient`, `EsefImportService` |
+| les places suivies et les sociétés hors Euronext | `ingestion/StockExchange`, `ingestion/esef/EsefIssuerImportService`, `YahooSectorMapping` (table `yahoo-icb.csv`) |
 | la lecture d'un rapport XBRL | `ingestion/esef/InlineXbrlParser.java` (paquet AMF), `XbrlJsonParser.java` (filings.xbrl.org) |
 | les cours de bourse | `ingestion/prices/` (Yahoo, BCE) et `market/` (stockage, SSE) |
 | la lecture d'un rapport par le LLM | `analysis/internal/ReportAnalyst.java` (consignes, lots, doublons), `PassageSearch.java` (embeddings), `Quotes.java` (vérification des citations) |
@@ -288,6 +292,6 @@ Les tests d'intégration démarrent un PostgreSQL jetable avec Testcontainers : 
 ## Documentation
 
 - [docs/adr](docs/adr/README.md) : les décisions d'architecture, de 0001 (monolithe modulaire) à
-  0019 (lecteur local branché sur la base en ligne).
+  0020 (sociétés de toute l'Europe).
 - [docs/ratios.md](docs/ratios.md) : chaque ratio expliqué, avec sa formule et sa lecture.
 - [frontend/README.md](frontend/README.md) : l'organisation du front.

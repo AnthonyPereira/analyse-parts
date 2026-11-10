@@ -573,8 +573,13 @@ export const GLOSSARY: Record<string, Entry> = {
     example: '400 € × 500 millions d\'actions = 200 milliards d\'euros.',
   },
   EURONEXT_PARIS: {
-    term: 'Cotation (Euronext Paris)', category: 'Bourse',
-    short: 'La bourse où l\'action s\'échange. Euronext Paris est la bourse française.',
+    term: 'Cotation (place de bourse)', category: 'Bourse',
+    short: 'La bourse où l\'action s\'échange : Euronext Paris pour la France, Stockholm pour la Suède, Londres pour le Royaume-Uni… Le cours est dans la monnaie de cette bourse.',
+    example: 'Volvo se négocie à Stockholm, en couronnes suédoises (SEK).',
+  },
+  COUNTRY: {
+    term: 'Pays', category: 'Bourse',
+    short: 'Le pays du siège de la société. Analyse Parts suit les sociétés européennes dont les rapports annuels officiels (ESEF) sont publiés en ligne : les 7 bourses d\'Euronext, les pays nordiques, l\'Espagne, le Royaume-Uni… mais pas l\'Allemagne, dont les rapports ne sont pas accessibles gratuitement.',
   },
 
   // ---------------------------------------------------------------- La société
@@ -646,7 +651,7 @@ export const GLOSSARY: Record<string, Entry> = {
   },
   STRIP: {
     term: 'Bande de comparaison', category: 'Lire les graphiques',
-    short: 'Chaque point est une société cotée à Paris, placée selon la valeur d\'un indicateur. Elle montre où se situe la société face aux autres.',
+    short: 'Chaque point est une société suivie, placée selon la valeur d\'un indicateur. Elle montre où se situe la société face aux autres.',
     read: 'Gros point orange : la société. Points bleus : son secteur. Points gris : tout le marché. Trait vertical : la médiane du marché. « mieux » et « moins bien » indiquent le bon sens de lecture.',
     watch: 'Les valeurs les plus extrêmes sont ramenées au bord de la bande, sinon une seule société hors norme écraserait toutes les autres.',
   },

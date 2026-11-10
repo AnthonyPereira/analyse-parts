@@ -68,6 +68,8 @@ export interface RankingEntry {
   isin: string
   name: string
   ticker: string
+  /** Pays du siège, code ISO à 2 lettres (FR, SE…). */
+  country: string | null
   sector: string | null
   score: number | null
   coverage: number

@@ -5,7 +5,7 @@ import { ProfileScatter, ScoreHistogram } from '../charts/MarketCharts'
 import { FreshnessBadge, PointsBar, ScoreBadge } from '../components/Badges'
 import { parseProfile, ProfileTabs } from '../components/ProfileTabs'
 import { HowToRead, Term } from '../components/Term'
-import { formatDate, formatPercent } from '../format'
+import { formatCountry, formatDate, formatPercent } from '../format'
 
 /** Le classement (« screener ») : toutes les sociétés notées selon le profil choisi. */
 export function RankingPage() {
@@ -16,13 +16,20 @@ export function RankingPage() {
   const { data: universe } = useUniverse()
   const { data: profiles } = useProfiles()
   const [sector, setSector] = useState('')
+  const [country, setCountry] = useState('')
   const [showUnscored, setShowUnscored] = useState(false)
 
   const sectors = useMemo(
     () => [...new Set((ranking ?? []).map(r => r.sector).filter((s): s is string => s !== null))].sort(),
     [ranking])
 
-  const inSector = (ranking ?? []).filter(r => sector === '' || r.sector === sector)
+  const countries = useMemo(
+    () => [...new Set((ranking ?? []).map(r => r.country).filter((c): c is string => c !== null))]
+      .sort((a, b) => formatCountry(a).localeCompare(formatCountry(b), 'fr')),
+    [ranking])
+
+  const inSector = (ranking ?? []).filter(r => (sector === '' || r.sector === sector)
+    && (country === '' || r.country === country))
   const scored = inSector.filter(r => r.score !== null)
   const unscored = inSector.filter(r => r.score === null)
 
@@ -31,7 +38,8 @@ export function RankingPage() {
       <h1>Classement</h1>
       <HowToRead title="Comment lire ce classement ?">
         <p>
-          Toutes les sociétés cotées à Paris dont on a les comptes, de la mieux à la moins bien notée. La note (le{' '}
+          Les sociétés cotées en Europe dont on a les comptes, de la mieux à la moins bien notée : celles des 7 places
+          d'Euronext, et celles des autres places dont les rapports annuels officiels sont publiés en ligne (pas l'Allemagne).{' '} La note (le{' '}
           <Term id="SCORE">score</Term>, sur 100) dit à quel point la société correspond au{' '}
           <Term id="PROFILE">profil</Term> choisi dans les onglets ci-dessous : ce n'est pas une prévision du cours.
         </p>
@@ -59,6 +67,13 @@ export function RankingPage() {
           <select value={sector} onChange={e => setSector(e.target.value)}>
             <option value="">Tous les secteurs</option>
             {sectors.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label>
+          <Term id="COUNTRY">Pays</Term>{' '}
+          <select value={country} onChange={e => setCountry(e.target.value)}>
+            <option value="">Toute l'Europe</option>
+            {countries.map(c => <option key={c} value={c}>{formatCountry(c)}</option>)}
           </select>
         </label>
         {ranking && <span className="muted">{scored.length} sociétés notées</span>}

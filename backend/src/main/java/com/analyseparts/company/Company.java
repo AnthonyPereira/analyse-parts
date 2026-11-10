@@ -102,10 +102,12 @@ public class Company {
     }
 
     /** Met à jour les infos de cotation venant d'Euronext. */
-    public void updateListing(String name, String ticker, String market) {
+    /** Met à jour la cotation : nom, mnémonique, places, et code MIC du marché principal. */
+    public void updateListing(String name, String ticker, String market, String mic) {
         this.name = name;
         this.ticker = ticker;
         this.market = market;
+        this.mic = mic;
     }
 
     /** Enregistre le résultat d'une recherche GLEIF. */
@@ -122,7 +124,6 @@ public class Company {
         this.leiCheckedAt = checkedAt;
     }
 
-    /** L'index ESEF a été consulté avec succès (rapports importés, ou aucun rapport existant). */
     /** Enregistre la fiche Euronext (secteur et nombre d'actions ; null si absent de la fiche). */
     public void applyFactsheet(Icb icb, Long sharesAdmitted, Instant checkedAt) {
         if (icb != null) {
@@ -138,6 +139,12 @@ public class Company {
         this.factsheetCheckedAt = checkedAt;
     }
 
+    /** Le secteur d'une société hors Euronext, déduit de celui de Yahoo (ADR 0020). */
+    public void applySector(Icb icb) {
+        applyFactsheet(icb, null, factsheetCheckedAt);
+    }
+
+    /** L'index ESEF a été consulté avec succès (rapports importés, ou aucun rapport existant). */
     public void markEsefChecked(Instant checkedAt) {
         this.esefCheckedAt = checkedAt;
     }

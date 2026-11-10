@@ -81,8 +81,10 @@ public class ScoringService {
     }
 
     /** Une ligne du classement. */
-    public record RankingEntry(String isin, String name, String ticker, String sector, Integer score, double coverage,
-                               LocalDate fiscalYearEnd, Freshness freshness, Map<RatioFamily, Integer> familyScore) {
+    /** @param country pays du siège (code ISO à 2 lettres, d'après GLEIF), pour filtrer le classement */
+    public record RankingEntry(String isin, String name, String ticker, String country, String sector, Integer score,
+                               double coverage, LocalDate fiscalYearEnd, Freshness freshness,
+                               Map<RatioFamily, Integer> familyScore) {
     }
 
     public Optional<CompanyScore> score(String isin, Profile profile) {
@@ -108,7 +110,7 @@ public class ScoringService {
         return findScoredCompanies().stream()
                 .map(c -> {
                     Score s = score(c, computeRatios(c), weightsOf.apply(c));
-                    return new RankingEntry(c.getIsin(), c.getName(), c.getTicker(),
+                    return new RankingEntry(c.getIsin(), c.getName(), c.getTicker(), c.getCountry(),
                             c.getIcb().map(Icb::supersector).orElse(null), s.score(), s.coverage(),
                             s.fiscalYearEnd(), s.freshness(), s.familyScore());
                 })

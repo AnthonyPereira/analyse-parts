@@ -133,4 +133,21 @@ public enum Metric {
     public List<String> getConcepts() {
         return concepts;
     }
+
+    /**
+     * Vrai si au moins un indicateur peut utiliser ce concept. Les autres faits d'un rapport (plus de
+     * 10 000 concepts différents sur la cote) ne sont pas gardés : ils prendraient l'essentiel de la
+     * place en base sans servir (ADR 0020). Ajouter un concept candidat demande donc de réimporter
+     * les rapports (POST /api/admin/ingestion/esef/refresh).
+     */
+    public static boolean isUsed(String concept) {
+        for (Metric metric : values()) {
+            for (String candidate : metric.concepts) {
+                if (MetricExtractor.matchesConcept(concept, candidate)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }

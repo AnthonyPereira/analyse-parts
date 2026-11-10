@@ -1,5 +1,6 @@
 package com.analyseparts.ingestion.prices;
 
+import com.analyseparts.ingestion.StockExchange;
 import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.ingestion.SourceHealth;
@@ -51,12 +52,6 @@ public class QuoteRefreshService {
     private static final LocalTime OPEN = LocalTime.of(9, 0);
     /** Clôture à 17 h 30, fixing jusqu'à 17 h 35, et ~15 min de différé chez Yahoo. */
     private static final LocalTime LAST_UPDATE = LocalTime.of(17, 55);
-
-    /** Pour chaque code MIC : suffixe du symbole Yahoo et code de place renvoyé par Yahoo. */
-    record YahooMarket(String suffix, String exchange) {
-    }
-
-    private static final Map<String, YahooMarket> YAHOO_MARKETS = Map.of("XPAR", new YahooMarket(".PA", "PAR"));
 
     private final YahooQuoteClient yahoo;
     private final EcbFxClient ecb;
@@ -125,7 +120,7 @@ public class QuoteRefreshService {
                     received++;
                     Company company = bySymbol.get(q.symbol());
                     // On vérifie la place de cotation : un même mnémonique peut exister ailleurs.
-                    if (company != null && YAHOO_MARKETS.get(company.getMic()).exchange().equals(q.exchange())) {
+                    if (company != null && isOnItsMarket(company, q.exchange())) {
                         quotes.add(new Quote(company.getId(), q.price(), q.currency(), q.marketTime(), "YAHOO",
                                 q.previousClose()));
                     }
@@ -163,7 +158,7 @@ public class QuoteRefreshService {
             String range = full || !latest.containsKey(company.getId()) ? "5y" : "5d";
             try {
                 Optional<YahooChart> chart = yahoo.fetchChart(e.getKey(), range, "1d");
-                if (chart.isPresent() && YAHOO_MARKETS.get(company.getMic()).exchange().equals(chart.get().exchange())) {
+                if (chart.isPresent() && isOnItsMarket(company, chart.get().exchange())) {
                     List<PricePoint.Close> points = chart.get().points().stream()
                             .map(p -> new PricePoint.Close(LocalDate.ofInstant(p.time(), PARIS), p.close(), p.volume()))
                             .collect(Collectors.toMap(PricePoint.Close::day, Function.identity(), (a, b) -> b,
@@ -191,6 +186,8 @@ public class QuoteRefreshService {
             }
         }
         health.report(Source.YAHOO_HISTORY, tally);
+        int removed = market.thinOldCloses();
+        log.info("Historique des cours : {} clôtures quotidiennes de plus d'un an remplacées par une par semaine", removed);
         HistoryResult result = new HistoryResult(done, closes, errors);
         log.info("Historique des cours : {}", result);
         return result;
@@ -198,7 +195,7 @@ public class QuoteRefreshService {
 
     /** La séance du jour d'une société (pour le graphique « 1 jour »). */
     Optional<YahooChart> fetchIntraday(Company company) {
-        if (company.getTicker() == null || !YAHOO_MARKETS.containsKey(company.getMic())) {
+        if (company.getTicker() == null || StockExchange.findByMic(company.getMic()).isEmpty()) {
             return Optional.empty();
         }
         return yahoo.fetchChart(toYahooSymbol(company), "1d", "5m");
@@ -228,11 +225,17 @@ public class QuoteRefreshService {
 
     private Map<String, Company> findYahooCompanies() {
         return companies.findAll().stream()
-                .filter(c -> c.getTicker() != null && YAHOO_MARKETS.containsKey(c.getMic()))
+                .filter(c -> c.getTicker() != null && StockExchange.findByMic(c.getMic()).isPresent())
                 .collect(Collectors.toMap(QuoteRefreshService::toYahooSymbol, Function.identity(), (a, _) -> a));
     }
 
+    /** La place renvoyée par Yahoo est celle de la société : un même mnémonique existe ailleurs. */
+    static boolean isOnItsMarket(Company company, String yahooExchange) {
+        return StockExchange.findByMic(company.getMic()).map(m -> m.getYahooExchange().equals(yahooExchange))
+                .orElse(false);
+    }
+
     static String toYahooSymbol(Company company) {
-        return company.getTicker() + YAHOO_MARKETS.get(company.getMic()).suffix();
+        return company.getTicker() + StockExchange.findByMic(company.getMic()).orElseThrow().getYahooSuffix();
     }
 }

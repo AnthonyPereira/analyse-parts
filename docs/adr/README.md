@@ -30,3 +30,4 @@ Règles :
 | [0017](0017-embeddings-snowflake-arctic-embed2.md) | Embeddings : snowflake-arctic-embed2, recherches précédées de « query: » (18 % de passages utiles en plus que bge-m3, mesuré sur 7 rapports) | Acceptée |
 | [0018](0018-points-classes-par-importance.md) | Points de la lecture des rapports classés par importance, par un dernier appel au modèle par thème ; lectures existantes classées sans relecture | Acceptée |
 | [0019](0019-lecteur-local-branche-sur-la-base-en-ligne.md) | Lecteur local (profil reader) : le PC avec Ollama lit les rapports pas encore lus et écrit dans la base en ligne, par paquets | Acceptée |
+| [0020](0020-societes-de-toute-l-europe.md) | Toute l'Europe : 7 marchés Euronext, autres places par les émetteurs ESEF (GLEIF + Yahoo), secteur Yahoo traduit en ICB, base allégée (V17) | Acceptée |

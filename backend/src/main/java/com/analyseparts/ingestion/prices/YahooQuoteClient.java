@@ -90,8 +90,9 @@ public class YahooQuoteClient {
                 .filter(r -> r.response() != null && !r.response().isEmpty())
                 .map(r -> r.response().getFirst().meta())
                 .filter(m -> m != null && m.regularMarketPrice() != null && m.regularMarketTime() != null)
-                .map(m -> new YahooQuote(m.symbol(), m.regularMarketPrice(), m.currency(), m.exchangeName(),
-                        Instant.ofEpochSecond(m.regularMarketTime()), m.resolvePreviousClose()))
+                .map(m -> new YahooQuote(m.symbol(), toMainUnit(m.regularMarketPrice(), m.currency()),
+                        toMainCurrency(m.currency()), m.exchangeName(), Instant.ofEpochSecond(m.regularMarketTime()),
+                        toMainUnit(m.resolvePreviousClose(), m.currency())))
                 .toList();
         return new SparkBatch(response.spark().result().size(), usable);
     }
@@ -118,7 +119,8 @@ public class YahooQuoteClient {
                 BigDecimal close = getOrNull(q.close(), i);
                 if (close != null) { // pas d'échange sur ce créneau
                     Long volume = getOrNull(q.volume(), i);
-                    points.add(new YahooChart.Point(Instant.ofEpochSecond(r.timestamp().get(i)), close, volume));
+                    points.add(new YahooChart.Point(Instant.ofEpochSecond(r.timestamp().get(i)),
+                            toMainUnit(close, r.meta() == null ? null : r.meta().currency()), volume));
                 }
             }
         }
@@ -127,7 +129,24 @@ public class YahooQuoteClient {
             // la réponse ne ressemble plus à ce qu'on attend : une erreur claire plutôt qu'un NullPointerException
             throw new IllegalStateException("réponse Yahoo inattendue pour " + symbol + " (bloc meta absent)");
         }
-        return Optional.of(new YahooChart(m.symbol(), m.currency(), m.exchangeName(), m.resolvePreviousClose(), points));
+        return Optional.of(new YahooChart(m.symbol(), toMainCurrency(m.currency()), m.exchangeName(),
+                toMainUnit(m.resolvePreviousClose(), m.currency()), points));
+    }
+
+    /**
+     * Londres cote en pence (« GBp » chez Yahoo, parfois « GBX ») : 3 500 pence = 35 livres. Les cours
+     * sont ramenés en livres, la devise des rapports et des taux de la BCE (ADR 0020).
+     */
+    static BigDecimal toMainUnit(BigDecimal value, String currency) {
+        return value != null && isPence(currency) ? value.movePointLeft(2) : value;
+    }
+
+    static String toMainCurrency(String currency) {
+        return isPence(currency) ? "GBP" : currency;
+    }
+
+    private static boolean isPence(String currency) {
+        return "GBp".equals(currency) || "GBX".equalsIgnoreCase(currency);
     }
 
     private static <T> T getOrNull(List<T> values, int i) {
@@ -136,6 +155,32 @@ public class YahooQuoteClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record SparkResponse(Spark spark) {
+    }
+
+    /**
+     * Un titre trouvé par la recherche de Yahoo.
+     *
+     * @param exchange  code de place Yahoo (STO pour Stockholm)
+     * @param quoteType EQUITY pour une action ; aussi ETF, FUTURE…
+     * @param sector    secteur selon Yahoo (« Industrials »), absent hors actions
+     * @param industry  sous-secteur selon Yahoo (« Farm & Heavy Construction Machinery »)
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record YahooListing(String symbol, String exchange, String quoteType, String sector, String industry,
+                               String longname, String exchDisp) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record SearchResponse(List<YahooListing> quotes) {
+    }
+
+    /** Les titres que Yahoo associe à un code ISIN (souvent un seul : la cotation principale). */
+    public List<YahooListing> searchByIsin(String isin) {
+        SearchResponse response = http.get()
+                .uri("/v1/finance/search?q={isin}&quotesCount=5&newsCount=0", isin)
+                .retrieve()
+                .body(SearchResponse.class);
+        return response == null || response.quotes() == null ? List.of() : response.quotes();
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

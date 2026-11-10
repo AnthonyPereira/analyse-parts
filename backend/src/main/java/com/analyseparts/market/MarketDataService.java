@@ -59,6 +59,15 @@ public class MarketDataService {
         return repository.upsertCloses(companyId, closes);
     }
 
+    /**
+     * Au-delà d'un an, ne garde que la dernière clôture de chaque semaine et de chaque mois (celle-ci
+     * donne le cours exact à la clôture des exercices) : 5 ans de cours prennent ainsi 2,5 fois moins
+     * de place (ADR 0020). Renvoie le nombre de clôtures supprimées.
+     */
+    public int thinOldCloses() {
+        return repository.thinCloses(LocalDate.now(java.time.ZoneId.of("Europe/Paris")).minusYears(1));
+    }
+
     /** Clôtures quotidiennes depuis {@code from}, de la plus ancienne à la plus récente. */
     public List<PricePoint.Close> findCloses(long companyId, LocalDate from) {
         return repository.findCloses(companyId, from);

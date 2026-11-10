@@ -100,3 +100,14 @@ export function scoreTone(score: number | null): 'good' | 'mid' | 'bad' | 'none'
   if (score >= 40) return 'mid'
   return 'bad'
 }
+
+const COUNTRY_NAMES = new Intl.DisplayNames(['fr'], { type: 'region' })
+
+/** Le nom d'un pays en français à partir de son code ISO : « SE » → « Suède ». */
+export function formatCountry(code: string): string {
+  try {
+    return COUNTRY_NAMES.of(code) ?? code
+  } catch {
+    return code // code inconnu
+  }
+}

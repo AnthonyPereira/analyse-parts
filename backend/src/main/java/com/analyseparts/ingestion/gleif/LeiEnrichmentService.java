@@ -57,10 +57,16 @@ public class LeiEnrichmentService {
 
     public EnrichmentResult enrichMissingLeis() {
         int checked = 0, found = 0, notFound = 0, duplicates = 0, errors = 0;
-        for (Company company : companies.findByLeiCheckedAtIsNullOrderByName()) {
+        for (Company listed : companies.findByLeiCheckedAtIsNullOrderByName()) {
             checked++;
             try {
-                var record = gleif.findByIsin(company.getIsin());
+                var record = gleif.findByIsin(listed.getIsin());
+                // relue juste avant d'enregistrer : la liste date du début, et une autre collecte (fiches
+                // Euronext) a pu modifier la société depuis ; l'enregistrer telle quelle effacerait ses changements
+                Company company = companies.findById(listed.getId()).orElse(null);
+                if (company == null) {
+                    continue;
+                }
                 Instant now = Instant.now();
                 if (record.isEmpty()) {
                     company.markLeiChecked(now);
@@ -79,7 +85,7 @@ public class LeiEnrichmentService {
                 companies.save(company);
             } catch (RestClientException e) {
                 // On ne marque pas la société : elle sera retentée au prochain passage.
-                log.warn("GLEIF en erreur pour {} : {}", company.getIsin(), e.getMessage());
+                log.warn("GLEIF en erreur pour {} : {}", listed.getIsin(), e.getMessage());
                 errors++;
             }
             sleep();

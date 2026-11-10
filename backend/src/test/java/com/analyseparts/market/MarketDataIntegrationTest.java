@@ -64,4 +64,27 @@ class MarketDataIntegrationTest {
         assertThat(market.findCloseOn(id, LocalDate.of(2024, 12, 31))).isEmpty();
         assertThat(market.findCloses(id, LocalDate.of(2025, 12, 31))).hasSize(2);
     }
+
+    /**
+     * Au-delà d'un an, la dernière clôture de chaque semaine et de chaque mois (ADR 0020) ; la dernière
+     * année reste quotidienne.
+     */
+    @Test
+    void oldClosesAreThinnedToTheLastOfEachWeekAndMonth() {
+        long id = companies.save(new Company("FR0000000004", "SEMAINE SA", "SEM", "FR", "Euronext Paris")).getId();
+        LocalDate oldMonday = LocalDate.of(2024, 7, 29); // semaine du mercredi 31 juillet, fin de mois
+        LocalDate recentMonday = LocalDate.now().minusWeeks(2).with(java.time.DayOfWeek.MONDAY);
+        List<PricePoint.Close> closes = new java.util.ArrayList<>();
+        for (int d = 0; d < 5; d++) {
+            closes.add(new PricePoint.Close(oldMonday.plusDays(d), new BigDecimal(10 + d), null));
+            closes.add(new PricePoint.Close(recentMonday.plusDays(d), new BigDecimal(20 + d), null));
+        }
+        market.recordCloses(id, closes);
+
+        assertThat(market.thinOldCloses()).isGreaterThanOrEqualTo(3);
+        List<PricePoint.Close> kept = market.findCloses(id, oldMonday);
+        assertThat(kept).hasSize(7);
+        assertThat(kept.get(0).day()).isEqualTo(LocalDate.of(2024, 7, 31)); // fin de mois : clôture d'exercice possible
+        assertThat(kept.get(1).day()).isEqualTo(LocalDate.of(2024, 8, 2)); // fin de semaine
+    }
 }

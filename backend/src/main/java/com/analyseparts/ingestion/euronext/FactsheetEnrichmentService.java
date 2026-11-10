@@ -1,5 +1,6 @@
 package com.analyseparts.ingestion.euronext;
 
+import com.analyseparts.ingestion.StockExchange;
 import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.company.Icb;
@@ -52,15 +53,24 @@ public class FactsheetEnrichmentService {
     public EnrichmentResult enrichDue() {
         List<Company> due = companies.findByFactsheetCheckedAtIsNullOrFactsheetCheckedAtBeforeOrderByName(
                 Instant.now().minus(REFRESH_AFTER));
+        // seules les places d'Euronext ont une fiche ; les autres sociétés ont leur secteur par Yahoo
+        due = due.stream().filter(c -> StockExchange.findByMic(c.getMic()).map(StockExchange::isEuronext).orElse(false))
+                .toList();
         log.info("Fiches Euronext : {} sociétés à lire", due.size());
         int sector = 0, shares = 0, errors = 0;
         SourceHealth.Tally tally = new SourceHealth.Tally();
-        for (Company company : due) {
+        for (Company listed : due) {
             try {
-                Icb icb = EuronextFactsheetParser.parseIcb(client.fetchBlock(company.getIsin(), company.getMic(), "fs_icb_block"))
+                Icb icb = EuronextFactsheetParser.parseIcb(client.fetchBlock(listed.getIsin(), listed.getMic(), "fs_icb_block"))
                         .orElse(null);
                 Long admitted = EuronextFactsheetParser.parseAdmittedShares(
-                        client.fetchBlock(company.getIsin(), company.getMic(), "fs_tradinginfo_block")).orElse(null);
+                        client.fetchBlock(listed.getIsin(), listed.getMic(), "fs_tradinginfo_block")).orElse(null);
+                // relue juste avant d'enregistrer : la liste date du début, et la recherche des LEI a pu
+                // modifier la société depuis ; l'enregistrer telle quelle effacerait ses changements
+                Company company = companies.findById(listed.getId()).orElse(null);
+                if (company == null) {
+                    continue;
+                }
                 company.applyFactsheet(icb, admitted, Instant.now());
                 companies.save(company);
                 if (icb != null) sector++;
@@ -73,7 +83,7 @@ public class FactsheetEnrichmentService {
                     tally.recordSuccess();
                 }
             } catch (RestClientException e) {
-                log.warn("Fiche Euronext {} : {}", company.getName(), e.getMessage());
+                log.warn("Fiche Euronext {} : {}", listed.getName(), e.getMessage());
                 tally.fail("fiche Euronext indisponible : " + e.getMessage());
                 errors++;
             }

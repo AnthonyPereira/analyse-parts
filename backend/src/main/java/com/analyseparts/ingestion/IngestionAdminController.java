@@ -1,6 +1,8 @@
 package com.analyseparts.ingestion;
 
+import java.util.List;
 import com.analyseparts.ingestion.esef.EsefImportService;
+import com.analyseparts.ingestion.esef.EsefIssuerImportService;
 import com.analyseparts.ingestion.euronext.EuronextImportService;
 import com.analyseparts.ingestion.euronext.FactsheetEnrichmentService;
 import com.analyseparts.ingestion.euronext.EuronextImportService.ImportResult;
@@ -24,10 +26,12 @@ public class IngestionAdminController {
     private final EsefImportService esefImport;
     private final FactsheetEnrichmentService factsheets;
     private final QuoteRefreshService prices;
+    private final EsefIssuerImportService issuers;
 
     public IngestionAdminController(EuronextImportService euronextImport, LeiEnrichmentService leiEnrichment,
                                     EsefImportService esefImport, FactsheetEnrichmentService factsheets,
-                                    QuoteRefreshService prices) {
+                                    QuoteRefreshService prices, EsefIssuerImportService issuers) {
+        this.issuers = issuers;
         this.prices = prices;
         this.factsheets = factsheets;
         this.euronextImport = euronextImport;
@@ -35,10 +39,27 @@ public class IngestionAdminController {
         this.esefImport = esefImport;
     }
 
-    /** Ex. : POST /api/admin/ingestion/euronext?mic=XPAR */
+    /**
+     * Sociétés cotées hors Euronext, trouvées par leur rapport ESEF puis chez Yahoo (ADR 0020).
+     * Ex. : POST /api/admin/ingestion/esef-issuers?limit=100 (environ 3 s par émetteur examiné).
+     */
+    @PostMapping("/esef-issuers")
+    public EsefIssuerImportService.IssuerImportResult importEsefIssuers(
+            @RequestParam(defaultValue = "100") int limit) {
+        return issuers.importIssuers(limit);
+    }
+
+    /** Ex. : POST /api/admin/ingestion/euronext?mic=XPAR ; sans paramètre, les 7 marchés (ADR 0020). */
     @PostMapping("/euronext")
-    public ImportResult importEuronext(@RequestParam(defaultValue = "XPAR") String mic) {
-        return euronextImport.importMarket(mic);
+    public List<ImportResult> importEuronext(@RequestParam(required = false) String mic) {
+        if (mic == null || mic.isBlank()) {
+            return euronextImport.importAllMarkets();
+        }
+        if (StockExchange.findByMic(mic).isEmpty()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Marché non importé : " + mic);
+        }
+        return List.of(euronextImport.importMarket(mic));
     }
 
     /** Cours (Yahoo) et taux de change (BCE). Aussi lancés automatiquement pendant la séance. */

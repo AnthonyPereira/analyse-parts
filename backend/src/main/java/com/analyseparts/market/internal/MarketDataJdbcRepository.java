@@ -90,6 +90,18 @@ public class MarketDataJdbcRepository {
         return closes.size();
     }
 
+    /** Avant {@code before}, supprime les clôtures qui ne sont ni la dernière de leur semaine, ni celle de leur mois. */
+    public int thinCloses(LocalDate before) {
+        return jdbc.update("""
+                DELETE FROM price_history p
+                 USING (SELECT company_id, day,
+                               row_number() OVER (PARTITION BY company_id, date_trunc('week', day) ORDER BY day DESC) AS in_week,
+                               row_number() OVER (PARTITION BY company_id, date_trunc('month', day) ORDER BY day DESC) AS in_month
+                          FROM price_history WHERE day < ?) old
+                 WHERE p.company_id = old.company_id AND p.day = old.day AND old.in_week > 1 AND old.in_month > 1
+                """, Date.valueOf(before));
+    }
+
     /** Clôtures depuis {@code from} inclus, de la plus ancienne à la plus récente. */
     public List<PricePoint.Close> findCloses(long companyId, LocalDate from) {
         return jdbc.query("""

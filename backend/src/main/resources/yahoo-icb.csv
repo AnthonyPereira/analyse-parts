@@ -1,0 +1,126 @@
+# secteur Yahoo;sous-secteur Yahoo;code ICB;industrie;super-secteur;secteur;sous-secteur
+# Construite le 10 novembre 2026 à partir de 945 sociétés d'Euronext (ADR 0020). « * » : tout le secteur Yahoo.
+Basic Materials;*;55201020;Basic Materials;Chemicals;Chemicals;Specialty Chemicals
+Communication Services;*;40301030;Consumer Discretionary;Media;Media;Publishing
+Consumer Cyclical;*;40204020;Consumer Discretionary;Consumer Products and Services;Personal Goods;Clothing and Accessories
+Consumer Defensive;*;45102020;Consumer Staples;Food, Beverage and Tobacco;Food Producers;Food Products
+Energy;*;60101030;Energy;Energy;Oil, Gas and Coal;Oil Equipment and Services
+Financial Services;*;30202010;Financials;Financial Services;Investment Banking and Brokerage Services;Asset Managers and Custodians
+Healthcare;*;20103010;Health Care;Health Care;Pharmaceuticals and Biotechnology;Biotechnology
+Industrials;*;50206030;Industrials;Industrial Goods and Services;Industrial Transportation;Marine Transportation
+Real Estate;*;35101010;Real Estate;Real Estate;Real Estate Investment and Services;Real Estate Holding and Development
+Technology;*;10101010;Technology;Technology;Software and Computer Services;Computer Services
+Utilities;*;65101010;Utilities;Utilities;Electricity;Alternative Electricity
+Communication Services;Advertising Agencies;40301020;Consumer Discretionary;Media;Media;Media Agencies
+Industrials;Aerospace & Defense;50201020;Industrials;Industrial Goods and Services;Aerospace and Defense;Defense
+Basic Materials;Agricultural Inputs;55201015;Basic Materials;Chemicals;Chemicals;Fertilizers
+Industrials;Airlines;40501010;Consumer Discretionary;Travel and Leisure;Travel and Leisure;Airlines
+Industrials;Airports & Air Services;50206060;Industrials;Industrial Goods and Services;Industrial Transportation;Transportation Services
+Basic Materials;Aluminum;55102035;Basic Materials;Basic Resources;Industrial Metals and Mining;Aluminum
+Consumer Cyclical;Apparel Manufacturing;40204020;Consumer Discretionary;Consumer Products and Services;Personal Goods;Clothing and Accessories
+Consumer Cyclical;Apparel Retail;40401020;Consumer Discretionary;Retail;Retailers;Apparel Retailers
+Financial Services;Asset Management;30202010;Financials;Financial Services;Investment Banking and Brokerage Services;Asset Managers and Custodians
+Consumer Cyclical;Auto & Truck Dealerships;40401030;Consumer Discretionary;Retail;Retailers;Specialty Retailers
+Consumer Cyclical;Auto Manufacturers;40101020;Consumer Discretionary;Automobiles and Parts;Automobiles and Parts;Automobiles
+Consumer Cyclical;Auto Parts;40101025;Consumer Discretionary;Automobiles and Parts;Automobiles and Parts;Auto Parts
+Financial Services;Banks—Diversified;30101010;Financials;Banks;Banks;Banks
+Financial Services;Banks—Regional;30101010;Financials;Banks;Banks;Banks
+Consumer Defensive;Beverages—Brewers;45101010;Consumer Staples;Food, Beverage and Tobacco;Beverages;Brewers
+Consumer Defensive;Beverages—Non-Alcoholic;45101020;Consumer Staples;Food, Beverage and Tobacco;Beverages;Soft Drinks
+Consumer Defensive;Beverages—Wineries & Distilleries;45101015;Consumer Staples;Food, Beverage and Tobacco;Beverages;Distillers and Vintners
+Healthcare;Biotechnology;20103010;Health Care;Health Care;Pharmaceuticals and Biotechnology;Biotechnology
+Communication Services;Broadcasting;40301035;Consumer Discretionary;Media;Media;Radio and TV Broadcasters
+Basic Materials;Building Materials;50101030;Industrials;Construction and Materials;Construction and Materials;Cement
+Industrials;Building Products & Equipment;50101035;Industrials;Construction and Materials;Construction and Materials;Building Materials: Other
+Financial Services;Capital Markets;30202015;Financials;Financial Services;Investment Banking and Brokerage Services;Investment Services
+Basic Materials;Chemicals;55201020;Basic Materials;Chemicals;Chemicals;Specialty Chemicals
+Technology;Communication Equipment;15101010;Telecommunications;Telecommunications;Telecommunications Equipment;Telecommunications Equipment
+Technology;Computer Hardware;10102030;Technology;Technology;Technology Hardware and Equipment;Computer Hardware
+Technology;Consumer Electronics;40203040;Consumer Discretionary;Consumer Products and Services;Leisure Goods;Electronic Entertainment
+Basic Materials;Copper;55102050;Basic Materials;Basic Resources;Industrial Metals and Mining;Nonferrous Metals
+Financial Services;Credit Services;30201020;Financials;Financial Services;Finance and Credit Services;Consumer Lending
+Healthcare;Diagnostics & Research;20102010;Health Care;Health Care;Medical Equipment and Services;Medical Equipment
+Healthcare;Drug Manufacturers—General;20103015;Health Care;Health Care;Pharmaceuticals and Biotechnology;Pharmaceuticals
+Healthcare;Drug Manufacturers—Specialty & Generic;20103015;Health Care;Health Care;Pharmaceuticals and Biotechnology;Pharmaceuticals
+Industrials;Electrical Equipment & Parts;50202010;Industrials;Industrial Goods and Services;Electronic and Electrical Equipment;Electrical Components
+Technology;Electronic Components;50202040;Industrials;Industrial Goods and Services;Electronic and Electrical Equipment;Electronic Equipment: Other
+Communication Services;Electronic Gaming & Multimedia;40203040;Consumer Discretionary;Consumer Products and Services;Leisure Goods;Electronic Entertainment
+Industrials;Engineering & Construction;50101010;Industrials;Construction and Materials;Construction and Materials;Construction
+Communication Services;Entertainment;40301010;Consumer Discretionary;Media;Media;Entertainment
+Industrials;Farm & Heavy Construction Machinery;50204000;Industrials;Industrial Goods and Services;Industrial Engineering;Machinery: Industrial
+Consumer Defensive;Farm Products;45102010;Consumer Staples;Food, Beverage and Tobacco;Food Producers;Farming, Fishing, Ranching and Plantations
+Financial Services;Financial Conglomerates;30301010;Financials;Insurance;Life Insurance;Life Insurance
+Financial Services;Financial Data & Stock Exchanges;30202015;Financials;Financial Services;Investment Banking and Brokerage Services;Investment Services
+Consumer Defensive;Food Distribution;45102020;Consumer Staples;Food, Beverage and Tobacco;Food Producers;Food Products
+Consumer Cyclical;Footwear & Accessories;40204025;Consumer Discretionary;Consumer Products and Services;Personal Goods;Footwear
+Consumer Cyclical;Furnishings, Fixtures & Appliances;40202020;Consumer Discretionary;Consumer Products and Services;Household Goods and Home Construction;Household Appliance
+Consumer Cyclical;Gambling;40501020;Consumer Discretionary;Travel and Leisure;Travel and Leisure;Casinos and Gambling
+Consumer Defensive;Grocery Stores;45201010;Consumer Staples;Personal Care, Drug and Grocery Stores;Personal Care, Drug and Grocery Stores;Food Retailers and Wholesalers
+Healthcare;Health Information Services;20101025;Health Care;Health Care;Health Care Providers;Health Care Services
+Consumer Cyclical;Home Improvement Retail;40202015;Consumer Discretionary;Consumer Products and Services;Household Goods and Home Construction;Household Furnishings
+Consumer Defensive;Household & Personal Products;40204035;Consumer Discretionary;Consumer Products and Services;Personal Goods;Cosmetics
+Industrials;Industrial Distribution;50205010;Industrials;Industrial Goods and Services;Industrial Support Services;Industrial Suppliers
+Technology;Information Technology Services;10101010;Technology;Technology;Software and Computer Services;Computer Services
+Financial Services;Insurance—Diversified;30302010;Financials;Insurance;Non-life Insurance;Full Line Insurance
+Financial Services;Insurance—Property & Casualty;30302010;Financials;Insurance;Non-life Insurance;Full Line Insurance
+Financial Services;Insurance—Reinsurance;30302025;Financials;Insurance;Non-life Insurance;Property and Casualty Insurance
+Industrials;Integrated Freight & Logistics;50206040;Industrials;Industrial Goods and Services;Industrial Transportation;Delivery Services
+Communication Services;Internet Content & Information;10101020;Technology;Technology;Software and Computer Services;Consumer Digital Services
+Consumer Cyclical;Internet Retail;40401020;Consumer Discretionary;Retail;Retailers;Apparel Retailers
+Consumer Cyclical;Leisure;40203050;Consumer Discretionary;Consumer Products and Services;Leisure Goods;Recreational Products
+Consumer Cyclical;Lodging;40501025;Consumer Discretionary;Travel and Leisure;Travel and Leisure;Hotels and Motels
+Basic Materials;Lumber & Wood Production;50205030;Industrials;Industrial Goods and Services;Industrial Support Services;Forms and Bulk Printing Services
+Consumer Cyclical;Luxury Goods;40204020;Consumer Discretionary;Consumer Products and Services;Personal Goods;Clothing and Accessories
+Industrials;Marine Shipping;50206030;Industrials;Industrial Goods and Services;Industrial Transportation;Marine Transportation
+Healthcare;Medical Care Facilities;20101010;Health Care;Health Care;Health Care Providers;Health Care Facilities
+Healthcare;Medical Devices;20102010;Health Care;Health Care;Medical Equipment and Services;Medical Equipment
+Healthcare;Medical Distribution;20101025;Health Care;Health Care;Health Care Providers;Health Care Services
+Healthcare;Medical Instruments & Supplies;20102015;Health Care;Health Care;Medical Equipment and Services;Medical Supplies
+Industrials;Metal Fabrication;55102010;Basic Materials;Basic Resources;Industrial Metals and Mining;Iron and Steel
+Energy;Oil & Gas Drilling;60101015;Energy;Energy;Oil, Gas and Coal;Offshore Drilling and Other Services
+Energy;Oil & Gas E&P;60101010;Energy;Energy;Oil, Gas and Coal;Oil: Crude Producers
+Energy;Oil & Gas Equipment & Services;60101030;Energy;Energy;Oil, Gas and Coal;Oil Equipment and Services
+Energy;Oil & Gas Integrated;60101000;Energy;Energy;Oil, Gas and Coal;Integrated Oil and Gas
+Energy;Oil & Gas Midstream;60101030;Energy;Energy;Oil, Gas and Coal;Oil Equipment and Services
+Basic Materials;Other Industrial Metals & Mining;55102050;Basic Materials;Basic Resources;Industrial Metals and Mining;Nonferrous Metals
+Consumer Defensive;Packaged Foods;45102020;Consumer Staples;Food, Beverage and Tobacco;Food Producers;Food Products
+Consumer Cyclical;Packaging & Containers;50203030;Industrials;Industrial Goods and Services;General Industrials;Containers and Packaging
+Basic Materials;Paper & Paper Products;55101015;Basic Materials;Basic Resources;Industrial Materials;Paper
+Industrials;Pollution & Treatment Controls;50202030;Industrials;Industrial Goods and Services;Electronic and Electrical Equipment;Electronic Equipment: Pollution Control
+Communication Services;Publishing;40301030;Consumer Discretionary;Media;Media;Publishing
+Real Estate;REIT—Diversified;35102000;Real Estate;Real Estate;Real Estate Investment Trusts;Diversified REITs
+Real Estate;REIT—Healthcare Facilities;35102010;Real Estate;Real Estate;Real Estate Investment Trusts;Health Care REITs
+Real Estate;REIT—Hotel & Motel;35102015;Real Estate;Real Estate;Real Estate Investment Trusts;Hotel and Lodging REITs
+Real Estate;REIT—Industrial;35102030;Real Estate;Real Estate;Real Estate Investment Trusts;Office REITs
+Real Estate;REIT—Office;35102030;Real Estate;Real Estate;Real Estate Investment Trusts;Office REITs
+Real Estate;REIT—Residential;35102040;Real Estate;Real Estate;Real Estate Investment Trusts;Residential REITs
+Real Estate;REIT—Retail;35102045;Real Estate;Real Estate;Real Estate Investment Trusts;Retail REITs
+Real Estate;REIT—Specialty;35102030;Real Estate;Real Estate;Real Estate Investment Trusts;Office REITs
+Industrials;Railroads;50202010;Industrials;Industrial Goods and Services;Electronic and Electrical Equipment;Electrical Components
+Real Estate;Real Estate Services;35101010;Real Estate;Real Estate;Real Estate Investment and Services;Real Estate Holding and Development
+Real Estate;Real Estate—Development;35101010;Real Estate;Real Estate;Real Estate Investment and Services;Real Estate Holding and Development
+Real Estate;Real Estate—Diversified;35101010;Real Estate;Real Estate;Real Estate Investment and Services;Real Estate Holding and Development
+Consumer Cyclical;Recreational Vehicles;40203055;Consumer Discretionary;Consumer Products and Services;Leisure Goods;Recreational Vehicles and Boats
+Consumer Cyclical;Residential Construction;40202010;Consumer Discretionary;Consumer Products and Services;Household Goods and Home Construction;Home Construction
+Consumer Cyclical;Resorts & Casinos;40501020;Consumer Discretionary;Travel and Leisure;Travel and Leisure;Casinos and Gambling
+Consumer Cyclical;Restaurants;40201060;Consumer Discretionary;Consumer Products and Services;Consumer Services;Vending and Catering Service
+Technology;Scientific & Technical Instruments;50202040;Industrials;Industrial Goods and Services;Electronic and Electrical Equipment;Electronic Equipment: Other
+Technology;Semiconductor Equipment & Materials;10102010;Technology;Technology;Technology Hardware and Equipment;Semiconductors
+Technology;Semiconductors;10102010;Technology;Technology;Technology Hardware and Equipment;Semiconductors
+Financial Services;Shell Companies;30202000;Financials;Financial Services;Investment Banking and Brokerage Services;Diversified Financial Services
+Technology;Software—Application;10101015;Technology;Technology;Software and Computer Services;Software
+Technology;Software—Infrastructure;10101010;Technology;Technology;Software and Computer Services;Computer Services
+Basic Materials;Specialty Chemicals;55201020;Basic Materials;Chemicals;Chemicals;Specialty Chemicals
+Industrials;Specialty Industrial Machinery;50204000;Industrials;Industrial Goods and Services;Industrial Engineering;Machinery: Industrial
+Consumer Cyclical;Specialty Retail;40401030;Consumer Discretionary;Retail;Retailers;Specialty Retailers
+Industrials;Staffing & Employment Services;50205025;Industrials;Industrial Goods and Services;Industrial Support Services;Business Training and Employment Agencies
+Basic Materials;Steel;55102010;Basic Materials;Basic Resources;Industrial Metals and Mining;Iron and Steel
+Communication Services;Telecom Services;15102015;Telecommunications;Telecommunications;Telecommunications Service Providers;Telecommunications Services
+Consumer Cyclical;Textile Manufacturing;55101020;Basic Materials;Basic Resources;Industrial Materials;Textile Products
+Consumer Cyclical;Travel Services;40501015;Consumer Discretionary;Travel and Leisure;Travel and Leisure;Travel and Tourism
+Utilities;Utilities—Diversified;65102000;Utilities;Utilities;Gas, Water and Multi-utilities;Multi-utilities
+Utilities;Utilities—Regulated Electric;65101015;Utilities;Utilities;Electricity;Conventional Electricity
+Utilities;Utilities—Regulated Gas;65102020;Utilities;Utilities;Gas, Water and Multi-utilities;Gas Distribution
+Utilities;Utilities—Regulated Water;65102030;Utilities;Utilities;Gas, Water and Multi-utilities;Water
+Utilities;Utilities—Renewable;65101010;Utilities;Utilities;Electricity;Alternative Electricity
+Industrials;Waste Management;65103035;Utilities;Utilities;Waste and Disposal Services;Waste and Disposal Services

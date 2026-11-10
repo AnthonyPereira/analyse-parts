@@ -1,6 +1,6 @@
 import { Link, useParams, useSearchParams } from 'react-router'
 import {
-  HttpError, useCompany, useCompanyScore, useProfiles, useRatioDefinitions, useUniverse,
+  HttpError, useCompany, useCompanyScore, useProfiles, useQuote, useRatioDefinitions, useUniverse,
 } from '../api/queries'
 import type { Contribution, RatioDefinition, Score } from '../api/types'
 import { HistoryCharts } from '../charts/HistoryCharts'
@@ -28,6 +28,7 @@ export function CompanyPage() {
 
   const company = useCompany(isin)
   const score = useCompanyScore(isin, profile)
+  const { data: quote } = useQuote(isin) // sa devise : SEK à Stockholm, GBP à Londres…
   const { data: profiles } = useProfiles()
   const { data: definitions } = useRatioDefinitions()
   const { data: universe } = useUniverse()
@@ -78,7 +79,7 @@ export function CompanyPage() {
             son rapport par une <Term id="REPORT_ANALYSIS">IA locale</Term>. Chaque point montre la phrase du rapport qui
             l'appuie : dépliez-le pour la lire.
           </li>
-          <li><strong>Face à son secteur et au marché</strong> : où se place la société parmi toutes celles cotées à Paris.</li>
+          <li><strong>Face à son secteur et au marché</strong> : où se place la société parmi toutes celles suivies en Europe.</li>
           <li>
             <strong>Évolution</strong> : l'<Term id="SCORE_HISTORY">historique de ses notes</Term>, puis ses chiffres année
             après année. Une tendance compte plus qu'une seule année.
@@ -91,7 +92,7 @@ export function CompanyPage() {
         </p>
       </HowToRead>
 
-      <PriceChart isin={isin} currency="EUR" />
+      <PriceChart isin={isin} currency={quote?.currency ?? 'EUR'} />
 
       <h2 className="section-title"><Term id="SCORE">Score</Term></h2>
       {isBank && (
@@ -140,7 +141,7 @@ export function CompanyPage() {
         <h2>Face à son secteur et au marché</h2>
         <p className="muted">
           Une <Term id="STRIP">bande</Term> par indicateur du profil, du plus important au moins important. Chaque point
-          est une société cotée à Paris : on voit d'un coup d'œil si la société fait mieux ou moins bien que ses
+          est une société suivie, en Europe : on voit d'un coup d'œil si la société fait mieux ou moins bien que ses
           concurrents (<Term id="SUPERSECTOR">même secteur</Term>) et que l'ensemble du marché.
         </p>
         {universe && definitions ? (

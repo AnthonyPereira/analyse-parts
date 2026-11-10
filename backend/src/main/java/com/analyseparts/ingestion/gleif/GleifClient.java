@@ -47,6 +47,34 @@ public class GleifClient {
                         r.attributes().entity().legalAddress().country()));
     }
 
+    /**
+     * Les codes ISIN rattachés à un LEI : actions, mais aussi obligations et certificats (SAP en a
+     * une dizaine). Au plus 200, ce qui suffit pour une société cotée.
+     */
+    public List<String> findIsins(String lei) {
+        IsinResponse response = restClient.get()
+                .uri("/lei-records/{lei}/isins?page[size]=200", lei)
+                .accept(MediaType.valueOf("application/vnd.api+json"))
+                .retrieve()
+                .body(IsinResponse.class);
+        if (response == null || response.data() == null) {
+            return List.of();
+        }
+        return response.data().stream().map(i -> i.attributes().isin()).toList();
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IsinResponse(List<IsinItem> data) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IsinItem(IsinAttributes attributes) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IsinAttributes(String isin) {
+    }
+
     // --- Structure JSON:API renvoyée par GLEIF (seuls les champs utiles sont mappés) ---
 
     @JsonIgnoreProperties(ignoreUnknown = true)

@@ -1,5 +1,6 @@
 package com.analyseparts.ingestion.euronext;
 
+import com.analyseparts.ingestion.StockExchange;
 import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.ingestion.CompaniesImported;
@@ -54,10 +55,18 @@ public class EuronextImportService {
 
     /** Télécharge la liste (hors transaction), puis l'enregistre. */
     /**
-     * Euronext Paris liste environ 700 titres. Bien moins de lignes reconnues : les colonnes du
-     * fichier ont probablement changé (le lecteur les repère par leur position).
+     * Euronext Paris liste environ 700 titres, les autres places de 20 (Dublin) à 200 (Milan, Oslo).
+     * Bien moins de lignes reconnues : les colonnes du fichier ont probablement changé (le lecteur
+     * les repère par leur position).
      */
-    static final int MIN_EQUITIES = 100;
+    static int findMinEquities(String mic) {
+        return "XPAR".equals(mic) ? 100 : 10;
+    }
+
+    /** Importe les 7 marchés réglementés d'Euronext l'un après l'autre (ADR 0020). */
+    public List<ImportResult> importAllMarkets() {
+        return StockExchange.findEuronextMarkets().stream().map(m -> importMarket(m.name())).toList();
+    }
 
     public ImportResult importMarket(String mic) {
         List<ListedEquity> equities;
@@ -67,7 +76,7 @@ public class EuronextImportService {
             health.markDown(Source.EURONEXT_LIST, "fichier des actions Euronext indisponible ou illisible : " + e.getMessage());
             throw e;
         }
-        if (equities.size() < MIN_EQUITIES) {
+        if (equities.size() < findMinEquities(mic)) {
             health.markDown(Source.EURONEXT_LIST, "seulement " + equities.size()
                     + " actions reconnues dans le fichier Euronext : ses colonnes ont probablement changé");
         } else {
@@ -91,11 +100,16 @@ public class EuronextImportService {
             int updated = 0;
             List<Quote> closingPrices = new ArrayList<>();
             for (ListedEquity equity : equities) {
+                // Une action cotée sur plusieurs places figure dans la liste de chacune : on ne la
+                // prend que dans celle de son marché principal, qui donne son mnémonique et son cours.
+                String primary = findPrimaryMic(equity.market(), mic);
+                if (!primary.equals(mic)) {
+                    continue;
+                }
                 var existing = companies.findByIsin(equity.isin());
                 Company company;
                 if (existing.isPresent()) {
                     company = existing.get();
-                    company.updateListing(equity.name(), equity.symbol(), equity.market());
                     updated++;
                 } else {
                     // Pays provisoire = pays de l'ISIN ; GLEIF donnera ensuite le pays du siège.
@@ -103,6 +117,7 @@ public class EuronextImportService {
                             equity.extractIsinCountry(), equity.market()));
                     created++;
                 }
+                company.updateListing(equity.name(), equity.symbol(), equity.market(), mic);
                 if (equity.hasClosingPrice()) {
                     closingPrices.add(new Quote(company.getId(), equity.closingPrice(), equity.currency(),
                             equity.closingDate().atTime(CLOSE).atZone(PARIS).toInstant(), "EURONEXT_CLOSE"));
@@ -115,5 +130,10 @@ public class EuronextImportService {
             log.info("Import Euronext {} : {} lues, {} créées, {} mises à jour", mic, equities.size(), created, updated);
             return new ImportResult(equities.size(), created, updated);
         });
+    }
+
+    /** Le MIC du marché principal (premier de la colonne « Market »), ou celui de la liste lue. */
+    static String findPrimaryMic(String markets, String listMic) {
+        return StockExchange.findPrimary(markets).map(Enum::name).orElse(listMic);
     }
 }
