@@ -32,6 +32,12 @@ gratuite et sans carte ne garde un serveur allumé en permanence.
    sous les 750 h de Render et les 100 h·CU de Neon. GitHub Actions n'a pas été retenu : le dépôt
    est privé, et un ping toutes les 10 min userait presque toutes les 2 000 minutes gratuites.
 
+7. **Démarrage rapide malgré 0,1 processeur** : Render arrête le service s'il n'ouvre pas son port
+   en 3 minutes environ, et le premier démarrage a pris 202 s. L'image utilise donc le cache AOT
+   de Java (JEP 483/514), entraîné pendant la construction sur un PostgreSQL temporaire (profil
+   `training`), avec le jar extrait et le compilateur C1 seul. Mesuré en local avec 0,1 processeur :
+   le démarrage passe de 122 s à 19 s.
+
 ## Conséquences
 
 - Le soir et le week-end, la première visite attend environ une minute. Les cours restent ceux
