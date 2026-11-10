@@ -230,6 +230,38 @@ class ReportAnalystTest {
         assertThat(properties.propertyNames()).containsExactly("extrait", "citation", "titre", "explication");
     }
 
+    /** Le classement du modèle est appliqué ; un numéro inconnu ou répété est ignoré, un point oublié jamais perdu. */
+    @Test
+    void theModelOrderIsAppliedWithoutLosingAPoint() {
+        var a = new com.analyseparts.analysis.ReportAnalysis.Point("A", "a", "qa", "pa");
+        var b = new com.analyseparts.analysis.ReportAnalysis.Point("B", "b", "qb", "pb");
+        var c = new com.analyseparts.analysis.ReportAnalysis.Point("C", "c", "qc", "pc");
+        var d = new com.analyseparts.analysis.ReportAnalysis.Point("D", "d", "qd", "pd");
+
+        assertThat(ReportAnalyst.applyOrder(List.of(a, b, c), List.of(3, 1, 2))).containsExactly(c, a, b);
+        assertThat(ReportAnalyst.applyOrder(List.of(a, b, c, d), List.of(4, 9, 4, 0, 2))).containsExactly(d, b, a, c);
+        assertThat(ReportAnalyst.applyOrder(List.of(a, b), null)).containsExactly(a, b);
+    }
+
+    @Test
+    void pointsAreRankedByTheModelAndKeptAsIsWhenItsAnswerIsUnreadable() {
+        var a = new com.analyseparts.analysis.ReportAnalysis.Point("Change", "Le dollar pèse sur les ventes.", "q1", "p1");
+        var b = new com.analyseparts.analysis.ReportAnalysis.Point("Climat", "Des sites exposés aux inondations.", "q2", "p2");
+        List<Prompt> prompts = new ArrayList<>();
+        ChatModel chat = mock(ChatModel.class);
+        when(chat.call(any(Prompt.class))).thenAnswer(call -> {
+            prompts.add(call.getArgument(0));
+            String answer = prompts.size() == 1 ? "{\"ordre\":[2,1]}" : "pas du JSON";
+            return new ChatResponse(List.of(new Generation(new AssistantMessage(answer))));
+        });
+        var analyst = new ReportAnalyst(chat, JsonMapper.builder().build(), 16384, "test-model");
+
+        assertThat(analyst.rankByImportance("L'ORÉAL", ReportAnalyst.Topic.RISKS, List.of(a, b))).containsExactly(b, a);
+        assertThat(prompts.get(0).getUserMessage().getText())
+                .contains("Point 1 : Change", "Point 2 : Climat", "du plus grave au moins grave");
+        assertThat(analyst.rankByImportance("L'ORÉAL", ReportAnalyst.Topic.RISKS, List.of(a, b))).containsExactly(a, b);
+    }
+
     /** Vus sur le rapport de L'Oréal : des citations exactes, mais des points inutiles. */
     @Test
     void aHeadingOrAnExplanationThatRepeatsTheQuoteIsRejected() {

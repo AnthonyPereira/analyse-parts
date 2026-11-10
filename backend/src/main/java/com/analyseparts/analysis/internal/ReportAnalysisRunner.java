@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -72,8 +73,10 @@ public class ReportAnalysisRunner {
         log.info("Rapport de {} lu : {} passages, téléchargement {} s, embeddings {} s, questions {} s, {} points écartés",
                 company, passages.size(), (downloaded - start) / 1000, (embedded - downloaded) / 1000,
                 (end - embedded) / 1000, result.rejected());
-        return new ReportAnalysis(filing.sourceId(), filing.periodEnd(), model, clock.instant(), end - start,
-                passages.size(), result.rejected(), result.themes());
+        Instant finished = clock.instant();
+        // les points sont classés par importance pendant la lecture (ReportAnalyst.rankByImportance)
+        return new ReportAnalysis(filing.sourceId(), filing.periodEnd(), model, finished, end - start,
+                passages.size(), result.rejected(), result.themes(), finished);
     }
 
     private void pause() {

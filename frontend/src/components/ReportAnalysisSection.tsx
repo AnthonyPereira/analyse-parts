@@ -39,6 +39,7 @@ function AnalysisBody({ analysis }: { analysis: ReportAnalysis }) {
         {formatDate(analysis.periodEnd)}. Chaque point s'appuie sur une phrase du rapport,{' '}
         <Term id="VERIFIED_QUOTE">vérifiée mot pour mot</Term> ; l'interprétation, elle, peut être fausse ou
         incomplète. Ce texte n'entre pas dans le score.
+        {analysis.rankedAt && <> Dans chaque thème, les points vont du plus important au moins important, selon le modèle.</>}
       </p>
       <div className="analysis-grid">
         {analysis.themes.map(theme => (

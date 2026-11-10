@@ -56,4 +56,10 @@ public class AnalysisController {
     public Map<String, Integer> analyseMissing() {
         return Map.of("queued", analyses.requestMissing());
     }
+
+    /** Classe par importance les points des lectures déjà en base, sans relire les rapports (ADR 0018). */
+    @PostMapping("/api/admin/analysis/rank")
+    public Map<String, Integer> rankExistingAnalyses() {
+        return Map.of("queued", analyses.requestRanking());
+    }
 }

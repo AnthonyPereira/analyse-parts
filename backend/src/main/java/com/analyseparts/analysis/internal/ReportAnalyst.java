@@ -144,6 +144,21 @@ public class ReportAnalyst {
             this.chapters = chapters;
         }
 
+        /** Ce qui rend un point plus important qu'un autre dans ce thème (classement, ADR 0018). */
+        String getImportanceRule() {
+            return switch (this) {
+                case BUSINESS -> "du plus important au moins important pour comprendre comment le groupe gagne son "
+                        + "argent : d'abord les activités, produits ou zones qui pèsent le plus dans son chiffre "
+                        + "d'affaires ou son résultat, puis les détails.";
+                case ADVANTAGES -> "du plus solide au moins solide : d'abord les avantages durables et prouvés par "
+                        + "des faits (position de numéro un, parts de marché, taille, marques, brevets, coûts), "
+                        + "puis les simples affirmations et les succès d'une seule année.";
+                case RISKS -> "du plus grave au moins grave pour la société : d'abord ceux qui pourraient le plus "
+                        + "toucher ses ventes, ses marges, sa dette ou son image, en tenant compte de l'importance "
+                        + "que le rapport leur donne, puis les risques plus secondaires.";
+            };
+        }
+
         /** Les passages à lire : le chapitre d'abord, complété par les recherches. */
         List<Integer> selectPassages(PassageSearch.Index index) {
             int max = BATCH * batches;
@@ -308,7 +323,7 @@ public class ReportAnalyst {
             List<Point> supported = reviewed.contains(topic) ? review(topic, candidates) : candidates;
             rejected += candidates.size() - supported.size();
             candidates = supported;
-            List<Point> kept = merge(topic, candidates, index);
+            List<Point> kept = rankByImportance(company, topic, merge(topic, candidates, index));
             log.info("{} : {} passages lus, {} points proposés, {} gardés ; regroupés avec un autre : {}", topic,
                     chosen.size(), candidates.size(), kept.size(),
                     candidates.stream().filter(c -> !kept.contains(c)).map(Point::title).toList());
@@ -646,6 +661,71 @@ public class ReportAnalyst {
             log.warn("Recherche de doublons illisible ({}) : {}", topic, e.getOriginalMessage());
             return List.of();
         }
+    }
+
+    static final String RANKING_SYSTEM = """
+            Tu es un analyste financier. On te donne les points retenus sur un thème du rapport annuel \
+            d'une société cotée. Tu les classes par importance pour un investisseur, en t'appuyant \
+            seulement sur ce que disent les points. Tu donnes les numéros de TOUS les points, chacun une \
+            seule fois, du plus important au moins important.""";
+
+    static final Map<String, Object> RANKING_SCHEMA = Map.of(
+            "type", "object",
+            "properties", Map.of("ordre", Map.of("type", "array", "items", Map.of("type", "integer"))),
+            "required", List.of("ordre"));
+
+    record Ranking(List<Integer> ordre) {
+    }
+
+    /**
+     * Remet les points d'un thème dans l'ordre d'importance (ADR 0018). Les points viennent de lots
+     * de passages différents : seul un classement de la liste entière les rend comparables. Garde
+     * l'ordre reçu si la réponse du modèle est illisible.
+     */
+    List<Point> rankByImportance(String company, Topic topic, List<Point> points) {
+        if (points.size() < 2) {
+            return points;
+        }
+        StringBuilder sb = new StringBuilder("Société : ").append(company)
+                .append("\nThème : ").append(topic.title)
+                .append("\nClasse les points ").append(topic.getImportanceRule()).append('\n');
+        for (int i = 0; i < points.size(); i++) {
+            sb.append("\nPoint ").append(i + 1).append(" : ").append(points.get(i).title())
+                    .append(" — ").append(points.get(i).explanation());
+        }
+        try {
+            Ranking answer = ask(RANKING_SYSTEM, sb.toString(), RANKING_SCHEMA, Ranking.class);
+            List<Point> ranked = applyOrder(points, answer.ordre());
+            log.info("{} : classement par importance {}", topic, answer.ordre());
+            return ranked;
+        } catch (RuntimeException e) {
+            log.warn("Classement par importance illisible ({}) : {}", topic, e.getMessage());
+            return points;
+        }
+    }
+
+    /** Classe les thèmes d'une lecture déjà en base, sans relire le rapport. */
+    public List<Theme> rankThemes(String company, List<Theme> themes) {
+        return themes.stream()
+                .map(t -> new Theme(t.key(), t.title(), rankByImportance(company, Topic.valueOf(t.key()), t.points())))
+                .toList();
+    }
+
+    /**
+     * L'ordre donné par le modèle (numéros à partir de 1). Un numéro inconnu ou répété est ignoré ;
+     * un point oublié garde sa place relative, à la fin : on ne perd jamais un point.
+     */
+    static List<Point> applyOrder(List<Point> points, List<Integer> order) {
+        java.util.LinkedHashSet<Integer> indices = new java.util.LinkedHashSet<>();
+        for (Integer n : order == null ? List.<Integer>of() : order) {
+            if (n != null && n >= 1 && n <= points.size()) {
+                indices.add(n - 1);
+            }
+        }
+        for (int i = 0; i < points.size(); i++) {
+            indices.add(i);
+        }
+        return indices.stream().map(points::get).toList();
     }
 
     static String buildPrompt(String company, LocalDate periodEnd, Topic topic, List<String> passages) {

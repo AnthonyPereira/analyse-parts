@@ -141,6 +141,7 @@ ollama pull qwen3:14b                 # le modèle qui lit (12 Go de mémoire gr
 ollama pull snowflake-arctic-embed2   # le modèle d'embeddings qui choisit les passages à lire (ADR 0017)
 curl -X POST http://localhost:8080/api/admin/analysis/FR0000120321   # lire un rapport (ici L'Oréal)
 curl -X POST http://localhost:8080/api/admin/analysis/missing        # lire tous ceux qui manquent
+curl -X POST http://localhost:8080/api/admin/analysis/rank           # classer par importance les lectures anciennes
 ```
 
 Pour qu'un nouveau rapport ne déclenche pas de lecture automatique, mettez
@@ -273,6 +274,6 @@ Les tests d'intégration démarrent un PostgreSQL jetable avec Testcontainers : 
 ## Documentation
 
 - [docs/adr](docs/adr/README.md) : les décisions d'architecture, de 0001 (monolithe modulaire) à
-  0017 (modèle d'embedding).
+  0018 (points classés par importance).
 - [docs/ratios.md](docs/ratios.md) : chaque ratio expliqué, avec sa formule et sa lecture.
 - [frontend/README.md](frontend/README.md) : l'organisation du front.

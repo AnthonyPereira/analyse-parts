@@ -3,6 +3,7 @@ package com.analyseparts.analysis;
 import com.analyseparts.analysis.AnalysisView.State;
 import com.analyseparts.analysis.internal.AnalysisRepository;
 import com.analyseparts.analysis.internal.ReportAnalysisRunner;
+import com.analyseparts.analysis.internal.ReportAnalyst;
 import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.financials.FilingRef;
@@ -12,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -36,17 +38,20 @@ public class AnalysisService {
     private final FinancialsService financials;
     private final AnalysisRepository repository;
     private final ReportAnalysisRunner runner;
+    private final ReportAnalyst analyst;
+    private final Clock clock = Clock.systemUTC();
 
     private final ExecutorService queue = Executors.newSingleThreadExecutor(r -> new Thread(r, "report-analysis"));
     private final Map<Long, State> pending = new ConcurrentHashMap<>();
     private final Map<Long, String> errors = new ConcurrentHashMap<>();
 
     public AnalysisService(CompanyRepository companies, FinancialsService financials, AnalysisRepository repository,
-                           ReportAnalysisRunner runner) {
+                           ReportAnalysisRunner runner, ReportAnalyst analyst) {
         this.companies = companies;
         this.financials = financials;
         this.repository = repository;
         this.runner = runner;
+        this.analyst = analyst;
     }
 
     /** Où en est la lecture du rapport d'une société ; vide si la société est inconnue. */
@@ -81,6 +86,31 @@ public class AnalysisService {
         }
         log.info("{} rapports mis dans la file de lecture", queued);
         return queued;
+    }
+
+    /**
+     * Classe par importance les points des lectures faites avant le classement (ADR 0018), sans
+     * relire les rapports : un appel au modèle par thème, quelques secondes par société. Passe par
+     * la même file que les lectures, pour ne jamais occuper la carte graphique deux fois.
+     */
+    public int requestRanking() {
+        var ids = repository.findCompaniesWithUnrankedAnalysis();
+        ids.forEach(id -> queue.submit(() -> rank(id)));
+        log.info("{} lectures mises dans la file de classement", ids.size());
+        return ids.size();
+    }
+
+    private void rank(long companyId) {
+        try {
+            Company company = companies.findById(companyId).orElseThrow();
+            repository.findLatest(companyId).filter(a -> a.rankedAt() == null).ifPresent(a -> {
+                var ranked = a.withRankedThemes(analyst.rankThemes(company.getName(), a.themes()), clock.instant());
+                repository.save(companyId, ranked);
+                log.info("Points de {} classés par importance", company.getName());
+            });
+        } catch (RuntimeException e) {
+            log.warn("Classement de la lecture {} en échec : {}", companyId, e.getMessage());
+        }
     }
 
     /** Un nouveau rapport : on le lit s'il est le plus récent de la société (pas un exercice passé). */

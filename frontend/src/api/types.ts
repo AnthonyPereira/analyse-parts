@@ -245,6 +245,8 @@ export interface ReportAnalysis {
   passageCount: number
   rejected: number
   themes: AnalysisTheme[]
+  /** Date du classement des points par importance (ADR 0018) ; null : points dans l'ordre de lecture. */
+  rankedAt: string | null
 }
 
 export interface AnalysisView {

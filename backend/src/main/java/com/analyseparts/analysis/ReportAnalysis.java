@@ -15,9 +15,16 @@ import java.util.List;
  * @param passageCount nombre de passages de texte dans le rapport
  * @param rejected     points écartés parce que leur citation est introuvable dans le rapport
  * @param themes       les réponses, par thème
+ * @param rankedAt     date du classement des points par importance (ADR 0018) ; {@code null} si les
+ *                     points sont dans l'ordre de lecture
  */
 public record ReportAnalysis(String sourceId, LocalDate periodEnd, String model, Instant createdAt, long durationMs,
-                             int passageCount, int rejected, List<Theme> themes) {
+                             int passageCount, int rejected, List<Theme> themes, Instant rankedAt) {
+
+    /** La même lecture, avec ses points classés par importance. */
+    public ReportAnalysis withRankedThemes(List<Theme> ranked, Instant at) {
+        return new ReportAnalysis(sourceId, periodEnd, model, createdAt, durationMs, passageCount, rejected, ranked, at);
+    }
 
     /** Un thème (activité, avantages, risques) et ses points. */
     public record Theme(String key, String title, List<Point> points) {
