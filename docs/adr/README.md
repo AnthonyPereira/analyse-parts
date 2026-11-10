@@ -26,3 +26,4 @@ Règles :
 | [0013](0013-notation-des-assurances.md) | Notation à part pour les assurances (ICB 3030) : poids sans endettement ni cash-flow, comme pour les banques | Acceptée |
 | [0014](0014-lecture-des-rapports-moins-de-doublons.md) | Lecture des rapports : doublons signalés par le modèle, nouvel essai de citation, facteurs de risques lus d'un seul tenant, sommaires écartés, relecture par thème, import d'un paquet ESEF par adresse | Acceptée |
 | [0015](0015-rapports-semestriels-et-12-mois-glissants.md) | Rapports semestriels PDF lus par le LLM local, colonnes reconnues par leurs en-têtes, vérifiés contre les comptes annuels ; chiffres sur 12 mois glissants affichés, hors score | Acceptée |
+| [0016](0016-demo-publique-gratuite.md) | Démo publique gratuite : un conteneur sur Render, PostgreSQL chez Neon, sans LLM ; routes admin protégées par jeton, éveil en semaine de 6 h à 20 h | Acceptée |
