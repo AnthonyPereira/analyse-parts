@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
@@ -81,7 +82,7 @@ public class HalfYearReader {
             return Optional.empty();
         }
         String text = String.join("\n\n", chosen.stream().map(pages::get).toList());
-        Answer answer = LocalModel.ask(chat, json, model, contextTokens, 1500, SYSTEM,
+        Answer answer = LocalModel.ask(chat, json, model, contextTokens, 2500, SYSTEM,
                 prompt(company, chosen, pages), SCHEMA, Answer.class);
         log.info("Semestriel {} : pages {} lues, colonnes {}", company, chosen.stream().map(i -> i + 1).toList(),
                 answer.colonnes());
@@ -103,9 +104,9 @@ public class HalfYearReader {
         }
     }
 
-    private static final Pattern STATEMENT = Pattern.compile("comptes? de r[ée]sultat|income statement", Pattern.CASE_INSENSITIVE);
+    private static final Pattern STATEMENT = Pattern.compile("comptes? de r[ée]sultat|income statement", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private static final Pattern HALF = Pattern.compile("semestre|30 juin|first half|half-year|S1 20", Pattern.CASE_INSENSITIVE);
-    private static final Pattern NET = Pattern.compile("r[ée]sultat net|net income|net profit", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NET = Pattern.compile("r[ée]sultat net|net income|net profit", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private static final Pattern TOP_LINE = Pattern.compile(
             "chiffre d.affaires|produit net bancaire|revenus|revenue|ventes|loyers", Pattern.CASE_INSENSITIVE);
     private static final Pattern AMOUNT = Pattern.compile("\\d[\\d\\s]*[,.]\\d|\\(\\d[\\d\\s]*\\)|\\d{3,}");
@@ -120,6 +121,18 @@ public class HalfYearReader {
      * LVMH) ne ferait que tenter le modèle avec d'autres « résultat net ».
      */
     static List<Integer> incomeStatementPages(List<String> pages) {
+        // Le titre du tableau suivi de son unité désigne la page à coup sûr : l'envoyer seule, avec
+        // la suivante si le bénéfice par action y a glissé.
+        Optional<Integer> titled = IntStream.range(0, pages.size()).boxed()
+                .filter(i -> titled(pages.get(i)) && score(pages.get(i)) >= MIN_SCORE)
+                .min(Comparator.comparingInt((Integer i) -> -score(pages.get(i))).thenComparingInt(i -> i));
+        if (titled.isPresent()) {
+            int best = titled.get();
+            boolean continued = best + 1 < pages.size() && !PER_SHARE.matcher(pages.get(best)).find()
+                    && PER_SHARE.matcher(pages.get(best + 1)).find()
+                    && !OTHER_STATEMENT.matcher(head(pages.get(best + 1))).find();
+            return continued ? List.of(best, best + 1) : List.of(best);
+        }
         List<Integer> ranked = IntStream.range(0, pages.size()).boxed()
                 .filter(i -> score(pages.get(i)) >= MIN_SCORE)
                 .sorted(Comparator.comparingInt((Integer i) -> -score(pages.get(i))).thenComparingInt(i -> i))
@@ -140,12 +153,42 @@ public class HalfYearReader {
      * des gains et pertes » passait devant) : reconnus à leur titre.
      */
     private static final Pattern OTHER_STATEMENT = Pattern.compile(
-            "r[ée]sultat global|[ée]tat global|comprehensive|variation|tr[ée]sorerie|bilan|balance sheet|annexe|notes to|commentaires",
+            "r[ée]sultat global|[ée]tat global|comprehensive|variation|tr[ée]sorerie|bilan|balance sheet|annexe|notes to|commentaires"
+                    + "|analytique|sectoriel|par secteur|segment|r[ée]conciliation|reconciliation",
             Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Le titre du compte de résultat suivi de son unité : « Compte de résultat consolidé (en milliers
+     * d'euros) » (Boiron), « Compte de résultat consolidé du 1er semestre 2026 (en millions
+     * d'euros) » (ADP). Les tableaux qui l'imitent n'ont pas l'unité juste après : compte de
+     * résultat analytique (Icade), information sectorielle (Boiron), commentaires (Bouygues).
+     */
+    static final Pattern TITLE = Pattern.compile(
+            "(comptes? de r[ée]sultats?|(consolidated )?income statements?)[^.()]{0,80}?\\(?\\s*(en|in) (millions|milliers|thousands|m€|k€)",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
+    /**
+     * Un titre commence par une majuscule (« Compte de résultat », « COMPTE DE RÉSULTAT »,
+     * « Consolidated income statement ») : « Autres éléments du compte de résultat (en millions
+     * d'euros) », dans les commentaires de LVMH, n'en est pas un.
+     */
+    static boolean titled(String page) {
+        Matcher m = TITLE.matcher(collapse(page));
+        while (m.find()) {
+            if (Character.isUpperCase(m.group().charAt(0))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String head(String page) {
+        return page.substring(0, Math.min(HEAD, page.length()));
+    }
 
     static int score(String page) {
         long amounts = AMOUNT.matcher(page).results().count();
-        String head = page.substring(0, Math.min(HEAD, page.length()));
+        String head = head(page);
         return 3 * found(STATEMENT, page) + 2 * found(HALF, page) + 2 * found(NET, page) + 2 * found(TOP_LINE, page)
                 + (int) Math.min(3, amounts / 15)
                 + 3 * found(STATEMENT, head) - 5 * found(OTHER_STATEMENT, head);
@@ -161,8 +204,8 @@ public class HalfYearReader {
             Règles :
             - Uniquement le compte de résultat consolidé (pas un commentaire, pas une division).
             - D'abord les en-têtes des colonnes de montants, de gauche à droite, recopiés tels \
-            qu'ils sont écrits (par exemple « 1er semestre 2026 », « 31 déc. 2025 »), sans la \
-            colonne des notes.
+            qu'ils sont écrits sur la page (avec leur date ou leur année), sans la colonne des \
+            notes. Ne jamais inventer un en-tête : chacun doit figurer sur la page.
             - Puis, pour chaque ligne, ses montants dans le même ordre que les en-têtes, un par \
             colonne.
             - Tu recopies chaque nombre tel qu'il est écrit (espaces, virgules, parenthèses, signe \
@@ -233,6 +276,23 @@ public class HalfYearReader {
             } else if (!half && year == fiscalYearEnd.getYear() && fullYear < 0
                     && (yearEnd || h.strip().equals(String.valueOf(year)))) {
                 fullYear = i;
+            }
+        }
+        if (current < 0 || previous < 0) {
+            // Des en-têtes qui ne sont que des années (Lectra : « 2026 », « 2025 », « Variation ») :
+            // l'année du semestre et la précédente. Le contrôle du chiffre d'affaires (le semestre
+            // précédent pèse 30 à 70 % de l'exercice) écartera le cas où « 2025 » serait l'exercice.
+            int bareCurrent = -1, barePrevious = -1;
+            for (int i = 0; i < headers.size(); i++) {
+                String h = headers.get(i) == null ? "" : headers.get(i).strip();
+                if (h.equals(String.valueOf(halfYearEnd.getYear())) && bareCurrent < 0) {
+                    bareCurrent = i;
+                } else if (h.equals(String.valueOf(halfYearEnd.getYear() - 1)) && barePrevious < 0) {
+                    barePrevious = i;
+                }
+            }
+            if (current < 0 && previous < 0 && bareCurrent >= 0 && barePrevious >= 0) {
+                return new Columns(bareCurrent, barePrevious, -1);
             }
         }
         return new Columns(current, previous, fullYear);

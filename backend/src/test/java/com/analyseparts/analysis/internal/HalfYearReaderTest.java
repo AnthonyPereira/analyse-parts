@@ -89,6 +89,9 @@ class HalfYearReaderTest {
         assertThat(HalfYearReader.columns(List.of("31/03/2026", "30/09/2025", "31/03/2025"),
                 LocalDate.of(2026, 3, 31), LocalDate.of(2025, 9, 30)))
                 .isEqualTo(new HalfYearReader.Columns(0, 2, 1)); // Graines Voltz, exercice clos fin septembre
+        // Lectra : des années seules, sans le mot « semestre »
+        assertThat(HalfYearReader.columns(List.of("2026", "2025", "Variation 2026/2025"), H1, FY))
+                .isEqualTo(new HalfYearReader.Columns(0, 1, -1));
         // un bilan (fin de semestre face à fin d'exercice) n'a pas de semestre précédent
         assertThat(HalfYearReader.columns(List.of("1er semestre 2026", "31 déc. 2025"), H1, FY).previous()).isEqualTo(-1);
         // exercice clos le 30 juin (Pernod Ricard) : le semestre finit le 31 décembre
@@ -131,6 +134,33 @@ class HalfYearReaderTest {
         String global = "État global des gains et pertes consolidés\n" + OREAL.substring(OREAL.indexOf('\n') + 1);
         assertThat(HalfYearReader.incomeStatementPages(List.of(governance, comment, OREAL, global, governance)))
                 .containsExactly(2);
+    }
+
+    /** Le titre suivi de l'unité : extraits réels des rapports semestriels 2026. */
+    @Test
+    void theStatementTitleIsFollowedByItsUnit() {
+        assertThat(HalfYearReader.titled("- 8 - RAPPORT SEMESTRIEL BOIRON – 30 JUIN 2026 COMPTE DE RÉSULTAT CONSOLIDÉ "
+                + "(en milliers d'euros) Paragraphes 2026 (6 mois) 2025 (6 mois)")).isTrue();
+        assertThat(HalfYearReader.titled("Annexe 1 – États financiers au 30 juin 2026 Compte de résultat consolidé du "
+                + "1er semestre 2026 (en millions d'euros) 1er semestre 2026 1er semestre 2025")).isTrue(); // ADP
+        assertThat(HalfYearReader.titled("Compte de résultat consolidé En millions d'euros Notes 2026 (6 mois)")).isTrue();
+        assertThat(HalfYearReader.titled("Consolidated income statement (in millions of euros) H1 2026 H1 2025")).isTrue();
+        // une phrase des commentaires de LVMH, pas un titre
+        assertThat(HalfYearReader.titled("1.3 Autres éléments du compte de résultat (en millions d’euros)")).isFalse();
+        // le compte de résultat analytique d'Icade n'a pas l'unité juste après son titre
+        assertThat(HalfYearReader.titled("1.1. Compte de résultat analytique au 30 juin 2026 Éléments courants : Loyers "
+                + "Bruts 170,2 (0,1) 170,2")).isFalse();
+    }
+
+    /** Chez Boiron, l'information sectorielle et une note sur IFRS 18 passaient devant le compte de résultat. */
+    @Test
+    void aTitledPageWinsOverLookAlikes() {
+        String statement = "RAPPORT SEMESTRIEL BOIRON – 30 JUIN 2026 COMPTE DE RÉSULTAT CONSOLIDÉ (en milliers d'euros) "
+                + "Paragraphes 2026 (6 mois) 2025 (6 mois) Chiffre d'affaires 22 240 321 245 647 Résultat net 12 000 10 000";
+        String segments = "INFORMATION SECTORIELLE Le tableau ci-après présente les données au 30 juin 2026 : DONNEES "
+                + "RELATIVES AU COMPTE DE RESULTAT France Europe Chiffre d'affaires 120 000 80 000 Résultat net 1 2 3 4 5 "
+                + "6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45";
+        assertThat(HalfYearReader.incomeStatementPages(List.of(segments, statement, segments))).containsExactly(1);
     }
 
     /** Le texte suit l'ordre d'écriture du PDF : une ligne du tableau reste entière. */
