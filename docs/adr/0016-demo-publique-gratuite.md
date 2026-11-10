@@ -40,5 +40,5 @@ gratuite et sans carte ne garde un serveur allumé en permanence.
   `-XX:+UseSerialGC`). Si le serveur manque de mémoire, il faudra changer d'hébergeur.
 - Pas de nouvelle lecture par le LLM en ligne. Pour en ajouter, on les lance en local, puis on
   recopie la base.
-- La base gratuite est limitée à 1 Go. Les données locales tiennent largement dans cette limite :
-  la plus grosse table, `reported_fact`, pèse environ 24 Mo.
+- La base gratuite est limitée à 1 Go. Le 10 novembre 2026, la base locale pèse 83 Mo (cours
+  37 Mo, faits ESEF 34 Mo).
