@@ -39,10 +39,36 @@ public class HalfYearRepository {
         return jdbc.query("""
                 SELECT period_end, published_on, title, source_url, model, created_at, content
                   FROM half_year_report WHERE company_id = ? ORDER BY period_end DESC LIMIT 1
-                """, (rs, n) -> new HalfYearReport(rs.getDate("period_end").toLocalDate(),
+                """, (rs, n) -> mapReport(rs), companyId).stream().findFirst();
+    }
+
+    /** Un rapport enregistré et la société à qui il appartient. */
+    public record Stored(long companyId, HalfYearReport report) {
+    }
+
+    /** Tous les rapports enregistrés (une centaine de lignes). */
+    public List<Stored> findAll() {
+        return jdbc.query("""
+                SELECT company_id, period_end, published_on, title, source_url, model, created_at, content
+                  FROM half_year_report
+                """, (rs, n) -> new Stored(rs.getLong("company_id"), mapReport(rs)));
+    }
+
+    /** Remplace les lignes d'un rapport, sans toucher au reste. */
+    public void updateLines(long companyId, java.time.LocalDate periodEnd, List<HalfYearReport.Line> lines) {
+        jdbc.update("UPDATE half_year_report SET content = ?::jsonb WHERE company_id = ? AND period_end = ?",
+                json.writeValueAsString(lines), companyId, java.sql.Date.valueOf(periodEnd));
+    }
+
+    public void delete(long companyId, java.time.LocalDate periodEnd) {
+        jdbc.update("DELETE FROM half_year_report WHERE company_id = ? AND period_end = ?",
+                companyId, java.sql.Date.valueOf(periodEnd));
+    }
+
+    private HalfYearReport mapReport(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new HalfYearReport(rs.getDate("period_end").toLocalDate(),
                 rs.getDate("published_on").toLocalDate(), rs.getString("title"), rs.getString("source_url"),
                 rs.getString("model"), rs.getTimestamp("created_at").toInstant(),
-                json.readValue(rs.getString("content"), new TypeReference<List<HalfYearReport.Line>>() {})),
-                companyId).stream().findFirst();
+                json.readValue(rs.getString("content"), new TypeReference<List<HalfYearReport.Line>>() {}));
     }
 }

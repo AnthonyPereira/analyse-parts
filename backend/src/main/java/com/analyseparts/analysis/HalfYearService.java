@@ -108,6 +108,43 @@ public class HalfYearService {
         return queued;
     }
 
+    /** Ce que la revérification a changé. */
+    public record Recheck(int checked, List<String> changed, List<String> deleted) {
+    }
+
+    /**
+     * Revérifie les rapports déjà enregistrés avec les règles actuelles de {@link HalfYearChecks}, sans
+     * relire les PDF ni appeler le modèle : retire les lignes écartées, supprime un rapport qui n'a
+     * plus de montant confronté aux comptes annuels.
+     */
+    public Recheck recheckStored() {
+        List<String> changed = new ArrayList<>();
+        List<String> deleted = new ArrayList<>();
+        List<HalfYearRepository.Stored> stored = repository.findAll();
+        for (HalfYearRepository.Stored s : stored) {
+            HalfYearReport r = s.report();
+            Optional<FinancialHistory.Year> year = financials.getHistory(s.companyId()).years().stream()
+                    .filter(y -> HalfYearChecks.computeHalfYearEnd(y.fiscalYearEnd()).equals(r.periodEnd()))
+                    .findFirst();
+            List<HalfYearReport.Line> kept = HalfYearChecks.recheck(r, year);
+            if (kept.size() == r.lines().size()) {
+                continue;
+            }
+            String name = companies.findById(s.companyId()).map(Company::getName).orElse("#" + s.companyId());
+            if (kept.isEmpty()) {
+                repository.delete(s.companyId(), r.periodEnd());
+                deleted.add(name);
+            } else {
+                repository.updateLines(s.companyId(), r.periodEnd(), kept);
+                List<HalfYearReport.Item> removed = r.lines().stream().map(HalfYearReport.Line::item)
+                        .filter(i -> kept.stream().noneMatch(k -> k.item() == i)).toList();
+                changed.add(name + " " + removed);
+            }
+        }
+        log.info("Semestriels revérifiés : {} ; lignes retirées : {} ; supprimés : {}", stored.size(), changed, deleted);
+        return new Recheck(stored.size(), changed, deleted);
+    }
+
     private Optional<FinancialHistory.Year> findLatestYear(long companyId) {
         return financials.getHistory(companyId).years().stream()
                 .max(Comparator.comparing(FinancialHistory.Year::fiscalYearEnd));

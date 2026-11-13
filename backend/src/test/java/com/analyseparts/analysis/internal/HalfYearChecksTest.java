@@ -99,4 +99,43 @@ class HalfYearChecksTest {
         var reading = new HalfYearReader.Reading(H1, List.of(line(Item.REVENUE, "25000000000", "24500000000", null)), List.of());
         assertThat(HalfYearChecks.check(reading, bank).lines()).hasSize(1);
     }
+
+    /** Valeurs réellement lues dans les rapports semestriels 2026 (note collée devant le montant). */
+    @Test
+    void aNoteNumberGluedBeforeTheAmountIsSpotted() {
+        assertThat(HalfYearChecks.hasGluedNote(Item.REVENUE, new BigDecimal("512687000000"), new BigDecimal("13028000000"))).isTrue();  // Michelin, note 5
+        assertThat(HalfYearChecks.hasGluedNote(Item.REVENUE, new BigDecimal("430252000000"), new BigDecimal("27640000000"))).isTrue();  // Renault, note 4
+        assertThat(HalfYearChecks.hasGluedNote(Item.REVENUE, new BigDecimal("12754007000"), new BigDecimal("759964000"))).isTrue();     // Coface, note 12
+        assertThat(HalfYearChecks.hasGluedNote(Item.OPERATING_INCOME, new BigDecimal("5495100000"), new BigDecimal("371600000"))).isTrue(); // Wendel
+        // une vraie hausse, une perte qui se résorbe, un BPA : rien à signaler
+        assertThat(HalfYearChecks.hasGluedNote(Item.REVENUE, new BigDecimal("23776100000"), new BigDecimal("22473300000"))).isFalse();
+        assertThat(HalfYearChecks.hasGluedNote(Item.OPERATING_INCOME, new BigDecimal("1126000000"), new BigDecimal("-8404000000"))).isFalse();
+        assertThat(HalfYearChecks.hasGluedNote(Item.EPS_BASIC, new BigDecimal("52.10"), new BigDecimal("2.05"))).isFalse();
+        // un résultat qui sextuple (Samse) n'est écarté que si le chiffre d'affaires du tableau a sa note collée
+        var samse = new BigDecimal[] {new BigDecimal("8600000"), new BigDecimal("1200000")};
+        assertThat(HalfYearChecks.isGlued(Item.NET_INCOME_GROUP, samse[0], samse[1], false)).isFalse();
+        assertThat(HalfYearChecks.isGlued(Item.OPERATING_INCOME, new BigDecimal("5495100000"), new BigDecimal("371600000"), true)).isTrue();
+    }
+
+    @Test
+    void theGluedLineIsRejectedAndTheOthersKept() {
+        var reading = new HalfYearReader.Reading(H1, List.of(
+                line(Item.REVENUE, "524776100000", "22473300000", null),
+                line(Item.NET_INCOME_GROUP, "3547100000", "3368000000", "6127200000")), List.of());
+
+        var checked = HalfYearChecks.check(reading, OREAL_2025);
+        assertThat(checked.lines()).extracting(HalfYearReport.Line::item).containsExactly(Item.NET_INCOME_GROUP);
+        assertThat(checked.rejected()).anyMatch(r -> r.contains("numéro de note"));
+    }
+
+    @Test
+    void aStoredReportLeftWithoutAnchorIsEmptied() {
+        var report = new HalfYearReport(H1, H1, "t", "u", "m", Instant.EPOCH, List.of(
+                new HalfYearReport.Line(Item.REVENUE, "Ventes", new BigDecimal("512687000000"), new BigDecimal("13028000000"), null),
+                new HalfYearReport.Line(Item.NET_INCOME_GROUP, "RN", new BigDecimal("766000000"), new BigDecimal("840000000"), null)));
+
+        assertThat(HalfYearChecks.recheck(report, java.util.Optional.of(OREAL_2025))).isEmpty();
+        assertThat(HalfYearChecks.recheck(report, java.util.Optional.empty()))
+                .extracting(HalfYearReport.Line::item).containsExactly(Item.NET_INCOME_GROUP);
+    }
 }

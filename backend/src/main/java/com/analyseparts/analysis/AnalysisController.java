@@ -38,6 +38,12 @@ public class AnalysisController {
         return Map.of("queued", halfYears.requestMissing());
     }
 
+    /** Revérifie les rapports semestriels enregistrés avec les règles actuelles, sans le modèle. */
+    @PostMapping("/api/admin/half-year/recheck")
+    public HalfYearService.Recheck recheckHalfYears() {
+        return halfYears.recheckStored();
+    }
+
     /** La dernière lecture du rapport annuel d'une société, et l'état de la file. */
     @GetMapping("/api/companies/{isin}/analysis")
     public ResponseEntity<AnalysisView> getAnalysis(@PathVariable String isin) {
