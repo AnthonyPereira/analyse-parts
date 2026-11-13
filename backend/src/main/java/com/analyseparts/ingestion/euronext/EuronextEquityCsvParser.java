@@ -18,8 +18,9 @@ import java.util.regex.Pattern;
  * "06 Nov 2026"
  * ACCOR;FR0000120404;AC;"Euronext Paris";EUR;...
  * </pre>
- * On ne garde que les actions : les bons de souscription (BSA, warrants) sont écartés.
- * Ils partagent le LEI de leur émetteur et n'ont pas de comptes propres.
+ * On ne garde que les actions : les bons de souscription (BSA, warrants) sont écartés, ainsi que
+ * les lignes techniques d'Amsterdam (actions auto-détenues « TREAS SHARES », lignes de rachat
+ * « BUY BACK », droits « DSC »). Elles partagent le LEI de leur émetteur et n'ont pas de comptes propres.
  */
 public final class EuronextEquityCsvParser {
 
@@ -27,7 +28,8 @@ public final class EuronextEquityCsvParser {
     private static final Pattern ISIN = Pattern.compile("[A-Z]{2}[A-Z0-9]{9}[0-9]");
 
     private static final Pattern NOT_A_SHARE =
-            Pattern.compile("\\b(BSA\\w*|BSAR|WARR|WARRANTS?|DPS|DS)\\b", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("\\b(BSA\\w*|BSAR|WARR|WARRANTS?|DPS|DS|DSC\\d*|TREAS(URY)? SHARES|BUY ?BACK)\\b",
+                    Pattern.CASE_INSENSITIVE);
 
     // Colonnes utiles au-delà des 4 premières
     private static final int CURRENCY = 4;

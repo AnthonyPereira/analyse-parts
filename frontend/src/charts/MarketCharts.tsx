@@ -3,7 +3,8 @@ import {
   Bar, BarChart, CartesianGrid, ReferenceArea, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import type { ProfileDefinition, ProfileId, UniverseEntry } from '../api/types'
-import { AXIS, ChartCard, EmptyChart, GRID, Legend, TooltipBox } from './common'
+import { ChartCard, EmptyChart, Legend, TooltipBox } from './common'
+import { AXIS, GRID } from './theme'
 
 /** Combien de sociétés par tranche de 10 points : le profil est-il sévère ou généreux ? */
 export function ScoreHistogram({ scores, title }: { scores: number[]; title: string }) {

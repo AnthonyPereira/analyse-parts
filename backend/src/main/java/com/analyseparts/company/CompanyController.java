@@ -27,7 +27,7 @@ public class CompanyController {
                               String country, String market, String mic, Icb icb, Long sharesAdmitted) {
     }
 
-    /** Toutes les sociétés, triées par nom (environ 330 : la liste entière tient dans une réponse). */
+    /** Toutes les sociétés, triées par nom (environ 2 200, une centaine de Ko : la liste entière tient dans une réponse). */
     @GetMapping("/api/companies")
     public List<CompanySummary> list() {
         return companies.findAll().stream()

@@ -3,6 +3,7 @@ package com.analyseparts.scoring;
 import com.analyseparts.company.Company;
 import com.analyseparts.company.CompanyRepository;
 import com.analyseparts.company.Icb;
+import com.analyseparts.financials.FilingRecorded;
 import com.analyseparts.financials.FinancialHistory;
 import com.analyseparts.financials.FinancialsService;
 import com.analyseparts.financials.Metric;
@@ -22,9 +23,12 @@ import com.analyseparts.scoring.internal.SectorCalibrationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -38,12 +42,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * Couche Spring autour du calcul : va chercher les données, appelle le cœur en Java pur.
  * <p>
- * Le score est recalculé à chaque demande (quelques millisecondes par société) : pas de
- * score courant stocké à tenir à jour quand un rapport ou un cours arrive. On enregistre la
+ * Le score d'une société est recalculé à chaque demande (quelques millisecondes) ; le classement
+ * et l'univers sont gardés en mémoire jusqu'au prochain changement de données. On enregistre la
  * calibration sectorielle, pour rester stable entre deux calibrages, et des photos des notes
  * pour leur historique ({@link ScoreHistoryService}).
  */
@@ -51,8 +59,13 @@ import java.util.Set;
 public class ScoringService {
 
     private static final Logger log = LoggerFactory.getLogger(ScoringService.class);
-    /** Un cours plus ancien (suspension de cotation, symbole erroné…) n'est pas utilisé. */
-    static final Duration MAX_QUOTE_AGE = Duration.ofDays(7);
+    /**
+     * Un cours plus ancien (suspension de cotation, symbole erroné…) n'est pas utilisé. Un mois, pas
+     * une semaine : une petite société peu échangée (Bourse de Vienne, d'Athènes, fonds de Londres)
+     * peut rester plusieurs jours sans transaction, et son dernier cours reste son prix ; avec 7 jours,
+     * une vingtaine de sociétés perdaient leur valorisation (revue du 11 novembre 2026).
+     */
+    static final Duration MAX_QUOTE_AGE = Duration.ofDays(31);
 
     private final CompanyRepository companies;
     private final FinancialsService financials;
@@ -60,6 +73,9 @@ public class ScoringService {
     private final SectorCalibrationRepository calibrations;
     private final Clock clock;
     private volatile SectorCalibration calibration;
+    /** Faux dans le lecteur local : pas de calcul en arrière-plan. */
+    @Value("${analyse-parts.scoring.warm-up:true}")
+    boolean warmUpEnabled = true;
 
     @Autowired
     public ScoringService(CompanyRepository companies, FinancialsService financials, MarketDataService market,
@@ -98,7 +114,102 @@ public class ScoringService {
 
     /** Les sociétés notées, de la meilleure à la moins bonne ; celles sans score sont à la fin. */
     public List<RankingEntry> computeRanking(Profile profile) {
-        return computeRanking(c -> findWeights(c, profile));
+        return getCached(profile, () -> computeRanking(c -> findWeights(c, profile)));
+    }
+
+    /**
+     * Le classement et l'univers sont gardés en mémoire et recalculés seulement quand les données
+     * changent : nouveau cours, nouveau rapport, recalibrage, changement de jour (la fraîcheur en
+     * dépend), ou au plus tard après {@link #RESULT_MAX_AGE} (fiche société mise à jour par une
+     * collecte, par exemple). Avant, chaque visite recalculait tout (6 s sur la démo, revue du
+     * 11 novembre 2026). Le mode avancé, aux poids libres, n'est pas gardé.
+     */
+    static final Duration RESULT_MAX_AGE = Duration.ofMinutes(15);
+
+    private record Cached(long version, LocalDate day, Instant computedAt, Object value) {
+    }
+
+    private final AtomicLong dataVersion = new AtomicLong();
+    private final Map<Object, Cached> results = new ConcurrentHashMap<>();
+    private final AtomicBoolean refreshScheduled = new AtomicBoolean();
+    private static final String UNIVERSE = "universe";
+
+    @SuppressWarnings("unchecked")
+    private <T> T getCached(Object key, Supplier<T> compute) {
+        Cached c = results.get(key);
+        if (c != null && c.version() == dataVersion.get() && c.day().equals(LocalDate.now(clock))
+                && c.computedAt().plus(RESULT_MAX_AGE).isAfter(Instant.now(clock))) {
+            return (T) c.value();
+        }
+        // Version lue avant le calcul : une donnée qui change pendant celui-ci le rend aussitôt périmé
+        long version = dataVersion.get();
+        T value = compute.get();
+        results.put(key, new Cached(version, LocalDate.now(clock), Instant.now(clock), value));
+        return value;
+    }
+
+    /** Un cours ou un rapport a changé : les résultats gardés sont périmés. */
+    void invalidateResults() {
+        dataVersion.incrementAndGet();
+    }
+
+    /*
+     * Écouteurs simples (@EventListener), pas @TransactionalEventListener : Spring Modulith suivrait
+     * ceux-ci dans event_publication, une ligne de plus par rapport. L'invalidation attend quand même
+     * le commit, sinon un calcul lancé entre-temps garderait les anciennes données comme neuves.
+     */
+    @EventListener
+    void handleQuotesUpdated(MarketDataService.QuotesUpdated event) {
+        invalidateAfterCommit();
+    }
+
+    @EventListener
+    void handleFilingRecorded(FilingRecorded event) {
+        invalidateAfterCommit();
+    }
+
+    private void invalidateAfterCommit() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    invalidateAndRefresh();
+                }
+            });
+        } else {
+            invalidateAndRefresh();
+        }
+    }
+
+    /**
+     * Après un changement, recalcule en arrière-plan ce qui a déjà été demandé, pour que le visiteur
+     * suivant n'attende pas. Une seule passe à la fois, quelques secondes après le premier changement
+     * (les cours arrivent par paquets, les rapports par centaines lors d'une collecte).
+     */
+    private void invalidateAndRefresh() {
+        invalidateResults();
+        if (!warmUpEnabled || !refreshScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        Thread.ofVirtual().name("recalcul-classement").start(() -> {
+            try {
+                Thread.sleep(Duration.ofSeconds(5));
+                refreshScheduled.set(false);
+                for (Object key : List.copyOf(results.keySet())) {
+                    if (key instanceof Profile p) {
+                        computeRanking(p);
+                    } else if (UNIVERSE.equals(key)) {
+                        buildUniverse();
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (RuntimeException e) {
+                log.warn("Recalcul du classement en arrière-plan impossible", e);
+            } finally {
+                refreshScheduled.set(false);
+            }
+        });
     }
 
     /** Classement avec des poids choisis librement (mode avancé), les mêmes pour toutes les sociétés. */
@@ -146,6 +257,7 @@ public class ScoringService {
         }
         log.info("Calibration sectorielle : {} médianes sur {} sociétés", computed.getMedians().size(), samples.size());
         calibration = computed;
+        invalidateResults();
         return computed;
     }
 
@@ -212,11 +324,18 @@ public class ScoringService {
         Thread.ofVirtual().name("prechauffage-scores").start(() -> {
             long start = System.nanoTime();
             int size = buildUniverse().size();
+            for (Profile p : Profile.values()) {
+                computeRanking(p);
+            }
             log.info("Préchauffage : {} sociétés en {} ms", size, (System.nanoTime() - start) / 1_000_000);
         });
     }
 
     public List<UniverseEntry> buildUniverse() {
+        return getCached(UNIVERSE, this::computeUniverse);
+    }
+
+    private List<UniverseEntry> computeUniverse() {
         return findScoredCompanies().stream()
                 .map(c -> {
                     RatioSet ratios = computeRatios(c);

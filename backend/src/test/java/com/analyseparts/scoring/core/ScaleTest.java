@@ -25,7 +25,8 @@ class ScaleTest {
     @Test
     void supportsDecreasingAndBellShapedScales() {
         Scale gearing = Ratio.NET_DEBT_TO_EQUITY.getScale();
-        assertThat(gearing.computePoints(-0.4)).isEqualTo(100); // plus de trésorerie que de dettes
+        assertThat(gearing.computePoints(-0.6)).isEqualTo(100); // beaucoup plus de trésorerie que de dettes
+        assertThat(gearing.computePoints(0)).isEqualTo(90); // ni dette nette, ni trésorerie nette
         assertThat(gearing.computePoints(1.5)).isCloseTo(20, within(1e-9));
 
         Scale payout = Ratio.PAYOUT_RATIO.getScale();

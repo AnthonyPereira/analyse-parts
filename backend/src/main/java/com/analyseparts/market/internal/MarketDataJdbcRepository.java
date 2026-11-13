@@ -64,6 +64,19 @@ public class MarketDataJdbcRepository {
         return changed;
     }
 
+    /** Le dernier cours de chaque société, en une seule requête (pour le classement). */
+    public Map<Long, Quote> findQuotes() {
+        Map<Long, Quote> quotes = new HashMap<>();
+        jdbc.query("SELECT company_id, price, currency, as_of, source, previous_close FROM quote",
+                rs -> {
+                    long id = rs.getLong("company_id");
+                    quotes.put(id, new Quote(id, rs.getBigDecimal("price"), rs.getString("currency"),
+                            rs.getTimestamp("as_of").toInstant(), rs.getString("source"),
+                            rs.getBigDecimal("previous_close")));
+                });
+        return quotes;
+    }
+
     public Optional<Quote> findQuote(long companyId) {
         return jdbc.query("""
                         SELECT company_id, price, currency, as_of, source, previous_close

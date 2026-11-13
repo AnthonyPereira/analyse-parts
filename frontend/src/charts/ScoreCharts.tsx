@@ -3,7 +3,8 @@ import { CartesianGrid, Line, LineChart, ReferenceDot, ResponsiveContainer, Tool
 import type { ProfileDefinition, ProfileId, RatioDefinition, SectorAdjustment, UniverseEntry } from '../api/types'
 import { formatRatio, scoreTone } from '../format'
 import { Term } from '../components/Term'
-import { AXIS, GRID, Legend, SERIES, TooltipBox } from './common'
+import { Legend, TooltipBox } from './common'
+import { AXIS, GRID, SERIES } from './theme'
 import { useWidth } from './useWidth'
 
 const TONE_COLOR = { good: 'var(--good)', mid: 'var(--mid)', bad: 'var(--bad)', none: 'var(--muted)' }
@@ -148,7 +149,7 @@ export function StripPlot({ values, sector, company, unit, higherIsBetter }: {
 }
 
 /** Sens d'un indicateur : d'après son barème, plus de points quand la valeur monte ? */
-export function higherIsBetter(def: RatioDefinition): boolean {
+function higherIsBetter(def: RatioDefinition): boolean {
   const s = def.scale
   return s[s.length - 1].points >= s[0].points
 }

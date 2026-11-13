@@ -1,6 +1,6 @@
 import { useFinancials, useRatioHistory, useUniverse } from '../api/queries'
 import { Term } from '../components/Term'
-import { compactAmount } from './common'
+import { compactAmount } from './theme'
 import { YearChart, type YearRow } from './YearChart'
 
 const pct = (v: number) => `${(v * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`

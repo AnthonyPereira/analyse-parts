@@ -143,6 +143,49 @@ public class EsefIssuerImportService {
         return result;
     }
 
+    public record SectorUpdateResult(int companies, int changed, int notFound, int errors) {
+    }
+
+    /**
+     * Redemande à Yahoo le secteur de chaque société suivie hors Euronext et lui réapplique la table
+     * {@link YahooSectorMapping}, après une correction de celle-ci (environ 1 s par société). Le
+     * sous-secteur Yahoo n'est pas gardé en base : il faut le redemander. Ne touche pas aux sociétés
+     * d'Euronext, dont le secteur vient de leur fiche Euronext. Recalibrer ensuite.
+     */
+    public SectorUpdateResult updateSectors() {
+        int count = 0, changed = 0, notFound = 0, errors = 0;
+        for (Company company : companies.findAll()) {
+            if (StockExchange.findByMic(company.getMic()).filter(m -> !m.isEuronext()).isEmpty()) {
+                continue;
+            }
+            count++;
+            try {
+                Optional<YahooListing> stock = findStock(yahoo.searchByIsin(company.getIsin()));
+                sleep();
+                var icb = stock.flatMap(s -> sectors.findIcb(s.sector(), s.industry()));
+                if (icb.isEmpty()) {
+                    notFound++;
+                    continue;
+                }
+                if (!icb.equals(company.getIcb())) {
+                    // relue juste avant l'écriture : une collecte en parallèle a pu la modifier
+                    Company fresh = companies.findById(company.getId()).orElse(company);
+                    log.info("Secteur de {} : {} → {}", fresh.getName(),
+                            fresh.getIcb().map(i -> i.sector()).orElse("aucun"), icb.get().sector());
+                    fresh.applySector(icb.get());
+                    companies.save(fresh);
+                    changed++;
+                }
+            } catch (RestClientException e) {
+                errors++;
+                log.warn("Secteur Yahoo de {} : {}", company.getIsin(), e.getMessage());
+            }
+        }
+        var result = new SectorUpdateResult(count, changed, notFound, errors);
+        log.info("Secteurs Yahoo réappliqués : {}", result);
+        return result;
+    }
+
     /** Les émetteurs à examiner : rapport récent, pays hors Euronext, les plus récents d'abord. */
     static List<Issuer> selectIssuers(List<Issuer> all, LocalDate today) {
         String oldest = today.minusYears(MAX_REPORT_AGE_YEARS).toString();

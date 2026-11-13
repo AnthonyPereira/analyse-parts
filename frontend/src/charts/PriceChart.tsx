@@ -3,7 +3,8 @@ import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Too
 import { useIntraday, usePrices } from '../api/queries'
 import type { PriceRange } from '../api/types'
 import { formatPrice } from '../format'
-import { AXIS, ChartCard, EmptyChart, GRID, TooltipBox } from './common'
+import { ChartCard, EmptyChart, TooltipBox } from './common'
+import { AXIS, GRID } from './theme'
 
 const RANGES: { id: PriceRange; label: string }[] = [
   { id: 'D1', label: '1 j' }, { id: 'M1', label: '1 m' }, { id: 'M6', label: '6 m' },

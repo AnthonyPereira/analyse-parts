@@ -3,12 +3,13 @@ import { useScoreHistory } from '../api/queries'
 import type { ProfileDefinition, ProfileId, ScoreOrigin } from '../api/types'
 import { Term } from '../components/Term'
 import { formatDate } from '../format'
-import { AXIS, ChartCard, EmptyChart, GRID, Legend, SERIES, TooltipBox } from './common'
+import { ChartCard, EmptyChart, Legend, TooltipBox } from './common'
+import { AXIS, GRID, SERIES } from './theme'
 
 /** L'ordre des profils fixe leur couleur : Qualité est toujours la 1re couleur, même si un profil manque. */
 const ORDER: ProfileId[] = ['QUALITY', 'GROWTH', 'DIVIDEND', 'VALUE']
 
-export const ORIGIN_LABEL: Record<ScoreOrigin, string> = {
+const ORIGIN_LABEL: Record<ScoreOrigin, string> = {
   FILING: 'Nouveau rapport',
   DAILY: 'Photo du soir',
   BACKFILL: 'Clôture d\'exercice',

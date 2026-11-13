@@ -31,6 +31,13 @@ public class MarketDataService {
     private record CachedIntraday(Instant fetchedAt, Optional<IntradaySource.Intraday> value) {
     }
 
+    private static final Duration SNAPSHOT_TTL = Duration.ofMinutes(1);
+
+    private record Snapshot(Instant loadedAt, Map<Long, Quote> quotes, Map<String, BigDecimal> fxRates) {
+    }
+
+    private volatile Snapshot snapshot;
+
     /** Publié quand des cours changent ; écouté par {@link QuoteStream} pour le direct. */
     public record QuotesUpdated(List<Quote> quotes) {
     }
@@ -46,13 +53,29 @@ public class MarketDataService {
     public int recordQuotes(Collection<Quote> quotes) {
         List<Quote> changed = repository.upsertQuotes(quotes);
         if (!changed.isEmpty()) {
+            snapshot = null;
             events.publishEvent(new QuotesUpdated(changed));
         }
         return changed.size();
     }
 
     public Optional<Quote> findLatestQuote(long companyId) {
-        return repository.findQuote(companyId);
+        return Optional.ofNullable(getSnapshot().quotes().get(companyId));
+    }
+
+    /**
+     * Tous les derniers cours et taux de change, lus en deux requêtes et gardés une minute au plus
+     * (vidés à chaque écriture). Le classement en lit un par société : une requête chacun faisait
+     * environ 2 000 allers-retours vers la base à chaque visite (revue du 11 novembre 2026).
+     */
+    private Snapshot getSnapshot() {
+        Snapshot current = snapshot;
+        if (current == null || current.loadedAt().plus(SNAPSHOT_TTL).isBefore(Instant.now())) {
+            current = new Snapshot(Instant.now(), Map.copyOf(repository.findQuotes()),
+                    Map.copyOf(repository.findFxRates()));
+            snapshot = current;
+        }
+        return current;
     }
 
     public int recordCloses(long companyId, Collection<PricePoint.Close> closes) {
@@ -100,6 +123,7 @@ public class MarketDataService {
     /** Taux de la BCE : combien d'unités de chaque devise vaut 1 euro. */
     public void recordFxRates(Map<String, BigDecimal> ratePerEur, LocalDate asOf) {
         repository.upsertFxRates(ratePerEur, asOf);
+        snapshot = null;
     }
 
     /**
@@ -110,7 +134,7 @@ public class MarketDataService {
         if (from.equals(to)) {
             return Optional.of(amount);
         }
-        Map<String, BigDecimal> rates = repository.findFxRates();
+        Map<String, BigDecimal> rates = getSnapshot().fxRates();
         BigDecimal fromRate = "EUR".equals(from) ? BigDecimal.ONE : rates.get(from);
         BigDecimal toRate = "EUR".equals(to) ? BigDecimal.ONE : rates.get(to);
         if (fromRate == null || toRate == null) {

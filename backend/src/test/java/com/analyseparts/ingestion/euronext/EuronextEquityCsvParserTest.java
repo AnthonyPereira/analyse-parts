@@ -49,6 +49,17 @@ class EuronextEquityCsvParserTest {
     }
 
     @Test
+    void skipsAmsterdamTechnicalLines() {
+        String csv = """
+                NAI TREAS SHARES;NL0015000CF4;NAITR;"Euronext Amsterdam";EUR
+                PHILIPS BUY BACK;NL0000009322;INPHI;"Euronext Amsterdam";EUR
+                CABKA DSC2 TS;NL00150002R5;DSC2S;"Euronext Amsterdam";EUR
+                PHILIPS KON;NL0000009538;PHIA;"Euronext Amsterdam";EUR
+                """;
+        assertThat(EuronextEquityCsvParser.parse(csv)).extracting(ListedEquity::symbol).containsExactly("PHIA");
+    }
+
+    @Test
     void splitHandlesEscapedQuotes() {
         assertThat(EuronextEquityCsvParser.split("\"A \"\"B\"\" C\";X;\"d;e\""))
                 .containsExactly("A \"B\" C", "X", "d;e");

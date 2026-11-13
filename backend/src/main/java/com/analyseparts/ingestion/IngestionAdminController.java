@@ -49,6 +49,15 @@ public class IngestionAdminController {
         return issuers.importIssuers(limit);
     }
 
+    /**
+     * Réapplique la table yahoo-icb.csv aux sociétés hors Euronext, après une correction de la table
+     * (environ 1 s par société), puis recalibrer : POST /api/admin/scoring/calibrate.
+     */
+    @PostMapping("/esef-issuers/sectors")
+    public EsefIssuerImportService.SectorUpdateResult updateSectors() {
+        return issuers.updateSectors();
+    }
+
     /** Ex. : POST /api/admin/ingestion/euronext?mic=XPAR ; sans paramètre, les 7 marchés (ADR 0020). */
     @PostMapping("/euronext")
     public List<ImportResult> importEuronext(@RequestParam(required = false) String mic) {

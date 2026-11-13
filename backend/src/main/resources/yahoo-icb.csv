@@ -1,5 +1,6 @@
 # secteur Yahoo;sous-secteur Yahoo;code ICB;industrie;super-secteur;secteur;sous-secteur
 # Construite le 10 novembre 2026 à partir de 945 sociétés d'Euronext (ADR 0020). « * » : tout le secteur Yahoo.
+# Complétée à la main le 13 novembre 2026 (revue du projet) : sous-secteurs Yahoo absents des sociétés d'Euronext, qui tombaient sur une ligne « * » d'un autre super-secteur (mines d'or rangées en chimie, assureurs vie en services financiers…).
 Basic Materials;*;55201020;Basic Materials;Chemicals;Chemicals;Specialty Chemicals
 Communication Services;*;40301030;Consumer Discretionary;Media;Media;Publishing
 Consumer Cyclical;*;40204020;Consumer Discretionary;Consumer Products and Services;Personal Goods;Clothing and Accessories
@@ -124,3 +125,21 @@ Utilities;Utilities—Regulated Gas;65102020;Utilities;Utilities;Gas, Water and 
 Utilities;Utilities—Regulated Water;65102030;Utilities;Utilities;Gas, Water and Multi-utilities;Water
 Utilities;Utilities—Renewable;65101010;Utilities;Utilities;Electricity;Alternative Electricity
 Industrials;Waste Management;65103035;Utilities;Utilities;Waste and Disposal Services;Waste and Disposal Services
+Basic Materials;Gold;55103025;Basic Materials;Basic Resources;Precious Metals and Mining;Gold Mining
+Basic Materials;Silver;55103030;Basic Materials;Basic Resources;Precious Metals and Mining;Platinum and Precious Metals
+Basic Materials;Other Precious Metals & Mining;55103030;Basic Materials;Basic Resources;Precious Metals and Mining;Platinum and Precious Metals
+Basic Materials;Coking Coal;60101040;Energy;Energy;Oil, Gas and Coal;Coal
+Energy;Thermal Coal;60101040;Energy;Energy;Oil, Gas and Coal;Coal
+Energy;Uranium;55102000;Basic Materials;Basic Resources;Industrial Metals and Mining;General Mining
+Energy;Oil & Gas Refining & Marketing;60101020;Energy;Energy;Oil, Gas and Coal;Oil Refining and Marketing
+Technology;Solar;60102020;Energy;Energy;Alternative Energy;Renewable Energy Equipment
+Financial Services;Insurance—Life;30301010;Financials;Insurance;Life Insurance;Life Insurance
+Financial Services;Insurance—Specialty;30302025;Financials;Insurance;Non-life Insurance;Property and Casualty Insurance
+Financial Services;Insurance Brokers;30302015;Financials;Insurance;Non-life Insurance;Insurance Brokers
+Consumer Cyclical;Department Stores;40401010;Consumer Discretionary;Retail;Retailers;Diversified Retailers
+Consumer Cyclical;Personal Services;40201010;Consumer Discretionary;Consumer Products and Services;Consumer Services;Consumer Services: Misc.
+Consumer Defensive;Discount Stores;40401010;Consumer Discretionary;Retail;Retailers;Diversified Retailers
+Consumer Defensive;Education & Training Services;40201020;Consumer Discretionary;Consumer Products and Services;Consumer Services;Education Services
+Consumer Defensive;Tobacco;45103010;Consumer Staples;Food, Beverage and Tobacco;Tobacco;Tobacco
+Healthcare;Pharmaceutical Retailers;45201015;Consumer Staples;Personal Care, Drug and Grocery Stores;Personal Care, Drug and Grocery Stores;Drug Retailers
+Industrials;Conglomerates;50203000;Industrials;Industrial Goods and Services;General Industrials;Diversified Industrials

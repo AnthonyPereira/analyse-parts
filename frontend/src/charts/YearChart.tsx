@@ -1,7 +1,8 @@
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { ReactNode } from 'react'
 import { glossary } from '../glossary'
-import { AXIS, ChartCard, EmptyChart, GRID, Legend, SERIES, TooltipBox } from './common'
+import { ChartCard, EmptyChart, Legend, TooltipBox } from './common'
+import { AXIS, GRID, SERIES } from './theme'
 
 export interface Series {
   key: string

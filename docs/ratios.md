@@ -16,12 +16,16 @@ Le **barème** de chaque ratio (valeur → points de 0 à 100) est indiqué entr
 `[0 % → 0, 10 % → 70, 20 % → 100]` veut dire 0 point à 0 %, 70 points à 10 %, 100 points à
 20 % et au-delà, avec une progression linéaire entre deux repères.
 
+Pour la rentabilité, la solidité et le cash-flow libre, un niveau « très bon » vaut 90 points et
+il faut un niveau exceptionnel pour atteindre 100 : sinon trop de sociétés plafonnent à 100 et le
+classement ne départage plus les meilleures (barèmes étalés le 13 novembre 2026).
+
 ---
 
 ## Rentabilité — l'entreprise gagne-t-elle bien sa vie ?
 
 ### Marge nette
-**Résultat net part du groupe ÷ chiffre d'affaires** `[0 % → 0, 5 % → 40, 10 % → 70, 20 % → 100]`
+**Résultat net part du groupe ÷ chiffre d'affaires** `[0 % → 0, 5 % → 40, 10 % → 70, 20 % → 90, 35 % → 100]`
 
 Sur 100 € de ventes, ce qui reste une fois **tout** payé : fournisseurs, salaires,
 intérêts de la dette, impôt. Hermès garde environ 28 €, un supermarché 1 à 2 €.
@@ -30,7 +34,7 @@ intérêts de la dette, impôt. Hermès garde environ 28 €, un supermarché 1 
 peuvent le gonfler ou l'écraser une année donnée.
 
 ### Marge opérationnelle
-**Résultat opérationnel ÷ chiffre d'affaires** `[0 % → 0, 8 % → 40, 15 % → 70, 25 % → 100]`
+**Résultat opérationnel ÷ chiffre d'affaires** `[0 % → 0, 8 % → 40, 15 % → 70, 25 % → 90, 40 % → 100]`
 
 La même idée, mais **avant** frais financiers et impôt : elle mesure la rentabilité du
 métier lui-même, indépendamment de la façon dont l'entreprise est financée. Une marge
@@ -38,7 +42,7 @@ opérationnelle élevée et stable signale souvent un avantage concurrentiel (ma
 position dominante) : l'entreprise peut vendre plus cher que ses coûts.
 
 ### ROE — rentabilité des capitaux propres
-**Résultat net part du groupe ÷ capitaux propres part du groupe moyens** `[0 % → 0, 8 % → 40, 15 % → 75, 25 % → 100]`
+**Résultat net part du groupe ÷ capitaux propres part du groupe moyens** `[0 % → 0, 8 % → 40, 15 % → 75, 25 % → 90, 40 % → 100]`
 
 Les **capitaux propres**, c'est l'argent des actionnaires dans l'entreprise : ce qu'ils ont
 apporté plus les bénéfices qu'ils y ont laissés. Le ROE dit combien rapporte chaque euro
@@ -51,7 +55,7 @@ le bénéfice a été gagné sur toute l'année.
 activité). C'est pourquoi le score le croise avec l'endettement.
 
 ### ROA — rentabilité de l'actif
-**Résultat net ÷ total du bilan moyen** `[0 % → 0, 2 % → 30, 5 % → 60, 10 % → 100]`
+**Résultat net ÷ total du bilan moyen** `[0 % → 0, 2 % → 30, 5 % → 60, 10 % → 90, 18 % → 100]`
 
 Ce que rapporte chaque euro investi dans l'entreprise, qu'il vienne des actionnaires ou
 des prêteurs. Il ne peut pas être gonflé par la dette. C'est aussi le ratio qui permet de
@@ -62,7 +66,7 @@ comparer les banques entre elles (un ROA de 1 % est bon pour une banque).
 ## Solidité financière — peut-elle encaisser un coup dur ?
 
 ### Gearing — dette nette ÷ capitaux propres
-**(Dettes financières long terme + court terme − trésorerie) ÷ capitaux propres** `[≤ 0 → 100, 0,5 → 70, 1 → 40, 2 → 0]`
+**(Dettes financières long terme + court terme − trésorerie) ÷ capitaux propres** `[≤ −0,5 → 100, 0 → 90, 0,5 → 70, 1 → 40, 2 → 0]`
 
 La **dette nette**, c'est ce que l'entreprise devrait encore aux banques et aux
 obligataires si elle utilisait toute sa trésorerie pour rembourser. On la compare à ce qui
@@ -71,13 +75,13 @@ Au-delà de 1 (dette nette supérieure aux capitaux propres), une mauvaise anné
 dangereuse.
 
 ### Autonomie financière
-**Capitaux propres ÷ total du bilan** `[10 % → 0, 30 % → 60, 50 % → 100]`
+**Capitaux propres ÷ total du bilan** `[10 % → 0, 30 % → 60, 50 % → 90, 70 % → 100]`
 
 La part de l'entreprise financée par ses actionnaires plutôt que par des dettes (de toutes
 natures : financières, fournisseurs, provisions…).
 
 ### Liquidité générale
-**Actifs courants ÷ passifs courants** `[0,8 → 0, 1 → 40, 1,5 → 80, 2 → 100]`
+**Actifs courants ÷ passifs courants** `[0,8 → 0, 1 → 40, 1,5 → 80, 2 → 90, 3 → 100]`
 
 « Courant » = à moins d'un an. On compare ce qui va rentrer en argent sous un an (stocks,
 créances clients, trésorerie) à ce qu'il faudra payer sous un an. En dessous de 1,
@@ -102,7 +106,7 @@ bénéfice, les clients paient mal, les stocks gonflent… ou les comptes sont t
 Au-dessus de 1, c'est bon signe (les amortissements réduisent le bénéfice sans sortie de cash).
 
 ### Marge de cash-flow libre
-**(Flux de trésorerie d'exploitation − investissements) ÷ chiffre d'affaires** `[0 % → 0, 5 % → 50, 10 % → 80, 15 % → 100]`
+**(Flux de trésorerie d'exploitation − investissements) ÷ chiffre d'affaires** `[0 % → 0, 5 % → 50, 10 % → 80, 15 % → 90, 25 % → 100]`
 
 Le **cash-flow libre** (*free cash flow*), c'est l'argent qui reste une fois l'activité
 financée **et** les usines, machines, logiciels renouvelés (*capex*). C'est lui, et non le
@@ -295,7 +299,7 @@ resserré** selon le secteur :
 3. chaque repère du barème est multiplié par ce facteur.
 
 Exemple, marge nette, distributeurs (médiane 2,4 %) contre univers (6 %) : facteur 0,4,
-le barème `0 % → 0, 5 % → 40, 10 % → 70, 20 % → 100` devient `0 % → 0, 2 % → 40, 4 % → 70, 8 % → 100`.
+le barème `0 % → 0, 5 % → 40, 10 % → 70, 20 % → 90, 35 % → 100` devient `0 % → 0, 2 % → 40, 4 % → 70, 8 % → 90, 14 % → 100`.
 
 Le secteur de référence est le super-secteur ICB (20 au total, ex. « Retail ») dès que 3 de ses
 sociétés ont le ratio, même s'il est petit ; sinon l'industrie (11, ex. « Consumer Discretionary »)

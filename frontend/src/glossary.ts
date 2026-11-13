@@ -117,7 +117,7 @@ export const GLOSSARY: Record<string, Entry> = {
     term: 'Barème', category: 'Le score',
     short: 'La règle qui transforme la valeur d\'un indicateur en points de 0 à 100.',
     what: 'Le barème fixe quelques repères ; entre deux repères, les points augmentent régulièrement (en ligne droite). Au-delà du dernier repère, on reste au maximum ou au minimum.',
-    example: 'Marge nette : 0 % → 0 point, 5 % → 40, 10 % → 70, 20 % → 100. Une marge de 7,5 % (à mi-chemin entre 5 et 10 %) vaut 55 points.',
+    example: 'Marge nette : 0 % → 0 point, 5 % → 40, 10 % → 70, 20 % → 90, 35 % → 100. Une marge de 7,5 % (à mi-chemin entre 5 et 10 %) vaut 55 points.',
     read: 'Sur la fiche d\'une société, cliquez sur un indicateur pour voir la courbe de son barème et le point de la société dessus.',
     see: ['SECTOR_ADJUSTMENT'],
   },

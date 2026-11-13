@@ -18,6 +18,10 @@ import static com.analyseparts.scoring.core.RatioFamily.VALUATION;
  * Les barèmes sont des repères généralistes. Ceux marqués {@code sectorAdjusted} sont étirés
  * ou resserrés selon le niveau normal du secteur ({@link SectorCalibration}, ADR 0004) : une
  * marge de 4 % est faible pour un éditeur de logiciels, bonne pour un distributeur.
+ * <p>
+ * Le haut des barèmes de rentabilité, de solidité et de cash est étalé : le niveau « très bon »
+ * vaut 90 points, et 100 demande un niveau exceptionnel. Avant (revue du 11 novembre 2026),
+ * 94 sociétés sur 1 621 avaient 90 ou plus en Qualité, dont 9 à 100 : le barème ne les départageait plus.
  */
 public enum Ratio {
 
@@ -25,17 +29,17 @@ public enum Ratio {
 
     NET_MARGIN(PROFITABILITY, Unit.PERCENT, true, "Marge nette",
             "Sur 100 € de ventes, ce qu'il reste en bénéfice une fois toutes les charges et l'impôt payés.",
-            Scale.of(0, 0, 0.05, 40, 0.10, 70, 0.20, 100)),
+            Scale.of(0, 0, 0.05, 40, 0.10, 70, 0.20, 90, 0.35, 100)),
     OPERATING_MARGIN(PROFITABILITY, Unit.PERCENT, true, "Marge opérationnelle",
             "Sur 100 € de ventes, ce que rapporte le métier lui-même, avant frais financiers et impôt.",
-            Scale.of(0, 0, 0.08, 40, 0.15, 70, 0.25, 100)),
+            Scale.of(0, 0, 0.08, 40, 0.15, 70, 0.25, 90, 0.40, 100)),
     /** Non ajusté : quel que soit le secteur, l'actionnaire attend au moins le coût du capital (~8-10 %). */
     ROE(PROFITABILITY, Unit.PERCENT, false, "Rentabilité des capitaux propres (ROE)",
             "Ce que rapporte chaque euro laissé par les actionnaires dans l'entreprise.",
-            Scale.of(0, 0, 0.08, 40, 0.15, 75, 0.25, 100)),
+            Scale.of(0, 0, 0.08, 40, 0.15, 75, 0.25, 90, 0.40, 100)),
     ROA(PROFITABILITY, Unit.PERCENT, true, "Rentabilité de l'actif (ROA)",
             "Ce que rapporte chaque euro d'actif, qu'il soit financé par les actionnaires ou par la dette.",
-            Scale.of(0, 0, 0.02, 30, 0.05, 60, 0.10, 100)),
+            Scale.of(0, 0, 0.02, 30, 0.05, 60, 0.10, 90, 0.18, 100)),
     /**
      * Banques : la part du produit net bancaire absorbée par les frais de fonctionnement
      * (salaires, agences, informatique). L'équivalent bancaire de la marge, lu à l'envers.
@@ -50,13 +54,13 @@ public enum Ratio {
     NET_DEBT_TO_EQUITY(SOLIDITY, Unit.MULTIPLE, true, "Dette nette / capitaux propres (gearing)",
             "La dette financière, moins la trésorerie, rapportée à ce qui appartient aux actionnaires. "
                     + "Négatif : l'entreprise a plus de trésorerie que de dettes.",
-            Scale.of(0, 100, 0.5, 70, 1.0, 40, 2.0, 0)),
+            Scale.of(-0.5, 100, 0, 90, 0.5, 70, 1.0, 40, 2.0, 0)),
     EQUITY_RATIO(SOLIDITY, Unit.PERCENT, true, "Autonomie financière",
             "La part du bilan financée par les actionnaires plutôt que par des dettes.",
-            Scale.of(0.10, 0, 0.30, 60, 0.50, 100)),
+            Scale.of(0.10, 0, 0.30, 60, 0.50, 90, 0.70, 100)),
     CURRENT_RATIO(SOLIDITY, Unit.MULTIPLE, true, "Liquidité générale",
             "Ce qui rentre en argent sous un an, comparé à ce qu'il faut payer sous un an.",
-            Scale.of(0.8, 0, 1.0, 40, 1.5, 80, 2.0, 100)),
+            Scale.of(0.8, 0, 1.0, 40, 1.5, 80, 2.0, 90, 3.0, 100)),
     /**
      * Banques : les pertes attendues sur les prêts, rapportées au produit net bancaire. C'est
      * le vrai risque d'une banque, que les ratios d'endettement ne savent pas mesurer pour elle.
@@ -75,7 +79,7 @@ public enum Ratio {
     FCF_MARGIN(CASH, Unit.PERCENT, true, "Marge de cash-flow libre",
             "Sur 100 € de ventes, l'argent qu'il reste après avoir payé l'activité et les investissements : "
                     + "c'est ce qui peut servir à rembourser, racheter ou verser des dividendes.",
-            Scale.of(0, 0, 0.05, 50, 0.10, 80, 0.15, 100)),
+            Scale.of(0, 0, 0.05, 50, 0.10, 80, 0.15, 90, 0.25, 100)),
 
     // --- Croissance ---
 

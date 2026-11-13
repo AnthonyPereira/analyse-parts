@@ -25,9 +25,9 @@ class ScoreCalculatorTest {
 
     @Test
     void weightedAverageOfPoints() {
-        // Marge nette 10 % → 70 points ; ROE 25 % → 100 points ; poids 1 pour 3
+        // Marge nette 10 % → 70 points ; ROE 40 % → 100 points ; poids 1 pour 3
         Score s = ScoreCalculator.score(
-                ratios(Map.of(Ratio.NET_MARGIN, 0.10, Ratio.ROE, 0.25), Map.of()),
+                ratios(Map.of(Ratio.NET_MARGIN, 0.10, Ratio.ROE, 0.40), Map.of()),
                 Map.of(Ratio.NET_MARGIN, 25, Ratio.ROE, 75), ASOF);
 
         assertThat(s.score()).isEqualTo(93); // 70 × 0,25 + 100 × 0,75 = 92,5
@@ -40,7 +40,7 @@ class ScoreCalculatorTest {
     @Test
     void missingRatioWeightIsSpreadOverTheOthers() {
         Score s = ScoreCalculator.score(
-                ratios(Map.of(Ratio.NET_MARGIN, 0.10, Ratio.ROE, 0.25), Map.of(Ratio.FCF_MARGIN, "Donnée manquante")),
+                ratios(Map.of(Ratio.NET_MARGIN, 0.10, Ratio.ROE, 0.40), Map.of(Ratio.FCF_MARGIN, "Donnée manquante")),
                 Map.of(Ratio.NET_MARGIN, 25, Ratio.ROE, 45, Ratio.FCF_MARGIN, 30), ASOF);
 
         // 70 × 25/70 + 100 × 45/70 = 89,3
