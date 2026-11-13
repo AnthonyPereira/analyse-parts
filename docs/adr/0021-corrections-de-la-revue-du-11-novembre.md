@@ -32,7 +32,9 @@ avancé (poids libres) n'est pas gardé, mais profite de la lecture groupée des
 d'Euronext (or, argent, métaux précieux, charbon, uranium, raffinage, solaire, assurance vie et
 spécialisée, courtiers, grands magasins, éducation, tabac, pharmacies, conglomérats).
 `POST /api/admin/ingestion/esef-issuers/sectors` redemande leur secteur à Yahoo pour toutes les
-sociétés hors Euronext et réapplique la table ; recalibrer ensuite.
+sociétés hors Euronext et réapplique la table, en arrière-plan (une vingtaine de minutes, plus que
+les 15 minutes qu'accorde Render à une requête) ; `GET` sur la même adresse dit si elle est finie.
+Recalibrer ensuite.
 
 **4. Haut des barèmes étalé** pour la rentabilité, la solidité et le cash-flow libre : l'ancien
 repère « 100 points » vaut 90, et 100 demande un niveau exceptionnel (marge nette 35 %, ROE 40 %,

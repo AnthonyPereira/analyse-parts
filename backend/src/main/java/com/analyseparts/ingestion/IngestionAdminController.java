@@ -9,6 +9,9 @@ import com.analyseparts.ingestion.euronext.EuronextImportService.ImportResult;
 import com.analyseparts.ingestion.prices.QuoteRefreshService;
 import com.analyseparts.ingestion.gleif.LeiEnrichmentService;
 import com.analyseparts.ingestion.gleif.LeiEnrichmentService.EnrichmentResult;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -51,11 +54,20 @@ public class IngestionAdminController {
 
     /**
      * Réapplique la table yahoo-icb.csv aux sociétés hors Euronext, après une correction de la table
-     * (environ 1 s par société), puis recalibrer : POST /api/admin/scoring/calibrate.
+     * (environ 1 s par société, une vingtaine de minutes en tout). Lancée en arrière-plan : 202 tout
+     * de suite, 409 si une relance est en cours. Suivi : GET sur la même adresse ; une fois
+     * {@code running} faux, recalibrer : POST /api/admin/scoring/calibrate.
      */
     @PostMapping("/esef-issuers/sectors")
-    public EsefIssuerImportService.SectorUpdateResult updateSectors() {
-        return issuers.updateSectors();
+    public ResponseEntity<EsefIssuerImportService.SectorUpdateStatus> updateSectors() {
+        boolean started = issuers.startSectorUpdate();
+        return ResponseEntity.status(started ? HttpStatus.ACCEPTED : HttpStatus.CONFLICT)
+                .body(issuers.getSectorUpdateStatus());
+    }
+
+    @GetMapping("/esef-issuers/sectors")
+    public EsefIssuerImportService.SectorUpdateStatus getSectorUpdateStatus() {
+        return issuers.getSectorUpdateStatus();
     }
 
     /** Ex. : POST /api/admin/ingestion/euronext?mic=XPAR ; sans paramètre, les 7 marchés (ADR 0020). */

@@ -146,6 +146,38 @@ public class EsefIssuerImportService {
     public record SectorUpdateResult(int companies, int changed, int notFound, int errors) {
     }
 
+    /** Où en est la relance des secteurs : en cours ou non, et le résultat de la dernière terminée. */
+    public record SectorUpdateStatus(boolean running, SectorUpdateResult lastResult) {
+    }
+
+    private final java.util.concurrent.atomic.AtomicBoolean sectorUpdateRunning =
+            new java.util.concurrent.atomic.AtomicBoolean();
+    private volatile SectorUpdateResult lastSectorUpdate;
+
+    /**
+     * Lance {@link #updateSectors()} en arrière-plan : elle dure une vingtaine de minutes, et Render
+     * coupe une requête au bout de 15. Faux si une relance est déjà en cours.
+     */
+    public boolean startSectorUpdate() {
+        if (!sectorUpdateRunning.compareAndSet(false, true)) {
+            return false;
+        }
+        Thread.ofVirtual().name("secteurs-yahoo").start(() -> {
+            try {
+                lastSectorUpdate = updateSectors();
+            } catch (RuntimeException e) {
+                log.warn("Relance des secteurs Yahoo interrompue", e);
+            } finally {
+                sectorUpdateRunning.set(false);
+            }
+        });
+        return true;
+    }
+
+    public SectorUpdateStatus getSectorUpdateStatus() {
+        return new SectorUpdateStatus(sectorUpdateRunning.get(), lastSectorUpdate);
+    }
+
     /**
      * Redemande à Yahoo le secteur de chaque société suivie hors Euronext et lui réapplique la table
      * {@link YahooSectorMapping}, après une correction de celle-ci (environ 1 s par société). Le
