@@ -33,10 +33,12 @@ public class MarketDataService {
 
     private static final Duration SNAPSHOT_TTL = Duration.ofMinutes(1);
 
-    private record Snapshot(Instant loadedAt, Map<Long, Quote> quotes, Map<String, BigDecimal> fxRates) {
+    /** @param version nombre d'écritures (cours, taux) au moment de la lecture */
+    private record Snapshot(long version, Instant loadedAt, Map<Long, Quote> quotes, Map<String, BigDecimal> fxRates) {
     }
 
     private volatile Snapshot snapshot;
+    private final java.util.concurrent.atomic.AtomicLong writes = new java.util.concurrent.atomic.AtomicLong();
 
     /** Publié quand des cours changent ; écouté par {@link QuoteStream} pour le direct. */
     public record QuotesUpdated(List<Quote> quotes) {
@@ -53,7 +55,7 @@ public class MarketDataService {
     public int recordQuotes(Collection<Quote> quotes) {
         List<Quote> changed = repository.upsertQuotes(quotes);
         if (!changed.isEmpty()) {
-            snapshot = null;
+            invalidateSnapshot();
             events.publishEvent(new QuotesUpdated(changed));
         }
         return changed.size();
@@ -67,15 +69,38 @@ public class MarketDataService {
      * Tous les derniers cours et taux de change, lus en deux requêtes et gardés une minute au plus
      * (vidés à chaque écriture). Le classement en lit un par société : une requête chacun faisait
      * environ 2 000 allers-retours vers la base à chaque visite (revue du 11 novembre 2026).
+     * <p>
+     * Une copie n'est valable que si aucune écriture n'a eu lieu depuis sa lecture ({@code version}) :
+     * vider simplement le cache ne suffit pas, une lecture commencée juste avant une écriture (calcul
+     * en arrière-plan) y rangerait ensuite des cours périmés.
      */
     private Snapshot getSnapshot() {
+        long version = writes.get();
         Snapshot current = snapshot;
-        if (current == null || current.loadedAt().plus(SNAPSHOT_TTL).isBefore(Instant.now())) {
-            current = new Snapshot(Instant.now(), Map.copyOf(repository.findQuotes()),
+        if (current == null || current.version() != version
+                || current.loadedAt().plus(SNAPSHOT_TTL).isBefore(Instant.now())) {
+            current = new Snapshot(version, Instant.now(), Map.copyOf(repository.findQuotes()),
                     Map.copyOf(repository.findFxRates()));
             snapshot = current;
         }
         return current;
+    }
+
+    /**
+     * Une écriture rend les copies périmées : tout de suite, et de nouveau après le commit si elle
+     * fait partie d'une transaction (une lecture faite entre-temps ne voyait pas encore l'écriture).
+     */
+    private void invalidateSnapshot() {
+        writes.incrementAndGet();
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            writes.incrementAndGet();
+                        }
+                    });
+        }
     }
 
     public int recordCloses(long companyId, Collection<PricePoint.Close> closes) {
@@ -123,7 +148,7 @@ public class MarketDataService {
     /** Taux de la BCE : combien d'unités de chaque devise vaut 1 euro. */
     public void recordFxRates(Map<String, BigDecimal> ratePerEur, LocalDate asOf) {
         repository.upsertFxRates(ratePerEur, asOf);
-        snapshot = null;
+        invalidateSnapshot();
     }
 
     /**
