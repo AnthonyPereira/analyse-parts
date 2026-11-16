@@ -1,10 +1,18 @@
 package com.analyseparts.financials;
 
-import com.analyseparts.company.Company;
-import com.analyseparts.company.CompanyRepository;
-import com.analyseparts.financials.internal.FilingEntity;
-import com.analyseparts.financials.internal.FilingRepository;
-import com.analyseparts.financials.internal.ReportedFactJdbcRepository;
+import com.analyseparts.financials.event.FilingRecorded;
+import com.analyseparts.financials.model.CompanySize;
+import com.analyseparts.financials.model.FilingData;
+import com.analyseparts.financials.model.FilingRef;
+import com.analyseparts.financials.model.FinancialHistory;
+import com.analyseparts.financials.model.Metric;
+import com.analyseparts.financials.model.ReportedFact;
+import com.analyseparts.financials.service.MetricExtractor;
+import com.analyseparts.company.model.Company;
+import com.analyseparts.company.persistence.CompanyRepository;
+import com.analyseparts.financials.persistence.FilingEntity;
+import com.analyseparts.financials.persistence.FilingRepository;
+import com.analyseparts.financials.persistence.ReportedFactJdbcRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

@@ -1,6 +1,10 @@
 package com.analyseparts.market;
 
-import com.analyseparts.market.internal.MarketDataJdbcRepository;
+import com.analyseparts.market.event.QuotesUpdated;
+import com.analyseparts.market.model.PricePoint;
+import com.analyseparts.market.model.Quote;
+import com.analyseparts.market.web.QuoteStream;
+import com.analyseparts.market.persistence.MarketDataJdbcRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -39,10 +43,6 @@ public class MarketDataService {
 
     private volatile Snapshot snapshot;
     private final java.util.concurrent.atomic.AtomicLong writes = new java.util.concurrent.atomic.AtomicLong();
-
-    /** Publié quand des cours changent ; écouté par {@link QuoteStream} pour le direct. */
-    public record QuotesUpdated(List<Quote> quotes) {
-    }
 
     public MarketDataService(MarketDataJdbcRepository repository, ApplicationEventPublisher events,
                              ObjectProvider<IntradaySource> intradaySource) {

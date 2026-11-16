@@ -224,8 +224,37 @@ Une flèche d'un module vers un autre veut dire « utilise ». `company` ne dép
 | `scoring` | ratios, barèmes, profils et notes ; le calcul est en Java pur dans `scoring/core` (ni Spring ni base) | `…/scoring` |
 | `analysis` | lecture des rapports annuels et semestriels par le LLM local ; citations vérifiées | `…/analysis` |
 
-Dans chaque module, le dossier racine est son API publique (services, contrôleurs REST,
-événements) ; le sous-dossier `internal` (accès à la base, détails) n'est visible que du module.
+Tous les modules suivent la même règle :
+
+- **à la racine**, seulement les points d'entrée appelés par les autres modules : services
+  (`FinancialsService`, `MarketDataService`) et interfaces à implémenter ailleurs (`IntradaySource`,
+  `ReportDocuments`, `HalfYearDocuments`). Un module sans point d'entrée de ce genre
+  (`company`, `analysis`, `scoring`) n'a que son `package-info.java` à la racine ;
+- **`model` et `event`**, les données et les événements échangés, sont ouverts aux autres modules ;
+- **tous les autres sous-dossiers** sont internes au module (Spring Modulith y veille).
+
+| Sous-dossier | Contenu |
+|---|---|
+| `web` | les contrôleurs REST (routes de l'API) |
+| `service` | les traitements : calculs, règles, enchaînement des étapes |
+| `client` | la récupération : appels HTTP aux sources externes ou au modèle local |
+| `parser` | la lecture des fichiers reçus (XBRL, CSV, fiches HTML) |
+| `persistence` | l'écriture et la lecture en base (repositories, entités) |
+| `job` | ce qui se déclenche tout seul : tâches `@Scheduled`, écouteurs d'événements, tâches de démarrage |
+| `model` | les données échangées (records, enums, entités) |
+| `event` | les événements publiés par le module |
+| `core` (`scoring`) | le calcul des notes, en Java pur |
+| `health` (`ingestion`) | l'état de chaque source |
+
+Dans `ingestion`, ce découpage est fait dans chaque source (`ingestion/esef/client`,
+`ingestion/esef/service`…).
+
+Un sous-dossier ouvert aux autres modules est déclaré **interface nommée** (`@NamedInterface` dans
+son `package-info.java`) : tous les `model` et `event`, plus `company/persistence`
+(`CompanyRepository`, lu par tous les modules). Un module qui s'en sert l'autorise dans son
+`package-info.java` : `allowedDependencies = {"market", "market :: *"}`. Il faut les deux :
+`"market"` autorise la racine, `"market :: *"` les interfaces nommées.
+
 Les modules se parlent aussi par événements : `CompaniesImported` lance la recherche des LEI,
 `FilingRecorded` recalcule l'historique des notes et met le rapport en file de lecture.
 
@@ -240,15 +269,15 @@ routes admin) et `SpaForwardController` (renvoie les adresses du site React vers
 | la liste des ratios, leurs formules et barèmes | `scoring/core/Ratio.java`, `RatioCalculator.java`, et [docs/ratios.md](docs/ratios.md) |
 | les poids de chaque profil | `scoring/core/Profile.java` |
 | les barèmes adaptés au secteur | `scoring/core/SectorCalibration.java`, [ADR 0004](docs/adr/0004-baremes-par-secteur.md) |
-| quel concept XBRL donne quel indicateur | `financials/Metric.java` (concepts candidats, dans l'ordre), `MetricExtractor.java` |
-| le téléchargement des rapports ESEF | `ingestion/esef/` : `AmfFilingsClient`, `FilingsXbrlClient`, `EsefImportService` |
-| les places suivies et les sociétés hors Euronext | `ingestion/StockExchange`, `ingestion/esef/EsefIssuerImportService`, `YahooSectorMapping` (table `yahoo-icb.csv`) |
-| la lecture d'un rapport XBRL | `ingestion/esef/InlineXbrlParser.java` (paquet AMF), `XbrlJsonParser.java` (filings.xbrl.org) |
-| les cours de bourse | `ingestion/prices/` (Yahoo, BCE) et `market/` (stockage, SSE) |
-| la lecture d'un rapport par le LLM | `analysis/internal/ReportAnalyst.java` (consignes, lots, doublons), `PassageSearch.java` (embeddings), `Quotes.java` (vérification des citations) |
-| les rapports semestriels et les 12 mois glissants | `analysis/internal/HalfYearReader.java`, `HalfYearChecks.java`, [ADR 0015](docs/adr/0015-rapports-semestriels-et-12-mois-glissants.md) |
-| les routes de l'API | les classes `*Controller.java` de chaque module |
-| les tâches planifiées | `@Scheduled` dans `ingestion/` (collectes), `scoring/ScoreHistoryService.java` (notes du soir) |
+| quel concept XBRL donne quel indicateur | `financials/model/Metric.java` (concepts candidats, dans l'ordre), `financials/service/MetricExtractor.java` |
+| le téléchargement des rapports ESEF | `ingestion/esef/client/` (`AmfFilingsClient`, `FilingsXbrlClient`), `ingestion/esef/service/EsefImportService` |
+| les places suivies et les sociétés hors Euronext | `ingestion/model/StockExchange`, `ingestion/esef/service/EsefIssuerImportService`, `YahooSectorMapping` (table `yahoo-icb.csv`) |
+| la lecture d'un rapport XBRL | `ingestion/esef/parser/InlineXbrlParser.java` (paquet AMF), `XbrlJsonParser.java` (filings.xbrl.org) |
+| les cours de bourse | `ingestion/prices/` (Yahoo, BCE) et `market/` (stockage, SSE dans `market/web/QuoteStream`) |
+| la lecture d'un rapport par le LLM | `analysis/service/ReportAnalyst.java` (consignes, lots, doublons), `PassageSearch.java` (embeddings), `Quotes.java` (vérification des citations) |
+| les rapports semestriels et les 12 mois glissants | `analysis/service/HalfYearReader.java`, `HalfYearChecks.java`, [ADR 0015](docs/adr/0015-rapports-semestriels-et-12-mois-glissants.md) |
+| les routes de l'API | les classes `*Controller.java`, dans le sous-dossier `web` de chaque module |
+| les tâches planifiées | les sous-dossiers `job` : `ingestion/*/job/` (collectes), `scoring/job/ScoreHistoryJob.java` (notes du soir) |
 | le schéma de la base | `backend/src/main/resources/db/migration/V*.sql` (Flyway ; ne jamais modifier une migration déjà appliquée) |
 | la configuration | `backend/src/main/resources/application.properties` (dev), `application-prod.properties` (démo) |
 | les pages du site | `frontend/src/pages/` ; appels à l'API dans `frontend/src/api/`, graphiques dans `frontend/src/charts/` |

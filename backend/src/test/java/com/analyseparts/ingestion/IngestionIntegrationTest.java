@@ -1,14 +1,14 @@
 package com.analyseparts.ingestion;
 
 import com.analyseparts.TestcontainersConfiguration;
-import com.analyseparts.company.Company;
-import com.analyseparts.company.CompanyRepository;
-import com.analyseparts.ingestion.euronext.EuronextClient;
-import com.analyseparts.ingestion.euronext.EuronextImportService;
-import com.analyseparts.ingestion.euronext.ListedEquity;
-import com.analyseparts.ingestion.gleif.GleifClient;
-import com.analyseparts.ingestion.gleif.GleifClient.LeiRecord;
-import com.analyseparts.ingestion.gleif.LeiEnrichmentService;
+import com.analyseparts.company.model.Company;
+import com.analyseparts.company.persistence.CompanyRepository;
+import com.analyseparts.ingestion.euronext.client.EuronextClient;
+import com.analyseparts.ingestion.euronext.service.EuronextImportService;
+import com.analyseparts.ingestion.euronext.parser.ListedEquity;
+import com.analyseparts.ingestion.gleif.client.GleifClient;
+import com.analyseparts.ingestion.gleif.client.GleifClient.LeiRecord;
+import com.analyseparts.ingestion.gleif.service.LeiEnrichmentService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

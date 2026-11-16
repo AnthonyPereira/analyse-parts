@@ -1,8 +1,11 @@
 package com.analyseparts.market;
 
+import com.analyseparts.market.event.QuotesUpdated;
+import com.analyseparts.market.model.PricePoint;
+import com.analyseparts.market.model.Quote;
 import com.analyseparts.TestcontainersConfiguration;
-import com.analyseparts.company.Company;
-import com.analyseparts.company.CompanyRepository;
+import com.analyseparts.company.model.Company;
+import com.analyseparts.company.persistence.CompanyRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -46,7 +49,7 @@ class MarketDataIntegrationTest {
         assertThat(market.recordQuotes(List.of(new Quote(id, new BigDecimal("10.20"), "EUR", t.plusSeconds(60), "YAHOO"))))
                 .isEqualTo(1);
 
-        assertThat(events.stream(MarketDataService.QuotesUpdated.class)).hasSize(2);
+        assertThat(events.stream(QuotesUpdated.class)).hasSize(2);
         assertThat(market.findLatestQuote(id).orElseThrow().previousClose()).isEqualByComparingTo("9.50");
     }
 

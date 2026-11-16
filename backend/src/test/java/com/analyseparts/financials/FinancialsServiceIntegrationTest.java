@@ -1,8 +1,12 @@
 package com.analyseparts.financials;
 
+import com.analyseparts.financials.model.FilingData;
+import com.analyseparts.financials.model.FinancialHistory;
+import com.analyseparts.financials.model.Metric;
+import com.analyseparts.financials.model.ReportedFact;
 import com.analyseparts.TestcontainersConfiguration;
-import com.analyseparts.company.Company;
-import com.analyseparts.company.CompanyRepository;
+import com.analyseparts.company.model.Company;
+import com.analyseparts.company.persistence.CompanyRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

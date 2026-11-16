@@ -1,6 +1,7 @@
 package com.analyseparts.market;
 
-import com.analyseparts.market.internal.MarketDataJdbcRepository;
+import com.analyseparts.market.model.Quote;
+import com.analyseparts.market.persistence.MarketDataJdbcRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;

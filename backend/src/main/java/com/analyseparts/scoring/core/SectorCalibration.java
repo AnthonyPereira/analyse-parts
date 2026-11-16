@@ -1,6 +1,6 @@
 package com.analyseparts.scoring.core;
 
-import com.analyseparts.company.Icb;
+import com.analyseparts.company.model.Icb;
 import com.analyseparts.scoring.core.RatioCalculator.RatioSet;
 
 import java.time.Instant;

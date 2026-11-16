@@ -1,8 +1,8 @@
 package com.analyseparts.scoring.core;
 
-import com.analyseparts.financials.FinancialHistory;
-import com.analyseparts.financials.FinancialHistory.Year;
-import com.analyseparts.financials.Metric;
+import com.analyseparts.financials.model.FinancialHistory;
+import com.analyseparts.financials.model.FinancialHistory.Year;
+import com.analyseparts.financials.model.Metric;
 import com.analyseparts.scoring.core.RatioCalculator.RatioSet;
 import org.junit.jupiter.api.Test;
 
@@ -12,7 +12,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.analyseparts.financials.Metric.*;
+import static com.analyseparts.financials.model.Metric.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 

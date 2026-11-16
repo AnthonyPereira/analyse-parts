@@ -1,5 +1,6 @@
 package com.analyseparts.financials;
 
+import com.analyseparts.financials.model.Metric;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;

@@ -1,8 +1,8 @@
 package com.analyseparts.scoring.core;
 
-import com.analyseparts.financials.FinancialHistory;
-import com.analyseparts.financials.FinancialHistory.Year;
-import com.analyseparts.financials.Metric;
+import com.analyseparts.financials.model.FinancialHistory;
+import com.analyseparts.financials.model.FinancialHistory.Year;
+import com.analyseparts.financials.model.Metric;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -16,27 +16,27 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static com.analyseparts.financials.Metric.CAPEX;
-import static com.analyseparts.financials.Metric.COST_OF_RISK;
-import static com.analyseparts.financials.Metric.DIVIDENDS_PER_SHARE;
-import static com.analyseparts.financials.Metric.GROSS_OPERATING_INCOME;
-import static com.analyseparts.financials.Metric.NET_BANKING_INCOME;
-import static com.analyseparts.financials.Metric.CASH;
-import static com.analyseparts.financials.Metric.CURRENT_ASSETS;
-import static com.analyseparts.financials.Metric.CURRENT_LIABILITIES;
-import static com.analyseparts.financials.Metric.DIVIDENDS_PAID;
-import static com.analyseparts.financials.Metric.EPS_BASIC;
-import static com.analyseparts.financials.Metric.EPS_DILUTED;
-import static com.analyseparts.financials.Metric.EQUITY;
-import static com.analyseparts.financials.Metric.EQUITY_GROUP;
-import static com.analyseparts.financials.Metric.LONG_TERM_DEBT;
-import static com.analyseparts.financials.Metric.NET_INCOME;
-import static com.analyseparts.financials.Metric.NET_INCOME_GROUP;
-import static com.analyseparts.financials.Metric.OPERATING_CASH_FLOW;
-import static com.analyseparts.financials.Metric.OPERATING_INCOME;
-import static com.analyseparts.financials.Metric.REVENUE;
-import static com.analyseparts.financials.Metric.SHORT_TERM_DEBT;
-import static com.analyseparts.financials.Metric.TOTAL_ASSETS;
+import static com.analyseparts.financials.model.Metric.CAPEX;
+import static com.analyseparts.financials.model.Metric.COST_OF_RISK;
+import static com.analyseparts.financials.model.Metric.DIVIDENDS_PER_SHARE;
+import static com.analyseparts.financials.model.Metric.GROSS_OPERATING_INCOME;
+import static com.analyseparts.financials.model.Metric.NET_BANKING_INCOME;
+import static com.analyseparts.financials.model.Metric.CASH;
+import static com.analyseparts.financials.model.Metric.CURRENT_ASSETS;
+import static com.analyseparts.financials.model.Metric.CURRENT_LIABILITIES;
+import static com.analyseparts.financials.model.Metric.DIVIDENDS_PAID;
+import static com.analyseparts.financials.model.Metric.EPS_BASIC;
+import static com.analyseparts.financials.model.Metric.EPS_DILUTED;
+import static com.analyseparts.financials.model.Metric.EQUITY;
+import static com.analyseparts.financials.model.Metric.EQUITY_GROUP;
+import static com.analyseparts.financials.model.Metric.LONG_TERM_DEBT;
+import static com.analyseparts.financials.model.Metric.NET_INCOME;
+import static com.analyseparts.financials.model.Metric.NET_INCOME_GROUP;
+import static com.analyseparts.financials.model.Metric.OPERATING_CASH_FLOW;
+import static com.analyseparts.financials.model.Metric.OPERATING_INCOME;
+import static com.analyseparts.financials.model.Metric.REVENUE;
+import static com.analyseparts.financials.model.Metric.SHORT_TERM_DEBT;
+import static com.analyseparts.financials.model.Metric.TOTAL_ASSETS;
 
 /**
  * Calcule les ratios d'une société à partir de son historique d'indicateurs et, pour les

@@ -1,0 +1,503 @@
+package com.analyseparts.scoring.service;
+
+import com.analyseparts.market.event.QuotesUpdated;
+import com.analyseparts.company.model.Company;
+import com.analyseparts.company.persistence.CompanyRepository;
+import com.analyseparts.company.model.Icb;
+import com.analyseparts.financials.event.FilingRecorded;
+import com.analyseparts.financials.model.FinancialHistory;
+import com.analyseparts.financials.FinancialsService;
+import com.analyseparts.financials.model.Metric;
+import com.analyseparts.market.MarketDataService;
+import com.analyseparts.market.model.Quote;
+import com.analyseparts.scoring.core.Freshness;
+import com.analyseparts.scoring.core.Profile;
+import com.analyseparts.scoring.core.Ratio;
+import com.analyseparts.scoring.core.RatioCalculator;
+import com.analyseparts.scoring.core.RatioCalculator.RatioSet;
+import com.analyseparts.scoring.core.RatioFamily;
+import com.analyseparts.scoring.core.ScoreCalculator;
+import com.analyseparts.scoring.core.ScoreCalculator.Score;
+import com.analyseparts.scoring.core.SectorCalibration;
+import com.analyseparts.scoring.core.Valuation;
+import com.analyseparts.scoring.persistence.SectorCalibrationRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+
+/**
+ * Couche Spring autour du calcul : va chercher les données, appelle le cœur en Java pur.
+ * <p>
+ * Le score d'une société est recalculé à chaque demande (quelques millisecondes) ; le classement
+ * et l'univers sont gardés en mémoire jusqu'au prochain changement de données. On enregistre la
+ * calibration sectorielle, pour rester stable entre deux calibrages, et des photos des notes
+ * pour leur historique ({@link ScoreHistoryService}).
+ */
+@Service
+public class ScoringService {
+
+    private static final Logger log = LoggerFactory.getLogger(ScoringService.class);
+    /**
+     * Un cours plus ancien (suspension de cotation, symbole erroné…) n'est pas utilisé. Un mois, pas
+     * une semaine : une petite société peu échangée (Bourse de Vienne, d'Athènes, fonds de Londres)
+     * peut rester plusieurs jours sans transaction, et son dernier cours reste son prix ; avec 7 jours,
+     * une vingtaine de sociétés perdaient leur valorisation (revue du 11 novembre 2026).
+     */
+    static final Duration MAX_QUOTE_AGE = Duration.ofDays(31);
+
+    private final CompanyRepository companies;
+    private final FinancialsService financials;
+    private final MarketDataService market;
+    private final SectorCalibrationRepository calibrations;
+    private final Clock clock;
+    private volatile SectorCalibration calibration;
+    /** Faux dans le lecteur local : pas de calcul en arrière-plan. */
+    @Value("${analyse-parts.scoring.warm-up:true}")
+    boolean warmUpEnabled = true;
+
+    @Autowired
+    public ScoringService(CompanyRepository companies, FinancialsService financials, MarketDataService market,
+                          SectorCalibrationRepository calibrations) {
+        this(companies, financials, market, calibrations, Clock.systemDefaultZone());
+    }
+
+    ScoringService(CompanyRepository companies, FinancialsService financials, MarketDataService market,
+                   SectorCalibrationRepository calibrations, Clock clock) {
+        this.companies = companies;
+        this.financials = financials;
+        this.market = market;
+        this.calibrations = calibrations;
+        this.clock = clock;
+    }
+
+    /** Le score d'une société, avec toutes ses contributions. */
+    public record CompanyScore(String isin, String name, Icb icb, Profile profile, Score score) {
+    }
+
+    /** Une ligne du classement. */
+    /** @param country pays du siège (code ISO à 2 lettres, d'après GLEIF), pour filtrer le classement */
+    public record RankingEntry(String isin, String name, String ticker, String country, String sector, Integer score,
+                               double coverage, LocalDate fiscalYearEnd, Freshness freshness,
+                               Map<RatioFamily, Integer> familyScore) {
+    }
+
+    public Optional<CompanyScore> score(String isin, Profile profile) {
+        return companies.findByIsin(isin)
+                .map(c -> new CompanyScore(c.getIsin(), c.getName(), c.getIcb().orElse(null), profile, score(c, profile)));
+    }
+
+    public Optional<RatioSet> computeRatios(String isin) {
+        return companies.findByIsin(isin).map(this::computeRatios);
+    }
+
+    /** Les sociétés notées, de la meilleure à la moins bonne ; celles sans score sont à la fin. */
+    public List<RankingEntry> computeRanking(Profile profile) {
+        return getCached(profile, () -> computeRanking(c -> findWeights(c, profile)));
+    }
+
+    /**
+     * Le classement et l'univers sont gardés en mémoire et recalculés seulement quand les données
+     * changent : nouveau cours, nouveau rapport, recalibrage, changement de jour (la fraîcheur en
+     * dépend), ou au plus tard après {@link #RESULT_MAX_AGE} (fiche société mise à jour par une
+     * collecte, par exemple). Avant, chaque visite recalculait tout (6 s sur la démo, revue du
+     * 11 novembre 2026). Le mode avancé, aux poids libres, n'est pas gardé.
+     */
+    static final Duration RESULT_MAX_AGE = Duration.ofMinutes(15);
+
+    private record Cached(long version, LocalDate day, Instant computedAt, Object value) {
+    }
+
+    private final AtomicLong dataVersion = new AtomicLong();
+    private final Map<Object, Cached> results = new ConcurrentHashMap<>();
+    private final AtomicBoolean refreshScheduled = new AtomicBoolean();
+    private static final String UNIVERSE = "universe";
+
+    @SuppressWarnings("unchecked")
+    private <T> T getCached(Object key, Supplier<T> compute) {
+        Cached c = results.get(key);
+        if (c != null && c.version() == dataVersion.get() && c.day().equals(LocalDate.now(clock))
+                && c.computedAt().plus(RESULT_MAX_AGE).isAfter(Instant.now(clock))) {
+            return (T) c.value();
+        }
+        // Version lue avant le calcul : une donnée qui change pendant celui-ci le rend aussitôt périmé
+        long version = dataVersion.get();
+        T value = compute.get();
+        results.put(key, new Cached(version, LocalDate.now(clock), Instant.now(clock), value));
+        return value;
+    }
+
+    /** Un cours ou un rapport a changé : les résultats gardés sont périmés. */
+    void invalidateResults() {
+        dataVersion.incrementAndGet();
+    }
+
+    /*
+     * Écouteurs simples (@EventListener), pas @TransactionalEventListener : Spring Modulith suivrait
+     * ceux-ci dans event_publication, une ligne de plus par rapport. L'invalidation attend quand même
+     * le commit, sinon un calcul lancé entre-temps garderait les anciennes données comme neuves.
+     */
+    @EventListener
+    void handleQuotesUpdated(QuotesUpdated event) {
+        invalidateAfterCommit();
+    }
+
+    @EventListener
+    void handleFilingRecorded(FilingRecorded event) {
+        invalidateAfterCommit();
+    }
+
+    private void invalidateAfterCommit() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    invalidateAndRefresh();
+                }
+            });
+        } else {
+            invalidateAndRefresh();
+        }
+    }
+
+    /**
+     * Après un changement, recalcule en arrière-plan ce qui a déjà été demandé, pour que le visiteur
+     * suivant n'attende pas. Une seule passe à la fois, quelques secondes après le premier changement
+     * (les cours arrivent par paquets, les rapports par centaines lors d'une collecte).
+     */
+    private void invalidateAndRefresh() {
+        invalidateResults();
+        if (!warmUpEnabled || !refreshScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        Thread.ofVirtual().name("recalcul-classement").start(() -> {
+            try {
+                Thread.sleep(Duration.ofSeconds(5));
+                refreshScheduled.set(false);
+                for (Object key : List.copyOf(results.keySet())) {
+                    if (key instanceof Profile p) {
+                        computeRanking(p);
+                    } else if (UNIVERSE.equals(key)) {
+                        buildUniverse();
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (RuntimeException e) {
+                log.warn("Recalcul du classement en arrière-plan impossible", e);
+            } finally {
+                refreshScheduled.set(false);
+            }
+        });
+    }
+
+    /** Classement avec des poids choisis librement (mode avancé), les mêmes pour toutes les sociétés. */
+    public List<RankingEntry> computeRanking(Map<Ratio, Integer> weights) {
+        return computeRanking(_ -> weights);
+    }
+
+    private List<RankingEntry> computeRanking(java.util.function.Function<Company, Map<Ratio, Integer>> weightsOf) {
+        return findScoredCompanies().stream()
+                .map(c -> {
+                    Score s = score(c, computeRatios(c), weightsOf.apply(c));
+                    return new RankingEntry(c.getIsin(), c.getName(), c.getTicker(), c.getCountry(),
+                            c.getIcb().map(Icb::supersector).orElse(null), s.score(), s.coverage(),
+                            s.fiscalYearEnd(), s.freshness(), s.familyScore());
+                })
+                .sorted(Comparator.comparing(RankingEntry::score, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(RankingEntry::name))
+                .toList();
+    }
+
+    /** La calibration en vigueur (calculée au premier besoin si aucune n'est enregistrée). */
+    public SectorCalibration getCalibration() {
+        SectorCalibration current = calibration;
+        if (current == null) {
+            current = calibrations.load();
+            if (current.getCalibratedAt().isEmpty()) {
+                current = recalibrate();
+            }
+            calibration = current;
+        }
+        return current;
+    }
+
+    /**
+     * Recalcule les médianes par secteur à partir des ratios actuels de toutes les sociétés,
+     * puis les fige jusqu'au prochain calibrage.
+     */
+    public synchronized SectorCalibration recalibrate() {
+        List<SectorCalibration.Sample> samples = findScoredCompanies().stream()
+                .map(c -> new SectorCalibration.Sample(c.getIcb().orElse(null), computeRatios(c)))
+                .toList();
+        SectorCalibration computed = SectorCalibration.compute(samples, Instant.now(clock));
+        if (!computed.getMedians().isEmpty()) {
+            calibrations.replace(computed);
+        }
+        log.info("Calibration sectorielle : {} médianes sur {} sociétés", computed.getMedians().size(), samples.size());
+        calibration = computed;
+        invalidateResults();
+        return computed;
+    }
+
+    static final String COOPERATIVE_CERTIFICATE = "Certificats coopératifs (CCI) : la bourse ne cote qu'une petite "
+            + "partie du capital de la caisse régionale, son cours ne se compare pas à son bénéfice total";
+
+    /** Code ICB du super-secteur des banques. */
+    public static final String BANKS_SUPERSECTOR = "3010";
+
+    /** Code ICB du super-secteur des assurances. */
+    public static final String INSURANCE_SUPERSECTOR = "3030";
+
+    /** Banques et assurances sont notées avec leurs propres poids dans chaque profil (voir {@link Profile}). */
+    static Profile.Book findBook(Company company) {
+        String supersector = company.getIcb().map(icb -> icb.extractSupersectorCode()).orElse(null);
+        if (BANKS_SUPERSECTOR.equals(supersector)) {
+            return Profile.Book.BANK;
+        }
+        return INSURANCE_SUPERSECTOR.equals(supersector) ? Profile.Book.INSURER : Profile.Book.STANDARD;
+    }
+
+    private static Map<Ratio, Integer> findWeights(Company company, Profile profile) {
+        return profile.getWeights(findBook(company));
+    }
+
+    /** Les ISIN des sociétés notées (celles qui ont au moins un rapport). */
+    public List<String> findScoredIsins() {
+        return findScoredCompanies().stream().map(Company::getIsin).toList();
+    }
+
+    private List<Company> findScoredCompanies() {
+        Set<Long> withFilings = financials.findCompaniesWithFilings();
+        return companies.findAll().stream()
+                .filter(c -> c.getId() != null && withFilings.contains(c.getId()))
+                .toList();
+    }
+
+    private Score score(Company company, Profile profile) {
+        return score(company, computeRatios(company), findWeights(company, profile));
+    }
+
+    private Score score(Company company, RatioSet ratios, Map<Ratio, Integer> weights) {
+        SectorCalibration cal = getCalibration();
+        Icb icb = company.getIcb().orElse(null);
+        return ScoreCalculator.score(ratios, weights, LocalDate.now(clock), ratio -> cal.findAdjustment(ratio, icb));
+    }
+
+    /**
+     * Une société vue dans tout l'univers : ses ratios et ses 4 scores, pour les graphiques
+     * de comparaison (nuages de points, distributions par secteur).
+     */
+    public record UniverseEntry(String isin, String name, String ticker, String supersectorCode, String supersector,
+                                Freshness freshness, Map<Ratio, Double> ratios, Map<Profile, Integer> scores) {
+    }
+
+    /**
+     * Au démarrage, calcule une fois l'univers en arrière-plan : les historiques des sociétés
+     * entrent dans le cache, et la première page affichée n'attend pas. Pas dans le lecteur local
+     * ({@code analyse-parts.scoring.warm-up=false}).
+     */
+    @EventListener(value = ApplicationReadyEvent.class,
+            condition = "@environment.getProperty('analyse-parts.scoring.warm-up', 'true') == 'true'")
+    void warmUp() {
+        Thread.ofVirtual().name("prechauffage-scores").start(() -> {
+            long start = System.nanoTime();
+            int size = buildUniverse().size();
+            for (Profile p : Profile.values()) {
+                computeRanking(p);
+            }
+            log.info("Préchauffage : {} sociétés en {} ms", size, (System.nanoTime() - start) / 1_000_000);
+        });
+    }
+
+    public List<UniverseEntry> buildUniverse() {
+        return getCached(UNIVERSE, this::computeUniverse);
+    }
+
+    private List<UniverseEntry> computeUniverse() {
+        return findScoredCompanies().stream()
+                .map(c -> {
+                    RatioSet ratios = computeRatios(c);
+                    Map<Ratio, Double> values = new EnumMap<>(Ratio.class);
+                    ratios.values().forEach((r, v) -> values.put(r, v.value()));
+                    Map<Profile, Integer> scores = new EnumMap<>(Profile.class);
+                    for (Profile p : Profile.values()) {
+                        scores.put(p, score(c, ratios, findWeights(c, p)).score());
+                    }
+                    Icb icb = c.getIcb().orElse(null);
+                    return new UniverseEntry(c.getIsin(), c.getName(), c.getTicker(),
+                            icb == null ? null : icb.extractSupersectorCode(), icb == null ? null : icb.supersector(),
+                            Freshness.of(ratios.fiscalYearEnd(), LocalDate.now(clock)), values, scores);
+                })
+                .sorted(Comparator.comparing(UniverseEntry::name))
+                .toList();
+    }
+
+    /**
+     * Les ratios d'un exercice, avec le cours de clôture de ce jour-là (pour la valorisation).
+     *
+     * @param price cours à la date de clôture de l'exercice (null si l'historique ne remonte pas si loin)
+     */
+    public record YearRatios(LocalDate fiscalYearEnd, BigDecimal price, Map<Ratio, Double> values) {
+    }
+
+    /**
+     * Les ratios exercice par exercice, du plus ancien au plus récent. Pour chaque exercice, on
+     * calcule comme si l'on était à sa clôture : mêmes formules, avec les seuls exercices connus
+     * à cette date, et le cours de ce jour-là pour le PER, le rendement… Le nombre d'actions est
+     * celui de l'époque (résultat net ÷ BPA), pas celui d'aujourd'hui.
+     */
+    public Optional<List<YearRatios>> computeRatioHistory(String isin) {
+        return companies.findByIsin(isin).map(company -> computeYearRatioSets(company).stream()
+                .map(y -> {
+                    Map<Ratio, Double> values = new EnumMap<>(Ratio.class);
+                    y.ratios().values().forEach((r, v) -> values.put(r, v.value()));
+                    return new YearRatios(y.fiscalYearEnd(), y.valuation() == null ? null : y.valuation().quotedPrice(),
+                            values);
+                })
+                .toList());
+    }
+
+    /** Les 4 notes d'une société (null : pas assez de données pour ce profil). */
+    public record ProfileScores(long companyId, String isin, LocalDate fiscalYearEnd, Map<Profile, Integer> scores) {
+    }
+
+    /** Les notes d'aujourd'hui, avec le dernier cours : ce que montre la fiche. */
+    public Optional<ProfileScores> computeCurrentScores(String isin) {
+        return companies.findByIsin(isin).map(company -> {
+            RatioSet ratios = computeRatios(company);
+            return computeProfileScores(company, ratios, LocalDate.now(clock));
+        });
+    }
+
+    /** Les notes d'aujourd'hui de toutes les sociétés notées (photo quotidienne). */
+    public List<ProfileScores> computeAllCurrentScores() {
+        return findScoredCompanies().stream().map(c -> computeProfileScores(c, computeRatios(c), LocalDate.now(clock))).toList();
+    }
+
+    /**
+     * Les notes qu'aurait eues la société à la clôture de chaque exercice passé, du plus ancien au
+     * plus récent : mêmes calculs que {@link #computeRatioHistory}, puis les poids de chaque profil.
+     * <p>
+     * Approximation assumée : la calibration sectorielle est celle d'aujourd'hui.
+     */
+    public List<ProfileScores> findPastScores(String isin) {
+        return companies.findByIsin(isin)
+                .map(company -> computeYearRatioSets(company).stream()
+                        .map(y -> computeProfileScores(company, y.ratios(), y.fiscalYearEnd()))
+                        .toList())
+                .orElse(List.of());
+    }
+
+    private ProfileScores computeProfileScores(Company company, RatioSet ratios, LocalDate asOf) {
+        SectorCalibration cal = getCalibration();
+        Icb icb = company.getIcb().orElse(null);
+        Map<Profile, Integer> scores = new EnumMap<>(Profile.class);
+        LocalDate fiscalYearEnd = null;
+        for (Profile p : Profile.values()) {
+            Score s = ScoreCalculator.score(ratios, findWeights(company, p), asOf, ratio -> cal.findAdjustment(ratio, icb));
+            scores.put(p, s.score());
+            fiscalYearEnd = s.fiscalYearEnd();
+        }
+        return new ProfileScores(company.getId(), company.getIsin(), fiscalYearEnd, scores);
+    }
+
+    /** Un exercice vu depuis sa clôture : ses ratios, et le cours de ce jour-là. */
+    private record YearRatioSet(LocalDate fiscalYearEnd, Valuation valuation, RatioSet ratios) {
+    }
+
+    private List<YearRatioSet> computeYearRatioSets(Company company) {
+        FinancialHistory history = loadHistory(company);
+        String quoted = market.findLatestQuote(company.getId()).map(Quote::currency).orElse("EUR");
+        String reporting = findReportingCurrency(history).orElse(quoted);
+        List<YearRatioSet> result = new ArrayList<>();
+        for (int i = history.years().size() - 1; i >= 0; i--) { // du plus ancien au plus récent
+            FinancialHistory upToYear = new FinancialHistory(history.years().subList(i, history.years().size()));
+            LocalDate end = history.years().get(i).fiscalYearEnd();
+            Valuation valuation = company.isCooperativeCertificate() ? null : market.findCloseOn(company.getId(), end)
+                    .flatMap(close -> market.convert(close.close(), quoted, reporting)
+                            .map(price -> new Valuation(price, reporting, close.close(), quoted,
+                                    close.day().atStartOfDay(clock.getZone()).toInstant(), "CLOSE", null)))
+                    .orElse(null);
+            String noValuation = company.isCooperativeCertificate() ? COOPERATIVE_CERTIFICATE : "Pas de cours à cette date";
+            result.add(new YearRatioSet(end, valuation, RatioCalculator.compute(upToYear, valuation, noValuation)));
+        }
+        return result;
+    }
+
+    private FinancialHistory loadHistory(Company company) {
+        FinancialHistory history = financials.getHistory(company.getId());
+        return findBook(company) == Profile.Book.INSURER ? addInsuranceRevenue(history) : history;
+    }
+
+    /**
+     * Pour un assureur qui ne publie pas de chiffre d'affaires total (SCOR, Coface), le revenu des
+     * contrats d'assurance (IFRS 17) en tient lieu. Réservé aux assurances : les banques publient
+     * aussi ce revenu pour leur filiale d'assurance, et leur équivalent est le PNB.
+     */
+    static FinancialHistory addInsuranceRevenue(FinancialHistory history) {
+        List<FinancialHistory.Year> years = history.years().stream().map(year -> {
+            Optional<FinancialHistory.Value> insurance = year.get(Metric.INSURANCE_REVENUE);
+            if (year.get(Metric.REVENUE).isPresent() || insurance.isEmpty()) {
+                return year;
+            }
+            Map<Metric, FinancialHistory.Value> metrics = new EnumMap<>(Metric.class);
+            metrics.putAll(year.metrics());
+            metrics.put(Metric.REVENUE, insurance.get());
+            return new FinancialHistory.Year(year.fiscalYearEnd(), metrics);
+        }).toList();
+        return new FinancialHistory(years);
+    }
+
+    private RatioSet computeRatios(Company company) {
+        FinancialHistory history = loadHistory(company);
+        if (company.isCooperativeCertificate()) {
+            return RatioCalculator.compute(history, null, COOPERATIVE_CERTIFICATE);
+        }
+        Optional<Quote> quote = market.findLatestQuote(company.getId());
+        if (quote.isEmpty()) {
+            return RatioCalculator.compute(history, null, "Cours de bourse indisponible");
+        }
+        Quote q = quote.get();
+        if (q.asOf().isBefore(Instant.now(clock).minus(MAX_QUOTE_AGE))) {
+            return RatioCalculator.compute(history, null,
+                    "Dernier cours trop ancien (" + LocalDate.ofInstant(q.asOf(), clock.getZone()) + ")");
+        }
+        String reporting = findReportingCurrency(history).orElse(q.currency());
+        Optional<BigDecimal> price = market.convert(q.price(), q.currency(), reporting);
+        if (price.isEmpty()) {
+            return RatioCalculator.compute(history, null,
+                    "Taux de change " + q.currency() + "/" + reporting + " indisponible");
+        }
+        return RatioCalculator.compute(history, new Valuation(price.get(), reporting, q.price(), q.currency(),
+                q.asOf(), q.source(), company.getSharesAdmitted()), null);
+    }
+
+    /** Devise des comptes : celle des chiffres du dernier exercice. */
+    private static Optional<String> findReportingCurrency(FinancialHistory history) {
+        return history.years().stream().findFirst()
+                .flatMap(y -> y.metrics().values().stream().map(FinancialHistory.Value::currency).findFirst());
+    }
+}

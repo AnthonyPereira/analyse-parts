@@ -1,5 +1,6 @@
 package com.analyseparts.market;
 
+import com.analyseparts.market.model.PricePoint;
 import java.util.List;
 import java.util.Optional;
 

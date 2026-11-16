@@ -1,6 +1,6 @@
 package com.analyseparts.ingestion;
 
-import com.analyseparts.financials.FilingRef;
+import com.analyseparts.financials.model.FilingRef;
 
 import java.io.IOException;
 
