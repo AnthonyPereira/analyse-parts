@@ -1,0 +1,54 @@
+# Déploiement sur le serveur maison (ADR 0022), d'après le modèle de la doc « Serveur maison » :
+# copié dans ~/apps/analyse-parts par deploy-app à chaque push. Ne pas le modifier sur le portable.
+# Variables remplies par deploy-app dans ~/apps/analyse-parts/.env : APP_NAME, APP_HOST,
+# IMAGE_PREFIX, DB_PASSWORD. À ajouter à la main dans ce .env : ADMIN_TOKEN.
+#
+# Différence avec le modèle : un seul service « app » (Spring Boot sert le site et l'API, port
+# 8080) au lieu de front + back. Toute l'adresse va donc vers lui, pas seulement /api.
+# Pour la base de développement sur le PC, c'est backend/compose.yaml.
+
+services:
+  app:
+    image: ${IMAGE_PREFIX}-app:latest
+    restart: unless-stopped
+    networks: [web, interne]
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/app
+      DATABASE_USER: app
+      DATABASE_PASSWORD: ${DB_PASSWORD}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?ajouter ADMIN_TOKEN dans ~/apps/analyse-parts/.env}
+    mem_limit: 1g
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+      - traefik.http.routers.${APP_NAME}.rule=Host(`${APP_HOST}`)
+      - traefik.http.services.${APP_NAME}.loadbalancer.server.port=8080
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    # Même version que Neon, d'où vient la base copiée (pg_dump 18)
+    image: postgres:18-alpine
+    restart: unless-stopped
+    networks: [interne]
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: app
+    volumes:
+      # Postgres 18 range ses données dans un sous-dossier de /var/lib/postgresql
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+networks:
+  web:
+    external: true
+  interne:
+
+volumes:
+  db-data:

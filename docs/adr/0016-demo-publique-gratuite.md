@@ -1,6 +1,6 @@
 # ADR 0016 — Démo publique gratuite : Render + Neon, sans LLM
 
-- **Statut** : Acceptée
+- **Statut** : Remplacée en partie par [ADR 0022](0022-hebergement-sur-le-serveur-maison.md) (hébergement)
 - **Date** : 2026-11-10
 - **Remplace** : l'hébergement sur Oracle Cloud Free Tier prévu dans le document de conception
 

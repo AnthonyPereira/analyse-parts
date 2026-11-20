@@ -8,8 +8,8 @@ annuels officiels (format ESEF, déposés à l'AMF ou publiés sur filings.xbrl.
 de langage local lit aussi les rapports pour résumer l'activité, les avantages et les risques ;
 cette lecture est affichée à côté de la note et n'entre jamais dans son calcul.
 
-Démo en ligne : <https://analyse-parts.onrender.com/> (offre gratuite : le premier affichage peut
-prendre une minute si le serveur dormait).
+En ligne : <https://analyse-parts.anthonypereira.dpdns.org/>, sur un serveur maison. Chaque push sur
+`main` y est déployé en quelques minutes (`.github/workflows/deploy.yml`, ADR 0022).
 
 - [Lancer l'application](#lancer-lapplication)
   - [Avec Docker (recommandé)](#avec-docker-recommandé)
@@ -56,9 +56,9 @@ npm run dev                     # http://localhost:5173
 Au premier démarrage, Flyway crée les tables (`backend/src/main/resources/db/migration`).
 La base est vide : voir [Remplir la base](#remplir-la-base).
 
-**Option 2 : l'image de production, comme sur Render.** Un seul conteneur sert l'API et le site
-compilé (ADR 0016). La construction compile le front, le backend, puis prépare le cache AOT de Java
-(démarrage en 19 s au lieu de 2 min sur un petit serveur) : comptez quelques minutes.
+**Option 2 : l'image de production, comme sur le serveur.** Un seul conteneur sert l'API et le site
+compilé (ADR 0016, 0022). La construction compile le front puis le backend : comptez quelques minutes.
+En ligne, `docker-compose.yml` (racine) ajoute la base et le routage Traefik.
 
 ```bash
 docker build -t analyse-parts .
