@@ -29,7 +29,8 @@ import java.util.Map;
  *       poids), pour que le front puisse tout expliquer ;</li>
  *   <li>{@code GET /api/companies/{isin}/ratios} : les ratios d'une société ;</li>
  *   <li>{@code GET /api/companies/{isin}/score?profile=QUALITY} : son score détaillé ;</li>
- *   <li>{@code GET /api/scores?profile=QUALITY} : le classement ;</li>
+ *   <li>{@code GET /api/ranking?profile=QUALITY&page=0} : le classement page par page, avec filtres
+ *       ({@code GET /api/scores} : le classement entier) ;</li>
  *   <li>{@code GET /api/companies/{isin}/score-history} : l'historique des 4 notes ;</li>
  *   <li>{@code GET /api/scoring/calibration} : les médianes par secteur ({@code POST /api/admin/scoring/calibrate} pour recalculer).</li>
  * </ul>
@@ -109,16 +110,59 @@ public class ScoringController {
      */
     @PostMapping("/api/scores/custom")
     public ResponseEntity<List<ScoringService.RankingEntry>> computeCustomRanking(@RequestBody Map<Ratio, Integer> weights) {
+        Map<Ratio, Integer> positive = keepPositive(weights);
+        return positive.isEmpty() ? ResponseEntity.badRequest().build() : ResponseEntity.ok(scoring.computeRanking(positive));
+    }
+
+    /** Poids nuls ou négatifs ignorés, plafonnés à 100. */
+    private static Map<Ratio, Integer> keepPositive(Map<Ratio, Integer> weights) {
         Map<Ratio, Integer> positive = new EnumMap<>(Ratio.class);
         weights.forEach((ratio, weight) -> {
             if (weight != null && weight > 0) {
                 positive.put(ratio, Math.min(weight, 100));
             }
         });
+        return positive;
+    }
+
+    /**
+     * Le classement page par page, avec ses filtres : ce qu'utilise le site. Ex. :
+     * {@code GET /api/ranking?profile=VALUE&sector=Banks&country=FR&q=bnp&page=0&size=50}.
+     * {@code scored=false} donne les sociétés non notées. Filtrer et découper le classement gardé en
+     * mémoire prend quelques millisecondes, et la réponse pèse quelques Ko au lieu de 70.
+     */
+    @GetMapping("/api/ranking")
+    public RankingPage getRankingPage(@RequestParam(defaultValue = "QUALITY") Profile profile,
+                                      @RequestParam(required = false) String sector,
+                                      @RequestParam(required = false) String country,
+                                      @RequestParam(name = "q", required = false) String search,
+                                      @RequestParam(defaultValue = "true") boolean scored,
+                                      @RequestParam(defaultValue = "0") int page,
+                                      @RequestParam(defaultValue = "" + RankingPage.DEFAULT_SIZE) int size) {
+        return RankingPage.of(scoring.computeRanking(profile),
+                new RankingPage.Query(sector, country, search, scored, page, size));
+    }
+
+    /** Le mode avancé, page par page : mêmes filtres que {@code /api/ranking}, poids dans le corps. */
+    @PostMapping("/api/ranking/custom")
+    public ResponseEntity<RankingPage> computeCustomRankingPage(@RequestBody Map<Ratio, Integer> weights,
+                                                                @RequestParam(required = false) String sector,
+                                                                @RequestParam(required = false) String country,
+                                                                @RequestParam(name = "q", required = false) String search,
+                                                                @RequestParam(defaultValue = "0") int page,
+                                                                @RequestParam(defaultValue = "" + RankingPage.DEFAULT_SIZE) int size) {
+        Map<Ratio, Integer> positive = keepPositive(weights);
         if (positive.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(scoring.computeRanking(positive));
+        return ResponseEntity.ok(RankingPage.of(scoring.computeRanking(positive),
+                new RankingPage.Query(sector, country, search, true, page, size)));
+    }
+
+    /** Juste les 4 notes de chaque société, pour le nuage de points du classement (5 fois plus léger que l'univers). */
+    @GetMapping("/api/universe/scores")
+    public List<ScoringService.UniverseScores> getUniverseScores() {
+        return scoring.buildUniverseScores();
     }
 
     /** Toutes les sociétés avec leurs ratios et leurs 4 scores, pour les graphiques de comparaison. */

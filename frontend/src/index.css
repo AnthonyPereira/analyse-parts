@@ -352,3 +352,14 @@ aside > .card:first-child { margin-top: 0; }
 .analysis-points summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; }
 .analysis-points blockquote { margin: 0.4rem 0; padding: 0.3rem 0.7rem; border-left: 3px solid var(--border); font-style: italic; }
 .analysis-points mark { background: var(--mid-bg); color: inherit; }
+
+/* Pagination sous les tableaux */
+.pager { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.8rem 0; }
+.pager button {
+  padding: 0.35rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface);
+  color: var(--text); font: inherit; cursor: pointer;
+}
+.pager button:disabled { opacity: 0.4; cursor: default; }
+.pager span { font-size: 0.9rem; }
+input[type="search"] { font: inherit; padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.is-refreshing { opacity: 0.6; transition: opacity 0.2s; }

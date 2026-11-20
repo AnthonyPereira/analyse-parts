@@ -2,19 +2,23 @@ import { useNavigate } from 'react-router'
 import {
   Bar, BarChart, CartesianGrid, ReferenceArea, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import type { ProfileDefinition, ProfileId, UniverseEntry } from '../api/types'
+import type { ProfileDefinition, ProfileId, UniverseScores } from '../api/types'
 import { ChartCard, EmptyChart, Legend, TooltipBox } from './common'
 import { AXIS, GRID } from './theme'
 
-/** Combien de sociétés par tranche de 10 points : le profil est-il sévère ou généreux ? */
-export function ScoreHistogram({ scores, title }: { scores: number[]; title: string }) {
+/**
+ * Combien de sociétés par tranche de 10 points : le profil est-il sévère ou généreux ?
+ * Soit les notes elles-mêmes (scores), soit les 10 comptes déjà faits par le serveur (counts).
+ */
+export function ScoreHistogram({ scores, counts, title }: { scores?: number[]; counts?: number[]; title: string }) {
   const bins = Array.from({ length: 10 }, (_, i) => ({
     range: i === 9 ? '90–100' : `${i * 10}–${i * 10 + 9}`,
-    count: scores.filter(s => (i === 9 ? s >= 90 : s >= i * 10 && s < i * 10 + 10)).length,
+    count: counts?.[i] ?? (scores ?? []).filter(s => (i === 9 ? s >= 90 : s >= i * 10 && s < i * 10 + 10)).length,
   }))
+  const total = bins.reduce((sum, b) => sum + b.count, 0)
   return (
-    <ChartCard title={title} help="HISTOGRAM" subtitle={`${scores.length} sociétés notées, par tranche de 10 points. Plus une barre est haute, plus il y a de sociétés dans cette tranche.`}>
-      {scores.length === 0 ? <EmptyChart>Aucune société notée</EmptyChart> : (
+    <ChartCard title={title} help="HISTOGRAM" subtitle={`${total} sociétés notées, par tranche de 10 points. Plus une barre est haute, plus il y a de sociétés dans cette tranche.`}>
+      {total === 0 ? <EmptyChart>Aucune société notée</EmptyChart> : (
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={bins} margin={{ top: 16, right: 4, bottom: 0, left: 0 }} barCategoryGap={2}>
             <CartesianGrid {...GRID} />
@@ -40,7 +44,8 @@ export function ScoreHistogram({ scores, title }: { scores: number[]; title: str
  * Un clic ouvre la fiche.
  */
 export function ProfileScatter({ universe, x, y, profiles, highlightSector }: {
-  universe: UniverseEntry[]
+  /** L'univers complet convient aussi : seules les notes servent. */
+  universe: UniverseScores[]
   x: ProfileId
   y: ProfileId
   profiles: ProfileDefinition[] | undefined

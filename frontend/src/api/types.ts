@@ -296,3 +296,34 @@ export interface HalfYearView {
   report: HalfYearReport | null
   ttm: Ttm[]
 }
+
+/** Une page du classement (GET /api/ranking), avec de quoi dessiner le reste sans tout télécharger. */
+export interface RankingPage {
+  items: RankingEntry[]
+  /** Numéro de page à partir de 0 (le serveur ramène une page trop grande à la dernière). */
+  page: number
+  size: number
+  /** Lignes qui passent les filtres (notées, ou non notées si scored=false). */
+  totalItems: number
+  totalPages: number
+  scoredCount: number
+  unscoredCount: number
+  /** Sociétés notées par tranche de 10 points (0–9 … 90–100), filtres appliqués. */
+  histogram: number[]
+  /** Tous les secteurs et pays du classement, pour les listes déroulantes. */
+  sectors: string[]
+  countries: string[]
+}
+
+/** Filtres et page demandés au serveur. */
+export interface RankingQuery {
+  sector?: string
+  country?: string
+  q?: string
+  scored?: boolean
+  page?: number
+  size?: number
+}
+
+/** Les 4 notes d'une société (GET /api/universe/scores) : l'univers sans les ratios, pour le nuage de points. */
+export type UniverseScores = Pick<UniverseEntry, 'isin' | 'name' | 'supersectorCode' | 'supersector' | 'scores'>

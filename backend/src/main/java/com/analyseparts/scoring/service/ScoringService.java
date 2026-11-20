@@ -32,6 +32,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -43,10 +44,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 
 /**
  * Couche Spring autour du calcul : va chercher les données, appelle le cœur en Java pur.
@@ -115,41 +115,117 @@ public class ScoringService {
 
     /** Les sociétés notées, de la meilleure à la moins bonne ; celles sans score sont à la fin. */
     public List<RankingEntry> computeRanking(Profile profile) {
-        return getCached(profile, () -> computeRanking(c -> findWeights(c, profile)));
+        return getSnapshot().rankings().get(profile);
     }
 
-    /**
-     * Le classement et l'univers sont gardés en mémoire et recalculés seulement quand les données
-     * changent : nouveau cours, nouveau rapport, recalibrage, changement de jour (la fraîcheur en
-     * dépend), ou au plus tard après {@link #RESULT_MAX_AGE} (fiche société mise à jour par une
-     * collecte, par exemple). Avant, chaque visite recalculait tout (6 s sur la démo, revue du
-     * 11 novembre 2026). Le mode avancé, aux poids libres, n'est pas gardé.
+    /*
+     * Le classement des 4 profils et l'univers sortent d'un seul calcul, la « photo » (Snapshot) :
+     * les ratios de chaque société sont calculés une fois, puis notés avec les poids de chaque
+     * profil. Avant, chaque profil et l'univers refaisaient tout le travail (5 fois les mêmes
+     * ratios), et chaque nouveau cours (toutes les minutes en séance) faisait attendre le visiteur
+     * suivant pendant le recalcul.
+     *
+     * Quand les données changent (nouveau cours, nouveau rapport, changement de jour, ou au plus
+     * tard après RESULT_MAX_AGE), la photo devient périmée : on continue de la servir et une
+     * nouvelle est calculée en arrière-plan (« stale-while-revalidate »). Un seul calcul à la fois :
+     * dix visiteurs simultanés ne lancent pas dix calculs. On attend le calcul seulement quand il
+     * n'y a encore aucune photo (démarrage) ou après un recalibrage.
      */
     static final Duration RESULT_MAX_AGE = Duration.ofMinutes(15);
 
-    private record Cached(long version, LocalDate day, Instant computedAt, Object value) {
+    /** Une société et ses ratios d'aujourd'hui : de quoi la noter avec n'importe quels poids. */
+    private record Sample(Company company, RatioSet ratios) {
+    }
+
+    private record Snapshot(long version, LocalDate day, Instant computedAt, List<Sample> samples,
+                            Map<Profile, List<RankingEntry>> rankings, List<UniverseEntry> universe) {
     }
 
     private final AtomicLong dataVersion = new AtomicLong();
-    private final Map<Object, Cached> results = new ConcurrentHashMap<>();
+    /** Une photo plus ancienne que cette version n'est jamais servie (calibration changée). */
+    private volatile long minimumVersion;
+    private volatile Snapshot snapshot;
+    private final ReentrantLock computing = new ReentrantLock();
     private final AtomicBoolean refreshScheduled = new AtomicBoolean();
-    private static final String UNIVERSE = "universe";
+    /** Faux dans les tests qui veulent voir tout de suite une donnée qu'ils viennent d'écrire. */
+    @Value("${analyse-parts.scoring.serve-stale:true}")
+    boolean serveStale = true;
 
-    @SuppressWarnings("unchecked")
-    private <T> T getCached(Object key, Supplier<T> compute) {
-        Cached c = results.get(key);
-        if (c != null && c.version() == dataVersion.get() && c.day().equals(LocalDate.now(clock))
-                && c.computedAt().plus(RESULT_MAX_AGE).isAfter(Instant.now(clock))) {
-            return (T) c.value();
+    private Snapshot getSnapshot() {
+        Snapshot s = snapshot;
+        if (s != null && s.version() >= minimumVersion) {
+            if (isCurrent(s)) {
+                return s;
+            }
+            if (serveStale) {
+                scheduleRefresh(Duration.ZERO);
+                return s;
+            }
         }
-        // Version lue avant le calcul : une donnée qui change pendant celui-ci le rend aussitôt périmé
-        long version = dataVersion.get();
-        T value = compute.get();
-        results.put(key, new Cached(version, LocalDate.now(clock), Instant.now(clock), value));
-        return value;
+        return computeSnapshot();
     }
 
-    /** Un cours ou un rapport a changé : les résultats gardés sont périmés. */
+    private boolean isCurrent(Snapshot s) {
+        return s.version() == dataVersion.get() && s.day().equals(LocalDate.now(clock))
+                && s.computedAt().plus(RESULT_MAX_AGE).isAfter(Instant.now(clock));
+    }
+
+    /** Calcule une nouvelle photo, sauf si un autre fil vient d'en finir une à jour pendant l'attente. */
+    private Snapshot computeSnapshot() {
+        computing.lock();
+        try {
+            Snapshot s = snapshot;
+            if (s != null && s.version() >= minimumVersion && isCurrent(s)) {
+                return s;
+            }
+            // Version lue avant le calcul : une donnée qui change pendant celui-ci le rend aussitôt périmé
+            long version = dataVersion.get();
+            Snapshot fresh = buildSnapshot(version);
+            snapshot = fresh;
+            return fresh;
+        } finally {
+            computing.unlock();
+        }
+    }
+
+    private Snapshot buildSnapshot(long version) {
+        long start = System.nanoTime();
+        LocalDate today = LocalDate.now(clock);
+        List<Sample> samples = findScoredCompanies().stream().map(c -> new Sample(c, computeRatios(c))).toList();
+        Map<Profile, List<RankingEntry>> rankings = new EnumMap<>(Profile.class);
+        Map<Profile, List<RankingEntry>> building = new EnumMap<>(Profile.class);
+        for (Profile p : Profile.values()) {
+            building.put(p, new ArrayList<>(samples.size()));
+        }
+        List<UniverseEntry> universe = new ArrayList<>(samples.size());
+        for (Sample sample : samples) {
+            Company c = sample.company();
+            Map<Profile, Integer> scores = new EnumMap<>(Profile.class);
+            for (Profile p : Profile.values()) {
+                Score s = score(c, sample.ratios(), findWeights(c, p));
+                scores.put(p, s.score());
+                building.get(p).add(toEntry(c, s));
+            }
+            universe.add(toUniverseEntry(c, sample.ratios(), scores, today));
+        }
+        building.forEach((p, entries) -> rankings.put(p, entries.stream().sorted(RANKING_ORDER).toList()));
+        universe.sort(Comparator.comparing(UniverseEntry::name));
+        log.debug("Classements et univers recalculés : {} sociétés en {} ms", samples.size(),
+                (System.nanoTime() - start) / 1_000_000);
+        return new Snapshot(version, today, Instant.now(clock), samples, rankings, List.copyOf(universe));
+    }
+
+    private static final Comparator<RankingEntry> RANKING_ORDER =
+            Comparator.comparing(RankingEntry::score, Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(RankingEntry::name);
+
+    private static RankingEntry toEntry(Company c, Score s) {
+        return new RankingEntry(c.getIsin(), c.getName(), c.getTicker(), c.getCountry(),
+                c.getIcb().map(Icb::supersector).orElse(null), s.score(), s.coverage(),
+                s.fiscalYearEnd(), s.freshness(), s.familyScore());
+    }
+
+    /** Un cours ou un rapport a changé : la photo est périmée (toujours servie en attendant la suivante). */
     void invalidateResults() {
         dataVersion.incrementAndGet();
     }
@@ -183,26 +259,28 @@ public class ScoringService {
     }
 
     /**
-     * Après un changement, recalcule en arrière-plan ce qui a déjà été demandé, pour que le visiteur
-     * suivant n'attende pas. Une seule passe à la fois, quelques secondes après le premier changement
-     * (les cours arrivent par paquets, les rapports par centaines lors d'une collecte).
+     * Après un changement, recalcule en arrière-plan, pour que le visiteur suivant n'attende pas.
+     * Quelques secondes après le premier changement : les cours arrivent par paquets, les rapports
+     * par centaines lors d'une collecte. Rien tant que personne n'a rien demandé.
      */
     private void invalidateAndRefresh() {
         invalidateResults();
-        if (!warmUpEnabled || !refreshScheduled.compareAndSet(false, true)) {
+        if (warmUpEnabled && snapshot != null) {
+            scheduleRefresh(Duration.ofSeconds(5));
+        }
+    }
+
+    /** Une seule passe en attente à la fois. */
+    private void scheduleRefresh(Duration delay) {
+        if (!refreshScheduled.compareAndSet(false, true)) {
             return;
         }
         Thread.ofVirtual().name("recalcul-classement").start(() -> {
             try {
-                Thread.sleep(Duration.ofSeconds(5));
+                Thread.sleep(delay);
+                // Remis à faux avant le calcul : un changement arrivé pendant celui-ci en relance un autre
                 refreshScheduled.set(false);
-                for (Object key : List.copyOf(results.keySet())) {
-                    if (key instanceof Profile p) {
-                        computeRanking(p);
-                    } else if (UNIVERSE.equals(key)) {
-                        buildUniverse();
-                    }
-                }
+                computeSnapshot();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (RuntimeException e) {
@@ -213,21 +291,14 @@ public class ScoringService {
         });
     }
 
-    /** Classement avec des poids choisis librement (mode avancé), les mêmes pour toutes les sociétés. */
+    /**
+     * Classement avec des poids choisis librement (mode avancé), les mêmes pour toutes les sociétés.
+     * Les ratios viennent de la photo : seul le score est refait, pas la lecture des comptes.
+     */
     public List<RankingEntry> computeRanking(Map<Ratio, Integer> weights) {
-        return computeRanking(_ -> weights);
-    }
-
-    private List<RankingEntry> computeRanking(java.util.function.Function<Company, Map<Ratio, Integer>> weightsOf) {
-        return findScoredCompanies().stream()
-                .map(c -> {
-                    Score s = score(c, computeRatios(c), weightsOf.apply(c));
-                    return new RankingEntry(c.getIsin(), c.getName(), c.getTicker(), c.getCountry(),
-                            c.getIcb().map(Icb::supersector).orElse(null), s.score(), s.coverage(),
-                            s.fiscalYearEnd(), s.freshness(), s.familyScore());
-                })
-                .sorted(Comparator.comparing(RankingEntry::score, Comparator.nullsLast(Comparator.reverseOrder()))
-                        .thenComparing(RankingEntry::name))
+        return getSnapshot().samples().stream()
+                .map(sample -> toEntry(sample.company(), score(sample.company(), sample.ratios(), weights)))
+                .sorted(RANKING_ORDER)
                 .toList();
     }
 
@@ -258,7 +329,8 @@ public class ScoringService {
         }
         log.info("Calibration sectorielle : {} médianes sur {} sociétés", computed.getMedians().size(), samples.size());
         calibration = computed;
-        invalidateResults();
+        // Les notes changent avec la calibration : l'ancienne photo n'est plus servie, même périmée
+        minimumVersion = dataVersion.incrementAndGet();
         return computed;
     }
 
@@ -315,8 +387,8 @@ public class ScoringService {
     }
 
     /**
-     * Au démarrage, calcule une fois l'univers en arrière-plan : les historiques des sociétés
-     * entrent dans le cache, et la première page affichée n'attend pas. Pas dans le lecteur local
+     * Au démarrage, prend une première photo en arrière-plan : les historiques des sociétés entrent
+     * dans le cache, et la première page affichée n'attend pas. Pas dans le lecteur local
      * ({@code analyse-parts.scoring.warm-up=false}).
      */
     @EventListener(value = ApplicationReadyEvent.class,
@@ -324,35 +396,40 @@ public class ScoringService {
     void warmUp() {
         Thread.ofVirtual().name("prechauffage-scores").start(() -> {
             long start = System.nanoTime();
-            int size = buildUniverse().size();
-            for (Profile p : Profile.values()) {
-                computeRanking(p);
-            }
+            int size = computeSnapshot().universe().size();
             log.info("Préchauffage : {} sociétés en {} ms", size, (System.nanoTime() - start) / 1_000_000);
         });
     }
 
     public List<UniverseEntry> buildUniverse() {
-        return getCached(UNIVERSE, this::computeUniverse);
+        return getSnapshot().universe();
     }
 
-    private List<UniverseEntry> computeUniverse() {
-        return findScoredCompanies().stream()
-                .map(c -> {
-                    RatioSet ratios = computeRatios(c);
-                    Map<Ratio, Double> values = new EnumMap<>(Ratio.class);
-                    ratios.values().forEach((r, v) -> values.put(r, v.value()));
-                    Map<Profile, Integer> scores = new EnumMap<>(Profile.class);
-                    for (Profile p : Profile.values()) {
-                        scores.put(p, score(c, ratios, findWeights(c, p)).score());
-                    }
-                    Icb icb = c.getIcb().orElse(null);
-                    return new UniverseEntry(c.getIsin(), c.getName(), c.getTicker(),
-                            icb == null ? null : icb.extractSupersectorCode(), icb == null ? null : icb.supersector(),
-                            Freshness.of(ratios.fiscalYearEnd(), LocalDate.now(clock)), values, scores);
-                })
-                .sorted(Comparator.comparing(UniverseEntry::name))
+    /** Juste les 4 notes : ce que demande le nuage de points, 5 fois plus léger que l'univers complet. */
+    public record UniverseScores(String isin, String name, String supersectorCode, String supersector,
+                                 Map<Profile, Integer> scores) {
+    }
+
+    public List<UniverseScores> buildUniverseScores() {
+        return buildUniverse().stream()
+                .map(u -> new UniverseScores(u.isin(), u.name(), u.supersectorCode(), u.supersector(), u.scores()))
                 .toList();
+    }
+
+    /** 4 chiffres significatifs suffisent à l'affichage (12,34 %) et allègent la réponse d'un tiers. */
+    private static final MathContext DISPLAY_PRECISION = new MathContext(4);
+
+    static double roundForDisplay(double v) {
+        return Double.isFinite(v) && v != 0 ? new BigDecimal(v).round(DISPLAY_PRECISION).doubleValue() : v;
+    }
+
+    private UniverseEntry toUniverseEntry(Company c, RatioSet ratios, Map<Profile, Integer> scores, LocalDate today) {
+        Map<Ratio, Double> values = new EnumMap<>(Ratio.class);
+        ratios.values().forEach((r, v) -> values.put(r, roundForDisplay(v.value())));
+        Icb icb = c.getIcb().orElse(null);
+        return new UniverseEntry(c.getIsin(), c.getName(), c.getTicker(),
+                icb == null ? null : icb.extractSupersectorCode(), icb == null ? null : icb.supersector(),
+                Freshness.of(ratios.fiscalYearEnd(), today), values, scores);
     }
 
     /**

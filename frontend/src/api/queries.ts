@@ -6,12 +6,21 @@
 //  - pas de requête en double si deux composants demandent la même donnée.
 // Chaque donnée est identifiée par une « clé » (queryKey) : même clé = même cache.
 
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type {
   Calibration, Company, CompanyScore, CompanySummary, DailyClose, FinancialHistory, Intraday, PriceRange,
-  ProfileDefinition, ProfileId, QuoteWithChange, UniverseEntry, YearRatios,
-  AnalysisView, HalfYearView, RankingEntry, RatioDefinition, ScorePoint, SourceStatus,
+  ProfileDefinition, ProfileId, QuoteWithChange, UniverseEntry, UniverseScores, YearRatios,
+  AnalysisView, HalfYearView, RankingPage, RankingQuery, RatioDefinition, ScorePoint, SourceStatus,
 } from './types'
+
+/** ?sector=…&page=… : seuls les filtres renseignés partent dans l'URL. */
+function toSearchParams(query: object): string {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '' && value !== null) params.set(key, String(value))
+  }
+  return params.toString()
+}
 
 /** Erreur HTTP, pour distinguer « introuvable » (404) d'une panne. */
 export class HttpError extends Error {
@@ -54,8 +63,22 @@ export const useProfiles = () =>
 export const useCompanies = () =>
   useQuery({ queryKey: ['companies'], queryFn: () => get<CompanySummary[]>('/api/companies'), staleTime: HOUR })
 
-export const useRanking = (profile: ProfileId) =>
-  useQuery({ queryKey: ['ranking', profile], queryFn: () => get<RankingEntry[]>(`/api/scores?profile=${profile}`) })
+/**
+ * Le classement page par page : le serveur filtre et découpe, on ne reçoit que 50 lignes (quelques
+ * Ko au lieu des ~2 000 sociétés). keepPreviousData garde la page affichée pendant que la
+ * suivante arrive, au lieu de faire clignoter « Chargement… ».
+ */
+export const useRankingPage = (profile: ProfileId, query: RankingQuery, enabled = true) =>
+  useQuery({
+    queryKey: ['rankingPage', profile, query],
+    queryFn: () => get<RankingPage>(`/api/ranking?${toSearchParams({ profile, ...query })}`),
+    placeholderData: keepPreviousData,
+    enabled,
+  })
+
+// Juste les 4 notes de chaque société, pour le nuage de points (5 fois plus léger que l'univers).
+export const useUniverseScores = () =>
+  useQuery({ queryKey: ['universeScores'], queryFn: () => get<UniverseScores[]>('/api/universe/scores'), staleTime: 5 * 60 * 1000 })
 
 export const useCompany = (isin: string) =>
   useQuery({ queryKey: ['company', isin], queryFn: () => get<Company>(`/api/companies/${isin}`) })
@@ -103,7 +126,8 @@ export const useScoreHistory = (isin: string) =>
 export const useRatioHistory = (isin: string) =>
   useQuery({ queryKey: ['ratioHistory', isin], queryFn: () => get<YearRatios[]>(`/api/companies/${isin}/ratios/history`) })
 
-// Toutes les sociétés avec leurs ratios et scores (~2 s à calculer côté serveur) : gardé 5 minutes.
+// Toutes les sociétés avec leurs ratios et scores (1,3 Mo, 350 Ko compressé) : gardé 5 minutes. Le classement
+// n'en a pas besoin (useRankingPage + useUniverseScores) ; les secteurs et la fiche, oui (distributions des ratios).
 export const useUniverse = () =>
   useQuery({ queryKey: ['universe'], queryFn: () => get<UniverseEntry[]>('/api/universe'), staleTime: 5 * 60 * 1000 })
 
@@ -111,17 +135,17 @@ export const useCalibration = () =>
   useQuery({ queryKey: ['calibration'], queryFn: () => get<Calibration>('/api/scoring/calibration'), staleTime: HOUR })
 
 /** Mode avancé : les poids font partie de la clé, donc chaque réglage a son propre cache. */
-export const useCustomRanking = (weights: Record<string, number>) =>
+export const useCustomRanking = (weights: Record<string, number>, page: number) =>
   useQuery({
-    queryKey: ['customRanking', weights],
+    queryKey: ['customRanking', weights, page],
     queryFn: async () => {
-      const response = await fetch('/api/scores/custom', {
+      const response = await fetch(`/api/ranking/custom?page=${page}&size=40`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(weights),
       })
-      if (!response.ok) throw new HttpError(response.status, '/api/scores/custom')
-      return response.json() as Promise<RankingEntry[]>
+      if (!response.ok) throw new HttpError(response.status, '/api/ranking/custom')
+      return response.json() as Promise<RankingPage>
     },
     enabled: Object.values(weights).some(w => w > 0),
     placeholderData: previous => previous, // garde l'ancien classement affiché pendant le calcul

@@ -1,38 +1,68 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { useProfiles, useRanking, useUniverse } from '../api/queries'
+import { useProfiles, useRankingPage, useUniverseScores } from '../api/queries'
 import { ProfileScatter, ScoreHistogram } from '../charts/MarketCharts'
 import { FreshnessBadge, PointsBar, ScoreBadge } from '../components/Badges'
+import { Pagination } from '../components/Pagination'
 import { ProfileTabs } from '../components/ProfileTabs'
 import { parseProfile } from '../profile'
 import { HowToRead, Term } from '../components/Term'
 import { formatCountry, formatDate, formatPercent } from '../format'
+import { useDebounced } from '../useDebounced'
 
-/** Le classement (« screener ») : toutes les sociétés notées selon le profil choisi. */
+const PAGE_SIZE = 50
+
+/**
+ * Le classement (« screener ») : les sociétés notées selon le profil choisi, 50 par page.
+ * Le serveur filtre (secteur, pays, recherche) et découpe : la page ne reçoit que les lignes
+ * affichées, plus l'histogramme et les listes des filtres déjà calculés.
+ */
 export function RankingPage() {
-  // Le profil vit dans l'URL (/?profil=VALUE) : bouton « retour » et liens partagés le gardent.
+  // Profil, filtres et page vivent dans l'URL (/?profil=VALUE&secteur=Banks&page=2) :
+  // bouton « retour » et liens partagés les gardent.
   const [params, setParams] = useSearchParams()
   const profile = parseProfile(params.get('profil'))
-  const { data: ranking, isPending, error } = useRanking(profile)
-  const { data: universe } = useUniverse()
+  const sector = params.get('secteur') ?? ''
+  const country = params.get('pays') ?? ''
+  const page = Math.max(0, Number(params.get('page') ?? '1') - 1) || 0
+  const [search, setSearch] = useState(params.get('q') ?? '')
+  const debouncedSearch = useDebounced(search.trim(), 300)
+
+  const { data, isPending, isPlaceholderData, error } = useRankingPage(profile,
+    { sector, country, q: debouncedSearch, page, size: PAGE_SIZE })
+  const { data: universe } = useUniverseScores()
   const { data: profiles } = useProfiles()
-  const [sector, setSector] = useState('')
-  const [country, setCountry] = useState('')
   const [showUnscored, setShowUnscored] = useState(false)
+  const [unscoredPage, setUnscoredPage] = useState(0)
+  // Demandées seulement une fois la liste dépliée
+  const unscored = useRankingPage(profile,
+    { sector, country, q: debouncedSearch, scored: false, page: unscoredPage, size: 200 }, showUnscored)
+  const tableTop = useRef<HTMLDivElement>(null)
 
-  const sectors = useMemo(
-    () => [...new Set((ranking ?? []).map(r => r.sector).filter((s): s is string => s !== null))].sort(),
-    [ranking])
+  /** Change un paramètre de l'URL ; tout changement de filtre ramène à la première page. */
+  const update = (changes: Record<string, string>) => {
+    const next = new URLSearchParams(params)
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === '') next.delete(key)
+      else next.set(key, value)
+    }
+    if (!('page' in changes)) next.delete('page')
+    setParams(next)
+    if (!('page' in changes)) setUnscoredPage(0)
+  }
 
-  const countries = useMemo(
-    () => [...new Set((ranking ?? []).map(r => r.country).filter((c): c is string => c !== null))]
-      .sort((a, b) => formatCountry(a).localeCompare(formatCountry(b), 'fr')),
-    [ranking])
+  // La recherche part dans l'URL une fois la frappe finie (pas à chaque lettre)
+  const urlSearch = params.get('q') ?? ''
+  useEffect(() => {
+    if (debouncedSearch !== urlSearch) update({ q: debouncedSearch })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seule la frappe déclenche la mise à jour
+  }, [debouncedSearch])
 
-  const inSector = (ranking ?? []).filter(r => (sector === '' || r.sector === sector)
-    && (country === '' || r.country === country))
-  const scored = inSector.filter(r => r.score !== null)
-  const unscored = inSector.filter(r => r.score === null)
+  /** Page suivante : on remonte en haut du tableau, pas en haut du site. */
+  const goToPage = (p: number) => {
+    update({ page: p === 0 ? '' : String(p + 1) })
+    tableTop.current?.scrollIntoView({ block: 'start' })
+  }
 
   return (
     <>
@@ -58,31 +88,42 @@ export function RankingPage() {
           </li>
           <li><strong>Cliquez sur une société</strong> pour comprendre d'où vient sa note, indicateur par indicateur.</li>
         </ol>
-        <p className="muted">Les deux graphiques résument le marché : combien de sociétés par niveau de note, et comment se combinent deux profils.</p>
+        <p className="muted">
+          Le classement s'affiche par pages de {PAGE_SIZE} sociétés (boutons sous le tableau). Pour en retrouver une,
+          tapez son nom ou son code dans « Rechercher ». Les deux graphiques résument le marché : combien de sociétés
+          par niveau de note, et comment se combinent deux profils.
+        </p>
       </HowToRead>
-      <ProfileTabs value={profile} onChange={p => setParams({ profil: p })} />
+      <ProfileTabs value={profile} onChange={p => update({ profil: p })} />
 
       <div className="toolbar">
         <label>
+          Rechercher{' '}
+          <input type="search" value={search} onChange={e => setSearch(e.target.value)}
+                 placeholder="Nom, code, ISIN…" aria-label="Rechercher une société" />
+        </label>
+        <label>
           <Term id="SUPERSECTOR">Secteur</Term>{' '}
-          <select value={sector} onChange={e => setSector(e.target.value)}>
+          <select value={sector} onChange={e => update({ secteur: e.target.value })}>
             <option value="">Tous les secteurs</option>
-            {sectors.map(s => <option key={s} value={s}>{s}</option>)}
+            {data?.sectors.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
         <label>
           <Term id="COUNTRY">Pays</Term>{' '}
-          <select value={country} onChange={e => setCountry(e.target.value)}>
+          <select value={country} onChange={e => update({ pays: e.target.value })}>
             <option value="">Toute l'Europe</option>
-            {countries.map(c => <option key={c} value={c}>{formatCountry(c)}</option>)}
+            {[...(data?.countries ?? [])]
+              .sort((a, b) => formatCountry(a).localeCompare(formatCountry(b), 'fr'))
+              .map(c => <option key={c} value={c}>{formatCountry(c)}</option>)}
           </select>
         </label>
-        {ranking && <span className="muted">{scored.length} sociétés notées</span>}
+        {data && <span className="muted">{data.scoredCount} sociétés notées</span>}
       </div>
 
-      {ranking && (
+      {data && (
         <div className="layout-2" style={{ marginBottom: '1rem' }}>
-          <ScoreHistogram title="Répartition des scores" scores={scored.map(r => r.score!)} />
+          <ScoreHistogram title="Répartition des scores" counts={data.histogram} />
           {universe ? (
             <ProfileScatter universe={universe} profiles={profiles} highlightSector={sector || undefined}
                             y={profile} x={profile === 'VALUE' ? 'QUALITY' : 'VALUE'} />
@@ -93,51 +134,60 @@ export function RankingPage() {
       {isPending && <p className="muted">Chargement…</p>}
       {error && <p className="error">Impossible de charger le classement : {error.message}</p>}
 
-      {ranking && (
-        <div className="table-wrap">
-          <table className="ranking">
-            <thead>
-              <tr>
-                <th className="num">#</th>
-                <th>Société</th>
-                <th className="hide-narrow"><Term id="SUPERSECTOR">Secteur</Term></th>
-                <th><Term id="SCORE" /></th>
-                <th className="hide-narrow"><Term id="COVERAGE">Données</Term></th>
-                <th className="hide-narrow"><Term id="FRESHNESS">Exercice</Term></th>
-              </tr>
-            </thead>
-            <tbody>
-              {scored.map((r, i) => (
-                <tr key={r.isin}>
-                  <td className="num muted">{i + 1}</td>
-                  <td>
-                    <Link to={`/societe/${r.isin}?profil=${profile}`}>{r.name}</Link>
-                    <span className="muted ticker">{r.ticker}</span>
-                  </td>
-                  <td className="hide-narrow muted">{r.sector ?? '—'}</td>
-                  <td className="score-cell"><ScoreBadge score={r.score} /><PointsBar points={r.score ?? 0} /></td>
-                  <td className="hide-narrow num">{formatPercent(r.coverage)}</td>
-                  <td className="hide-narrow">
-                    {r.fiscalYearEnd && formatDate(r.fiscalYearEnd)} <FreshnessBadge freshness={r.freshness} />
-                  </td>
+      {data && (
+        <>
+          {data.totalItems === 0 && <p className="muted">Aucune société notée ne correspond à ces filtres.</p>}
+          <div ref={tableTop} className={`table-wrap${isPlaceholderData ? ' is-refreshing' : ''}`}>
+            <table className="ranking">
+              <thead>
+                <tr>
+                  <th className="num">#</th>
+                  <th>Société</th>
+                  <th className="hide-narrow"><Term id="SUPERSECTOR">Secteur</Term></th>
+                  <th><Term id="SCORE" /></th>
+                  <th className="hide-narrow"><Term id="COVERAGE">Données</Term></th>
+                  <th className="hide-narrow"><Term id="FRESHNESS">Exercice</Term></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {data.items.map((r, i) => (
+                  <tr key={r.isin}>
+                    <td className="num muted">{data.page * data.size + i + 1}</td>
+                    <td>
+                      <Link to={`/societe/${r.isin}?profil=${profile}`}>{r.name}</Link>
+                      <span className="muted ticker">{r.ticker}</span>
+                    </td>
+                    <td className="hide-narrow muted">{r.sector ?? '—'}</td>
+                    <td className="score-cell"><ScoreBadge score={r.score} /><PointsBar points={r.score ?? 0} /></td>
+                    <td className="hide-narrow num">{formatPercent(r.coverage)}</td>
+                    <td className="hide-narrow">
+                      {r.fiscalYearEnd && formatDate(r.fiscalYearEnd)} <FreshnessBadge freshness={r.freshness} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={data.page} totalPages={data.totalPages} totalItems={data.totalItems} size={data.size}
+                      onChange={goToPage} />
+        </>
       )}
 
-      {unscored.length > 0 && (
+      {data && data.unscoredCount > 0 && (
         <section className="unscored">
           <button className="link" onClick={() => setShowUnscored(!showUnscored)}>
-            {showUnscored ? '▾' : '▸'} {unscored.length} sociétés non notées (moins de 60 % des indicateurs calculables, ou comptes de plus de 28 mois)
+            {showUnscored ? '▾' : '▸'} {data.unscoredCount} sociétés non notées (moins de 60 % des indicateurs calculables, ou comptes de plus de 28 mois)
           </button>
-          {showUnscored && (
-            <ul className="columns">
-              {unscored.map(r => (
-                <li key={r.isin}><Link to={`/societe/${r.isin}?profil=${profile}`}>{r.name}</Link></li>
-              ))}
-            </ul>
+          {showUnscored && unscored.data && (
+            <>
+              <ul className="columns">
+                {unscored.data.items.map(r => (
+                  <li key={r.isin}><Link to={`/societe/${r.isin}?profil=${profile}`}>{r.name}</Link></li>
+                ))}
+              </ul>
+              <Pagination page={unscored.data.page} totalPages={unscored.data.totalPages}
+                          totalItems={unscored.data.totalItems} size={unscored.data.size} onChange={setUnscoredPage} />
+            </>
           )}
         </section>
       )}

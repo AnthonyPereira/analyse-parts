@@ -28,7 +28,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
-@SpringBootTest(properties = {"analyse-parts.ingestion.auto-lei=false", "analyse-parts.amf.enabled=false"})
+// serve-stale=false : le test lit tout de suite les données qu'il vient d'écrire
+@SpringBootTest(properties = {"analyse-parts.ingestion.auto-lei=false", "analyse-parts.amf.enabled=false",
+        "analyse-parts.scoring.serve-stale=false"})
 @Import(TestcontainersConfiguration.class)
 class ScoringServiceIntegrationTest {
 

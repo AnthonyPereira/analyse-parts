@@ -6,6 +6,8 @@ import { ChartCard, Legend } from '../charts/common'
 import { SERIES } from '../charts/theme'
 import { HowToRead, Term } from '../components/Term'
 import { FreshnessBadge, PointsBar, ScoreBadge } from '../components/Badges'
+import { Pagination } from '../components/Pagination'
+import { useDebounced } from '../useDebounced'
 
 type Weights = Record<string, number>
 
@@ -20,16 +22,6 @@ const decode = (s: string | null): Weights | null => {
     if (k && n > 0) w[k] = Math.min(n, 100)
   }
   return Object.keys(w).length ? w : null
-}
-
-/** Attend que la valeur arrête de changer (ici pendant 400 ms) avant de la renvoyer. */
-function useDebounced<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(timer) // une nouvelle valeur annule l'attente précédente
-  }, [value, delay])
-  return debounced
 }
 
 /**
@@ -47,7 +39,12 @@ export function AdvancedPage() {
   const quality = profiles?.find(p => p.id === 'QUALITY')?.weights
   const current: Weights = weights ?? quality ?? {}
   const debounced = useDebounced(current, 400)
-  const { data: ranking, isFetching, error } = useCustomRanking(debounced)
+  // La page est liée aux poids : de nouveaux poids ramènent en tête du classement (sans effet ni rendu en plus)
+  const weightsKey = encode(debounced)
+  const [paging, setPaging] = useState({ weightsKey, page: 0 })
+  const page = paging.weightsKey === weightsKey ? paging.page : 0
+  const setPage = (p: number) => setPaging({ weightsKey, page: p })
+  const { data: ranking, isFetching, error } = useCustomRanking(debounced, page)
 
   useEffect(() => {
     if (weights) setParams({ poids: encode(weights) }, { replace: true })
@@ -132,20 +129,24 @@ export function AdvancedPage() {
           </div>
         </section>
 
-        <ChartCard title="Classement" subtitle={isFetching ? 'Calcul…' : `${ranking?.filter(r => r.score !== null).length ?? 0} sociétés notées`}>
+        <ChartCard title="Classement" subtitle={isFetching ? 'Calcul…' : `${ranking?.scoredCount ?? 0} sociétés notées`}>
           {error && <p className="error">Calcul impossible : {error.message}</p>}
           {total === 0 && <p className="muted">Donnez du poids à au moins un indicateur.</p>}
           <table className="ranking">
             <tbody>
-              {ranking?.filter(r => r.score !== null).slice(0, 40).map((r, i) => (
+              {ranking?.items.map((r, i) => (
                 <tr key={r.isin}>
-                  <td className="num muted">{i + 1}</td>
+                  <td className="num muted">{ranking.page * ranking.size + i + 1}</td>
                   <td><Link to={`/societe/${r.isin}`}>{r.name}</Link> <FreshnessBadge freshness={r.freshness === 'UP_TO_DATE' ? null : r.freshness} /></td>
                   <td className="score-cell"><ScoreBadge score={r.score} /><PointsBar points={r.score ?? 0} /></td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {ranking && (
+            <Pagination page={ranking.page} totalPages={ranking.totalPages} totalItems={ranking.totalItems}
+                        size={ranking.size} onChange={setPage} />
+          )}
         </ChartCard>
       </div>
     </>
