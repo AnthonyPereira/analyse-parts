@@ -28,7 +28,7 @@ services:
         condition: service_healthy
 
   db:
-    # Même version que Neon, d'où vient la base copiée (pg_dump 18)
+    # PostgreSQL 18 : même version que la base copiée à la mise en place (pg_dump 18)
     image: postgres:18-alpine
     restart: unless-stopped
     networks: [interne]
