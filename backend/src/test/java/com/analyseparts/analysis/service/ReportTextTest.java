@@ -24,6 +24,15 @@ class ReportTextTest {
     }
 
     @Test
+    void deeplyNestedSpansAndManyEntitiesAreRead() throws Exception {
+        // au-delà des limites par défaut du JDK : 100 balises imbriquées, 100 000 caractères d'entités
+        String deep = "<span>".repeat(150) + sentence(1) + "</span>".repeat(150);
+        String entities = "<span style=\"font-family:&apos;Arial&apos;\"></span>".repeat(20_000);
+        var result = passages("<p>" + deep + "</p>" + entities + "<p>" + sentence(2) + "</p>");
+        assertThat(String.join(" ", result)).contains("phrase numéro 1").contains("phrase numéro 2");
+    }
+
+    @Test
     void wordsSplitAcrossSpansAreGluedBackAndHiddenPartsSkipped() throws Exception {
         var result = passages("<p>Développement <span>Dur</span><span>abl</span><span>e</span> : "
                 + sentence(1).repeat(2) + "</p>");

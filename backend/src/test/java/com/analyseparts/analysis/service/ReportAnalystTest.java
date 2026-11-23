@@ -164,6 +164,17 @@ class ReportAnalystTest {
         assertThat(ReportAnalyst.check(outOfRange, PASSAGES).retryable()).isFalse(); // extrait inconnu : rien à relire
     }
 
+    /** Une citation trop courte trouvée ailleurs que dans l'extrait annoncé (qui n'existe pas) : l'extrait trouvé est relu. */
+    @Test
+    void aHeadingQuoteWithAnUnknownExtractIsRetriedOnTheExtractWhereItWasFound() {
+        var heading = new ReportAnalyst.AnswerPoint("Devises", "Une baisse du dollar réduirait les ventes aux États-Unis.", 23,
+                "Le Groupe est exposé aux fluctuations");
+        assertThat(ReportAnalyst.check(heading, PASSAGES).retryable()).isTrue();
+        var retried = ReportAnalyst.pointToRetry(heading, PASSAGES);
+        assertThat(PASSAGES.get(retried.extrait() - 1)).contains("Le Groupe est exposé aux fluctuations");
+        assertThat(ReportAnalyst.buildRetryPrompt(PASSAGES, List.of(retried))).contains("Extrait : Le Groupe est exposé");
+    }
+
     /** Le modèle peut fondre deux points qu'il dit en double, seulement s'ils sont déjà un peu proches. */
     @Test
     void theModelMergesDuplicatesOnlyWhenTheyAreRelated() {

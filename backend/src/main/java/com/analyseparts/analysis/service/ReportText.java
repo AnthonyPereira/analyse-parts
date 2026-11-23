@@ -90,6 +90,12 @@ public final class ReportText {
         factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
         factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
         factory.setProperty(XMLInputFactory.IS_COALESCING, true);
+        // Les rapports convertis de PDF dépassent les limites par défaut du JDK : plus de 100 balises
+        // imbriquées (Burberry, UNIQA), plus de 100 000 caractères d'entités (&apos; dans les styles de
+        // CrediaBank). Sans DTD, aucune entité ne peut être déclarée : lever ces limites est sans risque.
+        factory.setProperty("jdk.xml.maxElementDepth", 0);
+        factory.setProperty("jdk.xml.maxGeneralEntitySizeLimit", 0);
+        factory.setProperty("jdk.xml.totalEntitySizeLimit", 0);
         List<Block> blocks = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         int skipped = 0;

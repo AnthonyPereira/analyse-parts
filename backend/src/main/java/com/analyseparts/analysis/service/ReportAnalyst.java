@@ -302,7 +302,7 @@ public class ReportAnalyst {
                 for (AnswerPoint p : points) {
                     Outcome outcome = check(p, passages);
                     if (outcome.retryable()) {
-                        toRetry.add(p);
+                        toRetry.add(pointToRetry(p, passages));
                     } else if (outcome.point() == null) {
                         rejected++;
                         log.info("Point écarté ({}), {} : {}", topic, outcome.weakness(), p.citation());
@@ -356,6 +356,20 @@ public class ReportAnalyst {
         }
         return new Outcome(new Point(p.titre().strip(), p.explication() == null ? "" : p.explication().strip(),
                 match.get().text(), passages.get(match.get().passage())), null, false);
+    }
+
+    /**
+     * Le point à redemander, avec le numéro de l'extrait où sa citation a été trouvée : le modèle se
+     * trompe parfois de numéro, jusqu'à en donner un qui n'existe pas (Gamma Communications : extrait
+     * 23 sur 14, qui faisait échouer toute la lecture).
+     */
+    static AnswerPoint pointToRetry(AnswerPoint p, List<String> passages) {
+        int preferred = p.extrait() == null ? -1 : p.extrait() - 1;
+        if (preferred >= 0 && preferred < passages.size()) {
+            return p;
+        }
+        int found = Quotes.find(p.citation(), passages, -1).map(Quotes.Match::passage).orElse(0);
+        return new AnswerPoint(p.titre(), p.explication(), found + 1, p.citation());
     }
 
     /** Ajoute un point, sauf si sa citation est déjà prise, dans ce thème ou dans un thème précédent. */

@@ -188,7 +188,8 @@ public class AnalysisService {
         } catch (Exception e) {
             String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             errors.put(id, message);
-            log.warn("Lecture du rapport de {} en échec : {}", company.getName(), message);
+            // pile complète : une erreur sans message (ArrayIndexOutOfBoundsException) ne dit pas où chercher
+            log.warn("Lecture du rapport de {} en échec : {}", company.getName(), message, e);
         } finally {
             pending.remove(id);
         }
