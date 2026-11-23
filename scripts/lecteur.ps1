@@ -1,25 +1,23 @@
-﻿# Lecteur local (ADR 0019) : lit avec Ollama les rapports pas encore lus et enregistre les lectures
-# directement dans la base en ligne (Neon). Ctrl+C pour arrêter : les lectures en attente sont
-# écrites avant la sortie.
+﻿# Lecteur local (ADR 0019, 0023) : lit avec Ollama les rapports pas encore lus et enregistre les
+# lectures dans la base LOCALE (docker compose de backend/, port 5433). Ctrl+C pour arrêter : les
+# lectures en attente sont écrites avant la sortie. Ensuite, scripts/publier-lectures.ps1 les copie
+# sur le serveur maison.
 #
 #   .\scripts\lecteur.ps1            construit l'application si besoin, puis lance le lecteur
 #   .\scripts\lecteur.ps1 -Build     reconstruit l'application avant de lancer
 #
-# Il faut : Ollama lancé (qwen3:14b et snowflake-arctic-embed2), et dans .env à la racine du dépôt
-# NEON_DIRECT_URL=postgresql://utilisateur:motdepasse@hote/base?sslmode=require (adresse directe,
-# sans « -pooler »). Déployer le code en ligne avant de lancer le lecteur : il ne migre pas la base.
+# Il faut : Ollama lancé (qwen3:14b et snowflake-arctic-embed2) et la base locale lancée, migrée
+# (le lecteur ne migre pas : lancer une fois l'application en développement après une mise à jour).
 param([switch]$Build)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 
-# Adresse de la base, lue dans .env
-$line = Get-Content (Join-Path $root '.env') | Where-Object { $_ -match '^NEON_DIRECT_URL=' } | Select-Object -First 1
-if (-not $line) { throw 'NEON_DIRECT_URL absent du fichier .env' }
-$url = $line.Substring('NEON_DIRECT_URL='.Length).Trim()
-if ($url -notmatch '^postgres(?:ql)?://([^:]+):([^@]+)@([^/]+)/([^?]+)') { throw "NEON_DIRECT_URL illisible" }
-$env:READER_DATABASE_USER = [uri]::UnescapeDataString($Matches[1])
-$env:READER_DATABASE_PASSWORD = [uri]::UnescapeDataString($Matches[2])
-$env:READER_DATABASE_URL = "jdbc:postgresql://$($Matches[3])/$($Matches[4])?sslmode=require"
+# Base locale de développement (backend/compose.yaml)
+$env:READER_DATABASE_URL = 'jdbc:postgresql://localhost:5433/analyseparts'
+$env:READER_DATABASE_USER = 'analyseparts'
+$env:READER_DATABASE_PASSWORD = 'analyseparts'
+# Une lecture écrite dès qu'elle est finie : la base locale ne dort pas, rien à ménager
+if (-not $env:READER_SAVE_BATCH) { $env:READER_SAVE_BATCH = '1' }
 $env:SPRING_PROFILES_ACTIVE = 'reader'
 
 # Java 27 : JAVA_HOME s'il est défini, sinon le JDK installé par IntelliJ
@@ -34,7 +32,7 @@ if ($Build -or -not (Test-Path $jar)) {
     finally { Pop-Location }
 }
 
-Write-Host "Lecteur local branché sur $($Matches[3])"
+Write-Host "Lecteur local branché sur $env:READER_DATABASE_URL"
 # Java écrit des avertissements sur sa sortie d'erreur : avec « Stop », PowerShell 5.1 les prendrait
 # pour des erreurs et couperait le lecteur.
 $ErrorActionPreference = 'Continue'

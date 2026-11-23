@@ -1,0 +1,49 @@
+# Copie des lectures du modèle de langage vers la base du serveur maison (ADR 0023).
+# Les lectures sont faites sur le PC (Ollama, base locale) ; scripts/publier-lectures.ps1 les
+# exporte (ISIN à la place de l'identifiant interne, qui peut différer d'une base à l'autre), les
+# dépose dans une release temporaire du dépôt, lance ce workflow, puis supprime la release.
+# Le job tourne sur le portable : il parle à la base par docker exec, sans mot de passe ni port ouvert.
+name: Lectures vers le serveur
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release qui porte lectures.csv.gz
+        required: true
+
+concurrency:
+  group: deploiement
+  cancel-in-progress: false
+
+jobs:
+  importer:
+    runs-on: [self-hosted, serveur-maison]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Télécharger les lectures
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          API="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          # la release ne porte qu'un fichier : l'adresse du premier asset suffit (ni jq ni python requis)
+          ASSET=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "$API/releases/tags/$TAG" \
+            | grep -o '"url": *"[^"]*/releases/assets/[0-9]*"' | head -1 | grep -o '[0-9]*"$' | tr -d '"')
+          test -n "$ASSET" || { echo "lectures.csv.gz absent de la release $TAG"; exit 1; }
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/octet-stream" \
+            "$API/releases/assets/$ASSET" -o "$RUNNER_TEMP/lectures.csv.gz"
+          gunzip -f "$RUNNER_TEMP/lectures.csv.gz"
+          wc -l "$RUNNER_TEMP/lectures.csv"
+      - name: Importer dans la base
+        run: |
+          DB=$(docker ps -q --filter label=com.docker.compose.project=analyse-parts --filter label=com.docker.compose.service=db)
+          test -n "$DB" || { echo "conteneur db d'analyse-parts introuvable"; exit 1; }
+          docker cp "$RUNNER_TEMP/lectures.csv" "$DB:/tmp/lectures.csv"
+          docker cp scripts/importer-lectures.sql "$DB:/tmp/importer-lectures.sql"
+          docker exec "$DB" psql -v ON_ERROR_STOP=1 -U app -d app -f /tmp/importer-lectures.sql
+          docker exec "$DB" rm -f /tmp/lectures.csv /tmp/importer-lectures.sql
+          rm -f "$RUNNER_TEMP/lectures.csv"

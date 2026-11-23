@@ -150,19 +150,20 @@ curl -X POST http://localhost:8080/api/admin/analysis/rank           # classer p
 Pour qu'un nouveau rapport ne déclenche pas de lecture automatique, mettez
 `ANALYSEPARTS_ANALYSIS_AUTO=false`.
 
-#### Lire les rapports de la démo en ligne (lecteur local, ADR 0019)
+#### Lire les rapports et les publier sur le serveur (ADR 0019, 0023)
 
-Le serveur en ligne collecte les rapports mais n'a pas de modèle de langage. Le lecteur local,
-lancé sur le PC qui a Ollama, se branche sur la base en ligne, lit les rapports pas encore lus et
-y enregistre les lectures (par paquets de 6, pour ménager le quota de la base gratuite) :
+Le serveur maison collecte les rapports mais n'a pas de modèle de langage. Le lecteur local, lancé
+sur le PC qui a Ollama, lit les rapports pas encore lus et enregistre les lectures dans la base
+locale ; un second script les copie ensuite dans la base du serveur :
 
 ```powershell
-# .env à la racine : NEON_DIRECT_URL=postgresql://utilisateur:motdepasse@hote/base?sslmode=require
-.\scripts\lecteur.ps1          # -Build pour reconstruire l'application avant ; Ctrl+C pour arrêter
+.\scripts\lecteur.ps1            # -Build pour reconstruire l'application avant ; Ctrl+C pour arrêter
+.\scripts\publier-lectures.ps1   # copie toutes les lectures locales sur le serveur (sans doublon)
 ```
 
-Déployez le code en ligne avant : le lecteur ne migre pas la base. Lancez-le quand la carte
-graphique est libre (un jeu en cours double la durée d'une lecture).
+La copie passe par une release temporaire du dépôt et le workflow « Lectures vers le serveur »,
+qui tourne sur le portable : la base du serveur n'a ni port ouvert ni mot de passe à connaître.
+Lancez le lecteur quand la carte graphique est libre (un jeu en cours double la durée d'une lecture).
 
 ## Architecture
 

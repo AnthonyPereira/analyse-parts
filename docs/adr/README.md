@@ -33,3 +33,4 @@ Règles :
 | [0020](0020-societes-de-toute-l-europe.md) | Toute l'Europe : 7 marchés Euronext, autres places par les émetteurs ESEF (GLEIF + Yahoo), secteur Yahoo traduit en ICB, base allégée (V17) | Acceptée |
 | [0021](0021-corrections-de-la-revue-du-11-novembre.md) | Corrections de la revue : filtre admin sur le chemin décodé, classement gardé en mémoire, secteurs Yahoo complétés, haut des barèmes étalé, entretien | Acceptée |
 | [0022](0022-hebergement-sur-le-serveur-maison.md) | Hébergement sur le serveur maison : image publiée par GitHub Actions, déployée par le runner du portable, PostgreSQL dans le même compose ; fin de Render, Neon et du cache AOT | Acceptée |
+| [0023](0023-lectures-copiees-vers-le-serveur-maison.md) | Lectures faites sur le PC dans la base locale, copiées vers le serveur maison par une release temporaire et un workflow sur son runner, import idempotent par ISIN | Acceptée |
